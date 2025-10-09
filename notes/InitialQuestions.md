@@ -12,10 +12,22 @@
 - Once analyzed a trace and results are produced, is there a repository or database to store results?
 - Is the GUI application expected to also display and present historical data?
 - Will the GUI application be published as a standalone application (Apple Notarized, outside of the app store)
+- Is the idea of using a macOS laptop tied to its unified memory architecture? (GPU using the same bus to access memory as the CPU within the same dye to facilitate accelerated matrix operations)
+- Following up on the previous question, is the idea using Apple's CoreML (MacBook Pro requirement) instead of using more open frameworks like Tensorflow, scikit-learn, Keras, etc?
+- In the paper several methods of analysis are described, but PFNs and CNNs offered the best results. Would be possible to have a deep dive on both implementations?
+
 
 ## From the paper
 
 - How does CCD sensors actually work? From the paper it seems the resulting data is returned in a 10 x 10 grid yet the pictures in the paper make it seem like the elements in the grid are not simple single-color pixels
+- The sample images in the paper show a 6x6 grid, is this because the images are cropped? 
+~- What is the reason behIind the difficulty in detecting low-energy beta particle emissions?~ A: Weak penetrating power
+- What is a thick fully-depleted CCD? More specifically, what does fully-depleted mean?
+- Is the CCD detector a portable device? Does it collect data and then we export it out? Or, is it possible to stream data out of the detector in real-time? What is the physical interface (USB, Bluetooth)?
+- What is the "field environment" where the data is coming from?
+- Where can we download sample data to identify particles (ie: muon, neutrino, electron, positron, etc)?
+- 
+~- Can Beta particle emissions disrupt electronics? Specifically semiconductors~
 
 ## Data Analysis
 
