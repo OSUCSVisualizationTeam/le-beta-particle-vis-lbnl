@@ -15,6 +15,7 @@
 - Is the idea of using a macOS laptop tied to its unified memory architecture? (GPU using the same bus to access memory as the CPU within the same dye to facilitate accelerated matrix operations)
 - Following up on the previous question, is the idea using Apple's CoreML (MacBook Pro requirement) instead of using more open frameworks like Tensorflow, scikit-learn, Keras, etc?
 - In the paper several methods of analysis are described, but PFNs and CNNs offered the best results. Would be possible to have a deep dive on both implementations?
+- Is CERN's ROOT a standard for visualization used by applications at LBNL?
 
 
 ## From the paper
