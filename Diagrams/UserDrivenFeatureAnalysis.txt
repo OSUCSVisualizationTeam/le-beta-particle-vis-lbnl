@@ -1,0 +1,35 @@
+title User-Driven Cluster Discernment
+
+actor User
+participant GUI
+database Event Index
+participant Pre-processor
+participant CNN
+
+User->GUI: Box-select FIPS\nimage portion
+activate User
+activate GUI
+alt Selected area has indexed events
+GUI->Event Index: Fetch indexed\nevents
+activate Event Index
+Event Index->GUI: List of events
+deactivate Event Index
+GUI->GUI: Fill stats data,\nlabel particles in\nresulting image
+else Selected area is not indexed
+GUI->Pre-processor: Send FIPS, for clustering\nand segmenting events
+activate Pre-processor
+Pre-processor->GUI: Tell GUI to show\nindefinite progress\nindicator
+Pre-processor->CNN: Send collected\nfeatures for\nclassification
+activate CNN
+CNN->Pre-processor: Classification\nresults
+Pre-processor->Event Index: Store results,\nassociate with\nFIPS source
+activate Event Index
+Event Index->Event Index: Store data
+deactivate Event Index
+Pre-processor->GUI: Send events data
+deactivate Pre-processor
+GUI->GUI: Fill in stats from\nevent data, label\nevents in UI
+deactivate CNN
+end
+GUI->User: Display visualization
+deactivate GUI
