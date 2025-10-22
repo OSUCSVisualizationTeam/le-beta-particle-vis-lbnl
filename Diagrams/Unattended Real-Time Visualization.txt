@@ -1,0 +1,35 @@
+title Unattended Real-Time CCD Data Visualization
+
+participant CCD
+participant DAQ
+participant Google Drive
+participant DataLoader
+participant Pre-processor
+
+participant CNN
+participant GUI
+
+CCD->DAQ: Collect data
+activate DAQ
+DAQ->Google Drive: Store FIPS file\nto shared folder
+deactivate DAQ
+DataLoader->Google Drive: Read FIPS file\nafter polling\ndata-write\nevent
+activate DataLoader
+DataLoader->Pre-processor: Parse FIPS,\nClusterize\nenergy events,\nSegment clusters\nout of data.
+deactivate DataLoader
+activate Pre-processor
+Pre-processor->GUI: Render last FIPS data\nBox-frame identified\nevent clusters
+deactivate Pre-processor
+activate GUI
+GUI->GUI: Render FIPS\nview
+deactivate GUI
+activate Pre-processor
+Pre-processor->CNN: Send clusters for classication.
+activate CNN
+CNN->Pre-processor: Send results back, using cluster id
+deactivate CNN
+Pre-processor->GUI: Send classification\nresult event
+activate GUI
+deactivate Pre-processor
+GUI->GUI: Update display\nwith event stats.\nLog data in history\ndatabase
+
