@@ -1,21 +1,18 @@
 from astropy.io import fits
 from sys import argv
-import numpy as py
+import numpy as np
+import matplotlib.pyplot as plt
+
+kevFactor = 1.02857e-5
 
 
-def low(data: py.matrix):
-    print(f" Dimensions: {py.ndim(data)}")
-    print(f" Shape: {py.shape(data)}")
-    row, col = py.shape(data)
-    low = data[0][0]
-    max = low
-    for i in range(row):
-        for j in range(col):
-            if data[i][j] < low:
-                low = data[i][j]
-            if data[i][j] > max:
-                max = data[i][j]
-    print(f" Lowest value: {low}")
+def info(data: np.matrix):
+    print(f" Dimensions: {np.ndim(data)}")
+    row, col = np.shape(data)
+    print(f" Shape: {row}x{col}")
+    max = data.max()
+    min = data.min()
+    print(f" Lowest value: {min}")
     print(f" Max value: {max}")
 
 
@@ -27,8 +24,15 @@ if __name__ == "__main__":
         i = 0
         for hdu in hduList:
             print(f"hdu[{i}]: {type(hdu)}")
-            # for header in sorted(hdu.header):
-            #    print(f" {header}: {hdu.header[header]}")
 
-            low(hdu.data)
+            info(hdu.data)
+
+            # Convert to keV
+            kevData = kevFactor * hdu.data
+
+            plt.matshow(kevData, cmap="binary_r")
+            plt.title(f"HDU{i}")
+            plt.colorbar()
+
+            plt.show()
             i += 1
