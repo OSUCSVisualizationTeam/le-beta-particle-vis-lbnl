@@ -1,1 +1,2 @@
-from .CCDCapture import CCDCapture
+from .CCDCapture import CCDCaptureModel
+from .CCDCapture import CCDCaptureViewModel
