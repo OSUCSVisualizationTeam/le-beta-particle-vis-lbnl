@@ -1,6 +1,5 @@
-from ccdioutils.CCDCapture import CCDCapture
+from ccdioutils import CCDCapture
 import matplotlib.pyplot as plt
-import numpy as np
 from sys import argv, stderr
 from pathlib import Path
 
@@ -15,8 +14,6 @@ if __name__ == "__main__":
     for dump in dumps:
         data = kevFactor * dump.rawData()
         plt.matshow(data, cmap="Greys_r")
-        hist = np.histogram(data)
-        print(hist)
         print(f"HDU: {dump.info()}")
         plt.title(f"HDU: {dump.info().captureDate()}")
     plt.show()
