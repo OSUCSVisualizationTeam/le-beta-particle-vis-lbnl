@@ -116,4 +116,5 @@ class CCDCapture:
         return self.__info.__str__()
 
     def info(self) -> "Info":
+        """Fetch capture information"""
         return self.__info
