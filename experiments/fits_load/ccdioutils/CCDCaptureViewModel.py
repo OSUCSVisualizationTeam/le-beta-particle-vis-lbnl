@@ -3,9 +3,43 @@ from . import CCDCaptureModel
 from .VizFilter import UniformVizFilter
 from typing import List
 from PySide6 import QtGui
+from abc import ABC, abstractmethod
+import matplotlib.pyplot as plt
+from matplotlib import colormaps
+from io import BytesIO
 
 
-class CCDCaptureViewModel:
+class BaseCCDCaptureViewModel(ABC):
+    """View Model for CCDCaptureModel models"""
+
+    @abstractmethod
+    def crop(self, cropBox: BoundingBox):
+        raise NotImplementedError
+
+    @abstractmethod
+    def reset(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def applyFilter(self, filter: UniformVizFilter):
+        raise NotImplementedError
+
+    @abstractmethod
+    def extractClusters(self) -> List[BoundingBox]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def getRawPixmap(self) -> QtGui.QPixmap:
+        raise NotImplementedError
+
+    @abstractmethod
+    def getMatplotPixmap(
+        self, colormap: plt.Colormap = colormaps["Greys_r"], dpi: int = 100
+    ):
+        raise NotImplementedError
+
+
+class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     """View Model for CCDCaptureModel models"""
 
     def __init__(
@@ -34,7 +68,7 @@ class CCDCaptureViewModel:
         result = list()
         return result
 
-    def getDisplayPixmap(self) -> QtGui.QPixmap:
+    def getRawPixmap(self) -> QtGui.QPixmap:
         """Convert visualizable data into a QPixmap"""
         image_data = self.__ccdVizCapture.rawData()
         height, width = image_data.shape
@@ -46,3 +80,23 @@ class CCDCaptureViewModel:
             QtGui.QImage.Format_Grayscale8,
         )
         return QtGui.QPixmap.fromImage(q_image)
+
+    def getMatplotPixmap(
+        self, colormap: plt.Colormap = colormaps["Greys_r"], dpi: int = 100
+    ) -> QtGui.QPixmap:
+        """Convert visualizable data into a QPixmap using matplotlib for rendering"""
+        image_data = self.__ccdVizCapture.rawData()
+
+        height, width = image_data.shape
+        fig, ax = plt.subplots(figsize=(width / dpi, height / dpi), dpi=dpi)
+
+        ax.matshow(image_data, cmap=colormap)
+
+        buf = BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight", pad_inches="layout")
+        buf.seek(0)
+        plt.close(fig)
+
+        pixmap = QtGui.QPixmap()
+        pixmap.loadFromData(buf.getvalue())
+        return pixmap
