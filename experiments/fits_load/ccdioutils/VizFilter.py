@@ -45,3 +45,27 @@ class UniformFilter:
 
         def filter(self, matrix: np.matrix) -> np.matrix:
             return self.__value + matrix
+
+    class SubstituteInRange(UniformVizFilter):
+        """Substitutes values in a range by a given value"""
+
+        def __init__(self, start: float, end: float, value: float):
+            self.__value = value
+            self.__start = start
+            self.__end = end
+
+        def filter(self, matrix: np.matrix) -> np.matrix:
+            matrix[(matrix >= self.__start) and (matrix <= self.__end)] = self.__value
+            return matrix
+
+    class SubstituteOutOfRange(UniformVizFilter):
+        """Substitutes values out of a range by a given value"""
+
+        def __init__(self, start: float, end: float, value: float):
+            self.__value = value
+            self.__start = start
+            self.__end = end
+
+        def filter(self, matrix: np.matrix) -> np.matrix:
+            matrix[(matrix < self.__start) or (matrix > self.__end)] = self.__value
+            return matrix
