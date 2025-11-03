@@ -1,0 +1,23 @@
+QLabel {
+    font-size: 20px;
+    color: black;
+    border: 5px solid black;
+    border-radius: 5px;
+}
+
+QListWidget {
+    font-size: 20px;
+    background-color: white;
+    color: black;
+    border: 5px solid black;
+    border-radius: 5px;
+    padding: 5px;
+}
+
+QListWidget::item:selected {
+    background-color: lightblue
+}
+
+QMainWindow {
+    background-color: white;
+}
