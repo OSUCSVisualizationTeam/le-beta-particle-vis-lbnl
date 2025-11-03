@@ -1,7 +1,8 @@
 from .BoundingBox import BoundingBox
 from . import CCDCaptureModel
-from . import VizFilter
+from .VizFilter import UniformVizFilter
 from typing import List
+from PySide6 import QtGui
 
 
 class CCDCaptureViewModel:
@@ -24,11 +25,24 @@ class CCDCaptureViewModel:
         """Restores displayed CCD capture visualization"""
         self.__ccdVizCapture = self.__ccdCapture
 
-    def applyFilter(self, filter: VizFilter):
+    def applyFilter(self, filter: UniformVizFilter):
         """Apply a filter to the current visualization"""
-        self.__ccdVizCapture = filter.filter(self.__ccdVizCapture)
+        self.__ccdVizCapture.applyFilter(filter)
 
     def extractClusters(self) -> List[BoundingBox]:
         """Extract a list of relevant bounding boxes containing relevant features"""
         result = list()
         return result
+
+    def getDisplayPixmap(self) -> QtGui.QPixmap:
+        """Convert visualizable data into a QPixmap"""
+        image_data = self.__ccdVizCapture.rawData()
+        height, width = image_data.shape
+        q_image = QtGui.QImage(
+            image_data.data,
+            width,
+            height,
+            image_data.strides[0],
+            QtGui.QImage.Format_Grayscale8,
+        )
+        return QtGui.QPixmap.fromImage(q_image)
