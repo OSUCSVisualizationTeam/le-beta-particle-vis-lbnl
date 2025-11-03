@@ -1,4 +1,4 @@
-from ccdioutils import CCDCapture
+from ccdioutils import CCDCaptureModel
 import matplotlib.pyplot as plt
 from sys import argv, stderr
 from pathlib import Path
@@ -10,7 +10,7 @@ if __name__ == "__main__":
     if not input.exists():
         print(f"File {argv[1]} not found or not a file", file=stderr)
         exit(1)
-    dumps = CCDCapture.load(input)
+    dumps = CCDCaptureModel.load(input)
     for dump in dumps:
         data = kevFactor * dump.rawData()
         plt.matshow(data, cmap="Greys_r")
