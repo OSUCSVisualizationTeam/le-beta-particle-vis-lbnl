@@ -33,9 +33,15 @@ class BaseCCDCaptureViewModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def getMatplotPixmap(
-        self, colormap: plt.Colormap = colormaps["Greys_r"], dpi: int = 100
-    ):
+    def getMatplotPixmap(self, dpi: int = 100) -> QtGui.QPixmap:
+        raise NotImplementedError
+
+    @abstractmethod
+    def setCurrentColormap(self, colormap_name: str):
+        raise NotImplementedError
+
+    @abstractmethod
+    def getCurrentColormap(self) -> str:
         raise NotImplementedError
 
 
@@ -46,10 +52,13 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         self,
         ccdCapture: CCDCaptureModel,
         cropBox: BoundingBox = BoundingBox.unbounded(),
+        defaultColorMap: str = "Greys_r",
     ):
         self.__cropBox = cropBox
         self.__ccdCapture = ccdCapture
         self.__ccdVizCapture = ccdCapture
+        self.__defaultColorMap = defaultColorMap
+        self.__currentColorMap = defaultColorMap
 
     def crop(self, cropBox: BoundingBox):
         """Crops the current visualization by the specified BoundingBox"""
@@ -58,6 +67,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     def reset(self):
         """Restores displayed CCD capture visualization"""
         self.__ccdVizCapture = self.__ccdCapture
+        self.__currentColorMap = self.__defaultColorMap
 
     def applyFilter(self, filter: UniformVizFilter):
         """Apply a filter to the current visualization"""
@@ -81,16 +91,14 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         )
         return QtGui.QPixmap.fromImage(q_image)
 
-    def getMatplotPixmap(
-        self, colormap: plt.Colormap = colormaps["Greys_r"], dpi: int = 100
-    ) -> QtGui.QPixmap:
+    def getMatplotPixmap(self, dpi: int = 100) -> QtGui.QPixmap:
         """Convert visualizable data into a QPixmap using matplotlib for rendering"""
         image_data = self.__ccdVizCapture.rawData()
 
         height, width = image_data.shape
         fig, ax = plt.subplots(figsize=(width / dpi, height / dpi), dpi=dpi)
 
-        ax.matshow(image_data, cmap=colormap)
+        ax.matshow(image_data, cmap=colormaps[self.getCurrentColormap()])
 
         buf = BytesIO()
         plt.savefig(buf, format="png", bbox_inches="tight", pad_inches="layout")
@@ -100,3 +108,9 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         pixmap = QtGui.QPixmap()
         pixmap.loadFromData(buf.getvalue())
         return pixmap
+
+    def setCurrentColormap(self, colormap_name: str):
+        self.__currentColorMap = colormap_name
+
+    def getCurrentColormap(self) -> str:
+        return self.__currentColorMap
