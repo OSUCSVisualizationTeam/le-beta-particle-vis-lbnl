@@ -1,6 +1,21 @@
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtCore, QtGui
 from .CCDCaptureViewModel import BaseCCDCaptureViewModel
 import matplotlib.pyplot as plt
+
+
+class _VizWidget(QtWidgets.QLabel):
+    """A visualization widget aimed at displaying CCD event data on its pixmap"""
+
+    mouseMoved = QtCore.Signal(int, int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+        self.setMouseTracking(True)  # Enable mouse tracking for this widget
+
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent):
+        self.mouseMoved.emit(event.x(), event.y())
+        super().mouseMoveEvent(event)  # Call base class implementation
 
 
 class CCDCaptureWidget(QtWidgets.QWidget):
@@ -14,17 +29,29 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._toolbar = QtWidgets.QToolBar()
         self._vbox.addWidget(self._toolbar)
 
-        self._addColormapSelectionWidget()
-        self._addResetButton()
+        self._addToolbarItems()
 
-        self._visualizationWidget = QtWidgets.QLabel()
-        self._visualizationWidget.setAlignment(QtCore.Qt.AlignCenter)
-        self._vbox.addWidget(self._visualizationWidget)
+        self._vizWidget = _VizWidget()  # Use custom label
+        self._vizWidget.setAlignment(QtCore.Qt.AlignCenter)
+        self._vbox.addWidget(self._vizWidget)
 
         self.setLayout(self._vbox)
         self._updateVisualization()
 
+        self._vizWidget.mouseMoved.connect(self._onVisualizationWidgetMouseMove)
+
     # Widget building
+
+    def _addToolbarItems(self):
+        self._addColormapSelectionWidget()
+        self._addResetButton()
+        spacer = QtWidgets.QWidget()
+        spacer.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
+        )
+        self._toolbar.addWidget(spacer)
+
+        self._addCurrentValueLabel()
 
     def _addColormapSelectionWidget(self):
         colormapContainer = QtWidgets.QWidget()
@@ -52,6 +79,12 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         resetButton.clicked.connect(self._resetViewModel)
         self._toolbar.addWidget(resetButton)
 
+    def _addCurrentValueLabel(self):
+        self._valueLabel = QtWidgets.QLabel()
+        self._valueLabel.setText("Value: NaN")
+        self._valueLabel.setMinimumWidth(128)
+        self._toolbar.addWidget(self._valueLabel)
+
     # Callbacks
 
     def _onColormapChanged(self, index: int):
@@ -64,9 +97,14 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         """Obtain data visualizable data from the view model"""
         display_data = self.__viewModel.getMatplotPixmap()
         if display_data:
-            self._visualizationWidget.setPixmap(display_data)
+            self._vizWidget.setPixmap(display_data)
 
     def _resetViewModel(self):
         """Resets view model state"""
         self.__viewModel.reset()
         self._updateVisualization()
+
+    def _onVisualizationWidgetMouseMove(self, x: int, y: int):
+        coord = f"({y},{x})"
+        value = self.__viewModel.valueAt(y, x)
+        self._valueLabel.setText(f"Value: {coord}: {value:.2e} keV")

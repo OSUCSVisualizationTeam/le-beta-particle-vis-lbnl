@@ -44,6 +44,10 @@ class BaseCCDCaptureViewModel(ABC):
     def getCurrentColormap(self) -> str:
         raise NotImplementedError
 
+    @abstractmethod
+    def valueAt(self, row: int, col: int) -> float:
+        raise NotImplementedError
+
 
 class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     """View Model for CCDCaptureModel models"""
@@ -99,9 +103,11 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         fig, ax = plt.subplots(figsize=(width / dpi, height / dpi), dpi=dpi)
 
         ax.matshow(image_data, cmap=colormaps[self.getCurrentColormap()])
+        ax.axis("off")
+        fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
         buf = BytesIO()
-        plt.savefig(buf, format="png", bbox_inches="tight", pad_inches="layout")
+        plt.savefig(buf, format="png")
         buf.seek(0)
         plt.close(fig)
 
@@ -110,7 +116,13 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         return pixmap
 
     def setCurrentColormap(self, colormap_name: str):
+        """Set colormap state"""
         self.__currentColorMap = colormap_name
 
     def getCurrentColormap(self) -> str:
+        """Get colormap state"""
         return self.__currentColorMap
+
+    def valueAt(self, row: int, col: int) -> float:
+        """Get value at row,col in the CCD capture matrix"""
+        return self.__ccdVizCapture.rawData()[row][col]
