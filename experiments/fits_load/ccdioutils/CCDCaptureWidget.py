@@ -1,11 +1,11 @@
 from PySide6 import QtWidgets, QtCore
-from . import CCDCaptureViewModel
+from .CCDCaptureViewModel import BaseCCDCaptureViewModel
 
 
 class CCDCaptureWidget(QtWidgets.QWidget):
     """A PyQT widget aimed at displaying CCD captured data"""
 
-    def __init__(self, viewModel: CCDCaptureViewModel, parent=None):
+    def __init__(self, viewModel: BaseCCDCaptureViewModel, parent=None):
         super().__init__(parent)
         self.__viewModel = viewModel
         self._vbox = QtWidgets.QVBoxLayout(self)
@@ -22,6 +22,6 @@ class CCDCaptureWidget(QtWidgets.QWidget):
 
     def _updateVisualization(self):
         """Obtain data visualizable data from the view model"""
-        display_data = self.__viewModel.getDisplayPixmap()
+        display_data = self.__viewModel.getMatplotPixmap()
         if display_data:
             self._visualizationWidget.setPixmap(display_data)
