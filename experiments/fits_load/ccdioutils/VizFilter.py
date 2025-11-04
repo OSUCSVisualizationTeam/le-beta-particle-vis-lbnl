@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 from abc import ABC, abstractmethod
 
 
@@ -54,7 +55,8 @@ class UniformFilter:
             self.__start = start
             self.__end = end
 
-        def filter(self, matrix: np.matrix) -> np.matrix:
+        def filter(self, omatrix: np.matrix) -> np.matrix:
+            matrix = deepcopy(omatrix)
             matrix[(matrix >= self.__start) & (matrix <= self.__end)] = self.__value
             return matrix
 
@@ -66,6 +68,7 @@ class UniformFilter:
             self.__start = start
             self.__end = end
 
-        def filter(self, matrix: np.matrix) -> np.matrix:
+        def filter(self, omatrix: np.matrix) -> np.matrix:
+            matrix = deepcopy(omatrix)
             matrix[(matrix < self.__start) | (matrix > self.__end)] = self.__value
             return matrix
