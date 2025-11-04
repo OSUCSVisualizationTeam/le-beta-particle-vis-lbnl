@@ -1,6 +1,5 @@
 from astropy.io import fits
 from astropy.time import Time, TimeDelta
-from copy import deepcopy
 from pathlib import Path
 from typing import List, Optional
 from .VizFilter import UniformVizFilter
@@ -122,4 +121,5 @@ class CCDCaptureModel:
         return self.__info
 
     def applyFilter(self, filter: UniformVizFilter):
-        filter.filter(self.__data)
+        result = filter.filter(self.__data)
+        self.__data = result
