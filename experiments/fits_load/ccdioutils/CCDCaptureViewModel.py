@@ -1,7 +1,8 @@
+from copy import deepcopy
 from .BoundingBox import BoundingBox
 from . import CCDCaptureModel
-from .VizFilter import UniformVizFilter
-from typing import List
+from .VizFilter import UniformVizFilter, UniformFilter
+from typing import List, Tuple
 from PySide6 import QtGui
 from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
@@ -60,9 +61,10 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     ):
         self.__cropBox = cropBox
         self.__ccdCapture = ccdCapture
-        self.__ccdVizCapture = ccdCapture
+        self.__ccdVizCapture = deepcopy(ccdCapture)
         self.__defaultColorMap = defaultColorMap
         self.__currentColorMap = defaultColorMap
+        self.__vizRange = (round(ccdCapture.info().min), round(ccdCapture.info().max))
 
     def crop(self, cropBox: BoundingBox):
         """Crops the current visualization by the specified BoundingBox"""
@@ -70,7 +72,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
 
     def reset(self):
         """Restores displayed CCD capture visualization"""
-        self.__ccdVizCapture = self.__ccdCapture
+        self.__ccdVizCapture = deepcopy(self.__ccdCapture)
         self.__currentColorMap = self.__defaultColorMap
 
     def applyFilter(self, filter: UniformVizFilter):
@@ -130,3 +132,18 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     def captureInfo(self) -> CCDCaptureModel.Info:
         """Returns the currently visualized capture information"""
         return self.__ccdVizCapture.info()
+
+    def setVisualizationRange(self, value: Tuple[int, int]):
+        """Records the visualization range we are interested in visualizing"""
+        self.__vizRange = value
+
+    def getVisualizationRange(self) -> Tuple[int, int]:
+        """Return the current visualization range"""
+        return self.__vizRange
+
+    def restrictVisualizationToRange(self, blankValue: float = 0):
+        """Updates the visualization data to only reflect values in the visualization range"""
+        filter = UniformFilter.SubstituteOutOfRange(
+            self.__vizRange[0], self.__vizRange[1], 0
+        )
+        self.applyFilter(filter)

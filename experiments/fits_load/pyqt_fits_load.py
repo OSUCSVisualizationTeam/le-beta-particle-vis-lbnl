@@ -23,6 +23,7 @@ if __name__ == "__main__":
 
         widget = CCDCaptureWidget(viewModel)
         widget.setWindowTitle(f"HDU[{i}]: {dump.info().captureDate()}")
+        widget.setMaximumWidth(1980)
         widget.show()
         widgets.append(widget)  # Keep a reference to prevent garbage collection
 
