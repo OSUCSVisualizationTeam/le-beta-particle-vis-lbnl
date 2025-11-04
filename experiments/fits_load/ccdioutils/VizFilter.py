@@ -1,5 +1,4 @@
 import numpy as np
-from copy import deepcopy
 from abc import ABC, abstractmethod
 
 
@@ -35,7 +34,8 @@ class UniformFilter:
         def __init__(self, factor: float):
             self.__factor = factor
 
-        def filter(self, matrix: np.matrix) -> np.matrix:
+        def filter(self, omatrix: np.matrix) -> np.matrix:
+            matrix = omatrix.copy()
             return self.__factor * matrix
 
     class Add(UniformVizFilter):
@@ -56,7 +56,7 @@ class UniformFilter:
             self.__end = end
 
         def filter(self, omatrix: np.matrix) -> np.matrix:
-            matrix = deepcopy(omatrix)
+            matrix = omatrix.copy()
             matrix[(matrix >= self.__start) & (matrix <= self.__end)] = self.__value
             return matrix
 
@@ -69,6 +69,6 @@ class UniformFilter:
             self.__end = end
 
         def filter(self, omatrix: np.matrix) -> np.matrix:
-            matrix = deepcopy(omatrix)
+            matrix = omatrix.copy()
             matrix[(matrix < self.__start) | (matrix > self.__end)] = self.__value
             return matrix
