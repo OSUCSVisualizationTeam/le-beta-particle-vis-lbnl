@@ -1,7 +1,6 @@
 from PySide6 import QtWidgets, QtCore, QtGui
 from superqt.sliders import QLabeledRangeSlider
 from .CCDCaptureViewModel import BaseCCDCaptureViewModel
-from .VizFilter import UniformFilter
 import matplotlib.pyplot as plt
 
 
@@ -101,12 +100,11 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._addRangeSlider()
 
     def _addRangeSlider(self):
-        info = self.__viewModel.captureInfo()
-        min, max = round(info.min), round(info.max)
+        range = self.__viewModel.getVisualizationRange()
         rangeSlider = QLabeledRangeSlider(QtCore.Qt.Horizontal)
-        rangeSlider.setMinimum(min)
-        rangeSlider.setMaximum(max)
-        rangeSlider.setValue([min, max])
+        rangeSlider.setMinimum(range[0])
+        rangeSlider.setMaximum(range[1])
+        rangeSlider.setValue(range)
         rangeSlider.valueChanged.connect(self._onRangeSliderValueChanged)
         self._lowerToolbar.addWidget(rangeSlider)
 
@@ -119,12 +117,11 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._updateVisualization()
 
     def _onApplyExclusionClicked(self):
-        # This method will eventually apply the data exclusion requested for a particular range
-        pass
+        self.__viewModel.restrictVisualizationToRange()
+        self._updateVisualization()
 
     def _onRangeSliderValueChanged(self, value):
-        exclusionFilter = UniformFilter.SubstituteOutOfRange(value[0], value[1], 0)
-        self.__viewModel.applyFilter(exclusionFilter)
+        self.__viewModel.setVisualizationRange(value)
 
     def _updateVisualization(self):
         """Obtain data visualizable data from the view model"""

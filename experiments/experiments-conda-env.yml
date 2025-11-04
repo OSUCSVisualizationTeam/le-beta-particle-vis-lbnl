@@ -1,0 +1,10 @@
+name: mlccd_viz
+channels:
+  - conda-forge
+  - https://conda.anaconda.org/conda-forge
+dependencies:
+  - astropy
+  - matplotlib
+  - numpy
+  - pyside6
+  - superqt

@@ -55,7 +55,7 @@ class UniformFilter:
             self.__end = end
 
         def filter(self, matrix: np.matrix) -> np.matrix:
-            matrix[(matrix >= self.__start) and (matrix <= self.__end)] = self.__value
+            matrix[(matrix >= self.__start) & (matrix <= self.__end)] = self.__value
             return matrix
 
     class SubstituteOutOfRange(UniformVizFilter):
@@ -67,6 +67,5 @@ class UniformFilter:
             self.__end = end
 
         def filter(self, matrix: np.matrix) -> np.matrix:
-            # FIXME: This filter does not work like I expect
-            matrix[(matrix < self.__start) or (matrix > self.__end)] = self.__value
+            matrix[(matrix < self.__start) | (matrix > self.__end)] = self.__value
             return matrix
