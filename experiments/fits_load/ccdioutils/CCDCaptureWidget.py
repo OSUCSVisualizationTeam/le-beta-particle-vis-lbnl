@@ -1,5 +1,7 @@
 from PySide6 import QtWidgets, QtCore, QtGui
+from superqt.sliders import QLabeledRangeSlider
 from .CCDCaptureViewModel import BaseCCDCaptureViewModel
+from .VizFilter import UniformFilter
 import matplotlib.pyplot as plt
 
 
@@ -26,14 +28,15 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self.__viewModel = viewModel
         self._vbox = QtWidgets.QVBoxLayout(self)
 
-        self._toolbar = QtWidgets.QToolBar()
-        self._vbox.addWidget(self._toolbar)
+        self._topToolbar = QtWidgets.QToolBar()
+        self._vbox.addWidget(self._topToolbar)
 
-        self._addToolbarItems()
+        self._addTopToolbarItems()
 
         self._vizWidget = _VizWidget()  # Use custom label
         self._vizWidget.setAlignment(QtCore.Qt.AlignCenter)
         self._vbox.addWidget(self._vizWidget)
+        self._addLowerToolbar()
 
         self.setLayout(self._vbox)
         self._updateVisualization()
@@ -42,14 +45,14 @@ class CCDCaptureWidget(QtWidgets.QWidget):
 
     # Widget building
 
-    def _addToolbarItems(self):
+    def _addTopToolbarItems(self):
         self._addColormapSelectionWidget()
         self._addResetButton()
         spacer = QtWidgets.QWidget()
         spacer.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
         )
-        self._toolbar.addWidget(spacer)
+        self._topToolbar.addWidget(spacer)
 
         self._addCurrentValueLabel()
 
@@ -71,19 +74,41 @@ class CCDCaptureWidget(QtWidgets.QWidget):
 
         self._colormapComboBox.currentIndexChanged.connect(self._onColormapChanged)
         colormapLayout.addWidget(self._colormapComboBox)
-        self._toolbar.addWidget(colormapContainer)
+        self._topToolbar.addWidget(colormapContainer)
 
     def _addResetButton(self):
         resetButton = QtWidgets.QToolButton()
         resetButton.setText("Reset")
         resetButton.clicked.connect(self._resetViewModel)
-        self._toolbar.addWidget(resetButton)
+        self._topToolbar.addWidget(resetButton)
 
     def _addCurrentValueLabel(self):
         self._valueLabel = QtWidgets.QLabel()
         self._valueLabel.setText("Value: NaN")
         self._valueLabel.setMinimumWidth(128)
-        self._toolbar.addWidget(self._valueLabel)
+        self._topToolbar.addWidget(self._valueLabel)
+
+    def _addLowerToolbar(self):
+        self._lowerToolbar = QtWidgets.QToolBar()
+        self._vbox.addWidget(self._lowerToolbar)
+        self._addLowerToolbarItems()
+
+    def _addLowerToolbarItems(self):
+        applyButton = QtWidgets.QPushButton()
+        applyButton.setText("Apply")
+        applyButton.clicked.connect(self._onApplyExclusionClicked)
+        self._lowerToolbar.addWidget(applyButton)
+        self._addRangeSlider()
+
+    def _addRangeSlider(self):
+        info = self.__viewModel.captureInfo()
+        min, max = round(info.min), round(info.max)
+        rangeSlider = QLabeledRangeSlider(QtCore.Qt.Horizontal)
+        rangeSlider.setMinimum(min)
+        rangeSlider.setMaximum(max)
+        rangeSlider.setValue([min, max])
+        rangeSlider.valueChanged.connect(self._onRangeSliderValueChanged)
+        self._lowerToolbar.addWidget(rangeSlider)
 
     # Callbacks
 
@@ -92,6 +117,14 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         selected_colormap = self._colormapComboBox.itemText(index)
         self.__viewModel.setCurrentColormap(selected_colormap)
         self._updateVisualization()
+
+    def _onApplyExclusionClicked(self):
+        # This method will eventually apply the data exclusion requested for a particular range
+        pass
+
+    def _onRangeSliderValueChanged(self, value):
+        exclusionFilter = UniformFilter.SubstituteOutOfRange(value[0], value[1], 0)
+        self.__viewModel.applyFilter(exclusionFilter)
 
     def _updateVisualization(self):
         """Obtain data visualizable data from the view model"""
