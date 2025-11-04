@@ -100,12 +100,18 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._addRangeSlider()
 
     def _addRangeSlider(self):
-        range = self.__viewModel.getVisualizationRange()
+        self.__originalVizRange = self.__viewModel.getVisualizationRange()
+        self.__sliderScaleFactor = 10000  # Choose a suitable scaling factor
+
+        scaled_min = int(self.__originalVizRange[0] * self.__sliderScaleFactor)
+        scaled_max = int(self.__originalVizRange[1] * self.__sliderScaleFactor)
+
         rangeSlider = QLabeledRangeSlider(QtCore.Qt.Horizontal)
-        rangeSlider.setMinimum(range[0])
-        rangeSlider.setMaximum(range[1])
-        rangeSlider.setValue(range)
+        rangeSlider.setMinimum(scaled_min)
+        rangeSlider.setMaximum(scaled_max)
+        rangeSlider.setValue((scaled_min, scaled_max))
         rangeSlider.valueChanged.connect(self._onRangeSliderValueChanged)
+        self.__rangeSlider = rangeSlider
         self._lowerToolbar.addWidget(rangeSlider)
 
     # Callbacks
@@ -121,7 +127,9 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._updateVisualization()
 
     def _onRangeSliderValueChanged(self, value):
-        self.__viewModel.setVisualizationRange(value)
+        scaled_min = value[0] / self.__sliderScaleFactor
+        scaled_max = value[1] / self.__sliderScaleFactor
+        self.__viewModel.setVisualizationRange((scaled_min, scaled_max))
 
     def _updateVisualization(self):
         """Obtain data visualizable data from the view model"""
@@ -132,6 +140,7 @@ class CCDCaptureWidget(QtWidgets.QWidget):
     def _resetViewModel(self):
         """Resets view model state"""
         self.__viewModel.reset()
+        self.__rangeSlider.setValue((0, self.__sliderScaleFactor))
         self._updateVisualization()
 
     def _onVisualizationWidgetMouseMove(self, x: int, y: int):

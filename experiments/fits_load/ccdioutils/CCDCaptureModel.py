@@ -1,5 +1,6 @@
 from astropy.io import fits
 from astropy.time import Time, TimeDelta
+from copy import deepcopy
 from pathlib import Path
 from typing import List, Optional
 from .VizFilter import UniformVizFilter
@@ -34,6 +35,20 @@ class CCDCaptureModel:
             self.__captureEnd = end
             self.__captureDate = date
 
+        @staticmethod
+        def fromHDU(hdu: fits.hdu):
+            """Instantiate CCDCaptureModel.Info metadata from an HDU"""
+            rows, cols = np.shape(hdu.data)
+            return CCDCaptureModel.Info(
+                cols=cols,
+                rows=rows,
+                min=hdu.data.min(),
+                max=hdu.data.max(),
+                start=Time(hdu.header["DATESTART"]),
+                end=Time(hdu.header["DATEEND"]),
+                date=Time(hdu.header["DATE"]),
+            )
+
         def captureStart(self) -> Optional[Time]:
             """Date when this data capture exposure started"""
             return self.__captureStart
@@ -62,38 +77,22 @@ class CCDCaptureModel:
                 f"date={self.captureDate()}, exposureDuration={duration},"
             )
 
-    def __init__(self, ccdData: np.matrix):
+    def __init__(
+        self, ccdData: np.matrix, info: Optional["CCDCaptureModel.Info"] = None
+    ):
         self.__data = ccdData
         rows, cols = np.shape(ccdData)
-        self.__info = CCDCaptureModel.Info(
-            cols=cols, rows=rows, min=ccdData.min(), max=ccdData.max()
-        )
-
-    def __setInfo(
-        self,
-        cols: int = 0,
-        rows: int = 0,
-        min: float = 0,
-        max: float = 0,
-        start: Optional[Time] = None,
-        end: Optional[Time] = None,
-        date: Optional[Time] = None,
-    ):
-        self.__info = CCDCaptureModel.Info(cols, rows, min, max, start, end, date)
+        if info is None:
+            self.__info = CCDCaptureModel.Info(
+                cols=cols, rows=rows, min=self.__data.min(), max=self.__data.max()
+            )
+        else:
+            self.__info = info
 
     @staticmethod
     def __fromHDU(hdu: fits.hdu):
         dump = CCDCaptureModel(hdu.data)
-        rows, cols = np.shape(hdu.data)
-        dump.__setInfo(
-            cols=cols,
-            rows=rows,
-            min=hdu.data.min(),
-            max=hdu.data.max(),
-            start=Time(hdu.header["DATESTART"]),
-            end=Time(hdu.header["DATEEND"]),
-            date=Time(hdu.header["DATE"]),
-        )
+        dump.__info = CCDCaptureModel.Info.fromHDU(hdu)
         return dump
 
     @staticmethod
@@ -122,4 +121,10 @@ class CCDCaptureModel:
 
     def applyFilter(self, filter: UniformVizFilter):
         result = filter.filter(self.__data)
-        self.__data = result
+        self.__data = result.copy()
+
+    def copy(self) -> "CCDCaptureModel":
+        """Reliably copy this CCDCaptureModel instance"""
+        newModel = CCDCaptureModel(self.__data.copy())
+        newModel.__info = deepcopy(self.__info)
+        return newModel

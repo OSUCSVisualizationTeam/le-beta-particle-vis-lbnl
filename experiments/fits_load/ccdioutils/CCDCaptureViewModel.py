@@ -2,7 +2,7 @@ from copy import deepcopy
 from .BoundingBox import BoundingBox
 from . import CCDCaptureModel
 from .VizFilter import UniformVizFilter, UniformFilter
-from typing import List, Tuple
+from typing import List, Tuple, Callable, Optional
 from PySide6 import QtGui
 from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
@@ -49,6 +49,22 @@ class BaseCCDCaptureViewModel(ABC):
     def valueAt(self, row: int, col: int) -> float:
         raise NotImplementedError
 
+    @abstractmethod
+    def captureInfo(self) -> CCDCaptureModel.Info:
+        raise NotImplementedError
+
+    @abstractmethod
+    def setVisualizationRange(self, value: Tuple[int, int]):
+        raise NotImplementedError
+
+    @abstractmethod
+    def getVisualizationRange(self) -> Tuple[int, int]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def restrictVisualizationToRange(self, blankValue: float = 0):
+        raise NotImplementedError
+
 
 class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     """View Model for CCDCaptureModel models"""
@@ -58,22 +74,31 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         ccdCapture: CCDCaptureModel,
         cropBox: BoundingBox = BoundingBox.unbounded(),
         defaultColorMap: str = "Greys_r",
+        conversionFunc: Optional[Callable[float]] = None,
     ):
         self.__cropBox = cropBox
         self.__ccdCapture = ccdCapture
-        self.__ccdVizCapture = deepcopy(ccdCapture)
+        self.__ccdVizCapture = ccdCapture.copy()
         self.__defaultColorMap = defaultColorMap
         self.__currentColorMap = defaultColorMap
-        self.__vizRange = (round(ccdCapture.info().min), round(ccdCapture.info().max))
+        self._resetVizRange()
+        self.__conversionFunc = conversionFunc
 
     def crop(self, cropBox: BoundingBox):
         """Crops the current visualization by the specified BoundingBox"""
         self.__cropBox = cropBox
 
+    def _resetVizRange(self):
+        self.__vizRange = (
+            self.__ccdVizCapture.rawData().min(),
+            self.__ccdVizCapture.rawData().max(),
+        )
+
     def reset(self):
         """Restores displayed CCD capture visualization"""
         self.__ccdVizCapture = deepcopy(self.__ccdCapture)
         self.__currentColorMap = self.__defaultColorMap
+        self._resetVizRange()
 
     def applyFilter(self, filter: UniformVizFilter):
         """Apply a filter to the current visualization"""
@@ -127,7 +152,10 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
 
     def valueAt(self, row: int, col: int) -> float:
         """Get value at row,col in the CCD capture matrix"""
-        return self.__ccdVizCapture.rawData()[row][col]
+        value = self.__ccdVizCapture.rawData()[row][col]
+        if self.__conversionFunc is not None:
+            value = self.__conversionFunc(value)
+        return value
 
     def captureInfo(self) -> CCDCaptureModel.Info:
         """Returns the currently visualized capture information"""
