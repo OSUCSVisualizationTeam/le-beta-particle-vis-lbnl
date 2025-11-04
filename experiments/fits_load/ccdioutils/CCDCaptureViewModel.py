@@ -126,3 +126,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     def valueAt(self, row: int, col: int) -> float:
         """Get value at row,col in the CCD capture matrix"""
         return self.__ccdVizCapture.rawData()[row][col]
+
+    def captureInfo(self) -> CCDCaptureModel.Info:
+        """Returns the currently visualized capture information"""
+        return self.__ccdVizCapture.info()
