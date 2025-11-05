@@ -15,8 +15,8 @@ def rescaleFrame(frame, scale=0.50) :
 ################################################################################################################
 # Read Image
 ################################################################################################################
-img = cv.imread('PATH_TO_IMAGE')    # for example 'photos/dog.jpg
-# img = cv.imread('photos\\dog.jpg')
+# img = cv.imread('PATH_TO_IMAGE')
+img = cv.imread('photos\\dog.jpg')
 
 ################################################################################################################
 # Rescale Image (via rescaleFrame)
@@ -60,14 +60,15 @@ resized = cv.resize(img, (500,500), interpolation=cv.INTER_AREA)     # does not 
 ################################################################################################################
 # Show/Display Image
 ################################################################################################################
-cv.imshow('NAME_OF_IMAGE', img)
-# cv.imshow('NAME_OF_IMAGE', rescaled_img)
-# cv.imshow('NAME_OF_IMAGE', blur)
-# cv.imshow('NAME_OF_IMAGE', canny1)
-# cv.imshow('NAME_OF_IMAGE', canny2)
-# cv.imshow('NAME_OF_IMAGE', dilated)
-# cv.imshow('NAME_OF_IMAGE', eroded)
-# cv.imshow('NAME_OF_IMAGE', resized)
+# cv.imshow('NAME_OF_IMAGE', img)
+cv.imshow('Dog', img)
+# cv.imshow('Rescaled_Dog', rescaled_img)
+# cv.imshow('Blurred_Dog', blur)
+# cv.imshow('Canny_Edges1', canny1)
+# cv.imshow('Canny_Edges2', canny2)
+# cv.imshow('Dilated_Dog', dilated)
+# cv.imshow('Eroded_Dog', eroded)
+# cv.imshow('Resized_Dog', resized)
 
 # uncomment the images wanting to be displayed when script is ran
 

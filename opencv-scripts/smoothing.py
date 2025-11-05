@@ -20,41 +20,32 @@ rescaled_img = rescaleFrame(img, 0.20)
 img = rescaled_img
 
 ################################################################################################################
-# Split Image into Color Channels
+# Averaging
 ################################################################################################################
-b, g, r = cv.split(img)     # displays each on in a gray-scale image depicting the intensities of the respective color
-
-# print(img.shape)    # (701, 1051, 3)
-# print(b.shape)      # (701, 1051)
-# print(g.shape)      # (701, 1051)
-# print(r.shape)      # (701, 1051)
+average = cv.blur(img, (3, 3))      # increase kernel size increases blur intensity
 
 ################################################################################################################
-# Merge Color Channels 
+# Gaussian Blur
 ################################################################################################################
-merged = cv.merge([b, g, r])       # should be identical to original image
+gauss = cv.GaussianBlur(img, (3, 3), 0)
 
 ################################################################################################################
-# Split Image into Color Channels -- Draw Respective Colors (Shows colors rather than gray scale)
+# Median Blurring (Better at removing noise -- used for computer vision) 
 ################################################################################################################
-blank = np.zeros(img.shape[:2], dtype='uint8')
+median = cv.medianBlur(img, 3)      # not effective for large kernel sizes
 
-blue = cv.merge([b, blank, blank])      # display only blue channel
-green = cv.merge([blank, g, blank])      # display only green channel
-red = cv.merge([blank, blank, r])        # display only red channel
+################################################################################################################
+# Bilateral Blurring 
+################################################################################################################
+bilateral = cv.bilateralFilter(img, 10, 35, 25)
 
 ################################################################################################################
 # Show/Display Image
 ################################################################################################################
 cv.imshow('Dog', img)
-
-# cv.imshow('Blue', b)
-# cv.imshow('Green', g)
-# cv.imshow('Red', r)
-# cv.imshow('Merged', merged)
-
-# cv.imshow('Blue2', blue)
-# cv.imshow('Green2', green)
-# cv.imshow('Red2', red)
+# cv.imshow('Average_Blur', average)
+# cv.imshow('Gaussian_Blur', gauss)
+# cv.imshow('Median_Blur', median)
+# cv.imshow('Bilateral_Blur', bilateral)
 
 cv.waitKey(0)
