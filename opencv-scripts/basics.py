@@ -16,11 +16,13 @@ def rescaleFrame(frame, scale=0.50) :
 # Read Image
 ################################################################################################################
 img = cv.imread('PATH_TO_IMAGE')    # for example 'photos/dog.jpg
+# img = cv.imread('photos\\dog.jpg')
 
 ################################################################################################################
 # Rescale Image (via rescaleFrame)
 ################################################################################################################
-rescaled_img = rescaleFrame(img)
+rescaled_img = rescaleFrame(img, 0.20)
+# img = rescaled_img       # use rescaled image for following example because original img is very large
 
 ################################################################################################################
 # Gray Scale
