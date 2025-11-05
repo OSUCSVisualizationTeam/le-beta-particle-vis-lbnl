@@ -74,7 +74,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         ccdCapture: CCDCaptureModel,
         cropBox: BoundingBox = BoundingBox.unbounded(),
         defaultColorMap: str = "Greys_r",
-        conversionFunc: Optional[Callable[float]] = None,
+        conversionFunc: Optional[Callable[[float], float]] = None,
     ):
         self.__cropBox = cropBox
         self.__ccdCapture = ccdCapture
