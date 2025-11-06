@@ -172,6 +172,6 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     def restrictVisualizationToRange(self, blankValue: float = 0):
         """Updates the visualization data to only reflect values in the visualization range"""
         filter = UniformFilter.SubstituteOutOfRange(
-            self.__vizRange[0], self.__vizRange[1], 0
+            self.__vizRange[0], self.__vizRange[1], blankValue
         )
         self.applyFilter(filter)
