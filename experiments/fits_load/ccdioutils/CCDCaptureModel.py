@@ -77,6 +77,17 @@ class CCDCaptureModel:
                 f"date={self.captureDate()}, exposureDuration={duration},"
             )
 
+        def __eq__(self, other) -> bool:
+            return (
+                self.cols == other.cols
+                and self.rows == other.rows
+                and self.min == other.min
+                and self.max == other.max
+                and self.__captureStart == other.__captureStart
+                and self.__captureEnd == other.__captureEnd
+                and self.__captureDate == other.__captureDate
+            )
+
     def __init__(
         self, ccdData: np.matrix, info: Optional["CCDCaptureModel.Info"] = None
     ):
