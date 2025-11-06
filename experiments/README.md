@@ -5,10 +5,15 @@ These folders contain a set of tools and programs aimed at helping us understand
 ## Environment installation
 
 ```
-conda create -n mlccd_viz --file experiments-conda-env.yml
+conda env create -f experiments-conda-env.yml
+conda activate mlccd_viz
 ```
 
-If running working on Linux/Wayland (Fedora) you may need to also do:
+
+### OS-Specific Instructions
+
+#### Linux / Wayland (Fedora and others)
+
 
 ```
 conda install conda-forge::qt6-wayland

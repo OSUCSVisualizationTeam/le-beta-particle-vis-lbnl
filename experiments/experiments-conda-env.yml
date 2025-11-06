@@ -8,3 +8,5 @@ dependencies:
   - numpy
   - pyside6
   - superqt
+  - pytest
+  - pytest-mock
