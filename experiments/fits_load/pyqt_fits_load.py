@@ -2,6 +2,7 @@ from ccdioutils import (
     CCDCaptureModel,
     CCDCaptureViewModel,
     CCDCaptureWidget,
+    MatplotlibBasedConverter,
 )
 from PySide6 import QtWidgets
 from sys import argv, stderr
@@ -23,7 +24,8 @@ if __name__ == "__main__":
     for i, dump in enumerate(dumps):
         convertedData = kevFactor * dump.rawData()
         exposure = CCDCaptureModel(convertedData, dump.info())
-        viewModel = CCDCaptureViewModel(exposure)
+        converter = MatplotlibBasedConverter("Greys_r")
+        viewModel = CCDCaptureViewModel(exposure, converter)
 
         widget = CCDCaptureWidget(viewModel)
         widget.setWindowTitle(f"HDU[{i}]: {exposure.info().captureDate()}")

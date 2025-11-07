@@ -6,3 +6,6 @@ from .VizFilter import UniformVizFilter
 from .VizFilter import PerPixelFilter
 from .VizFilter import PerValueFilter
 from .VizFilter import UniformFilter
+from .Fits2QPixmapConverter import Fits2QPixmapConverter
+from .Fits2QPixmapConverter import MatplotlibBasedConverter
+from .Fits2QPixmapConverter import RawPixmapConverter

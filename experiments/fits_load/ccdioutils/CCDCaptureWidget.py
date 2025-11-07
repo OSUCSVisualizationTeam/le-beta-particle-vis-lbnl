@@ -133,7 +133,7 @@ class CCDCaptureWidget(QtWidgets.QWidget):
 
     def _updateVisualization(self):
         """Obtain data visualizable data from the view model"""
-        display_data = self.__viewModel.getMatplotPixmap()
+        display_data = self.__viewModel.getQPixmap()
         if display_data:
             self._vizWidget.setPixmap(display_data)
 
