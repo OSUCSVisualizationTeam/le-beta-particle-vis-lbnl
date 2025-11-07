@@ -4,9 +4,15 @@ from ccdioutils.CCDCaptureModel import CCDCaptureModel
 from ccdioutils.CCDCaptureViewModel import CCDCaptureViewModel
 from ccdioutils.BoundingBox import BoundingBox
 from ccdioutils.VizFilter import UniformFilter
+from ccdioutils.Fits2QPixmapConverter import Fits2QPixmapConverter
+from PySide6 import QtGui
 
 
 class TestCCDCaptureViewModelTest(unittest.TestCase):
+    class MockConverter(Fits2QPixmapConverter):
+        def convert(self, matrix: np.matrix):
+            return QtGui.QPixmap([])
+
     def _mockMatrix(self, min: float, max: float) -> np.matrix:
         assert min < max
         mock = np.eye(max)
@@ -17,8 +23,12 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
     def setUp(self):
         self.mockNpMatrix = self._mockMatrix(-255, 255)
         self.ccdCaptureModel = CCDCaptureModel(ccdData=self.mockNpMatrix)
-        self.ccdCaptureViewModel = CCDCaptureViewModel(self.ccdCaptureModel)
+        self.ccdCaptureViewModel = CCDCaptureViewModel(
+            self.ccdCaptureModel,
+            fits2QPixmapConverter=TestCCDCaptureViewModelTest.MockConverter(),
+        )
         self.mockFilter = UniformFilter.Add(1)
+        self.mockFits2QPixmapConverter = TestCCDCaptureViewModelTest.MockConverter()
 
     def test_initViewModelWithDefaultValues_givenCcdCaptureModel_initializesCorrectly(
         self,
@@ -68,7 +78,9 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
 
     def test_valueAt_givenCoordinatesAndConversionFunc_returnsConvertedValue(self):
         self.ccdCaptureViewModel = CCDCaptureViewModel(
-            self.ccdCaptureModel, conversionFunc=lambda x: x * 2
+            self.ccdCaptureModel,
+            self.mockFits2QPixmapConverter,
+            conversionFunc=lambda x: x * 2,
         )
         expectedConvertedValue = -510
         value = self.ccdCaptureViewModel.valueAt(0, 0)
@@ -101,7 +113,7 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
         expected[0][1] = 2
         expected[0][2] = 3
         model = CCDCaptureModel(rawData)
-        viewModel = CCDCaptureViewModel(model)
+        viewModel = CCDCaptureViewModel(model, self.mockFits2QPixmapConverter)
 
         viewModel.setVisualizationRange((2, 3))
         viewModel.restrictVisualizationToRange()

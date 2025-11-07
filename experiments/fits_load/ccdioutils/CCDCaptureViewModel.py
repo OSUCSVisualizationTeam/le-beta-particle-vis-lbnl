@@ -1,7 +1,9 @@
 from copy import deepcopy
+import numpy as np
 from .BoundingBox import BoundingBox
 from . import CCDCaptureModel
 from .VizFilter import UniformVizFilter, UniformFilter
+from .Fits2QPixmapConverter import Fits2QPixmapConverter
 from typing import List, Tuple, Callable, Optional
 from PySide6 import QtGui
 from abc import ABC, abstractmethod
@@ -14,6 +16,14 @@ class BaseCCDCaptureViewModel(ABC):
     """View Model for CCDCaptureModel models"""
 
     @abstractmethod
+    def _fits2QPixmapConverter(self) -> Fits2QPixmapConverter:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _getRawData(self) -> np.matrix:
+        raise NotImplementedError
+
+    @abstractmethod
     def crop(self, cropBox: BoundingBox):
         raise NotImplementedError
 
@@ -22,20 +32,16 @@ class BaseCCDCaptureViewModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def applyFilter(self, filter: UniformVizFilter):
+    def applyFilter(self, filter: UniformVizFilter, useVizModel: bool = True):
         raise NotImplementedError
 
     @abstractmethod
     def extractClusters(self) -> List[BoundingBox]:
         raise NotImplementedError
 
-    @abstractmethod
-    def getRawPixmap(self) -> QtGui.QPixmap:
-        raise NotImplementedError
-
-    @abstractmethod
-    def getMatplotPixmap(self, dpi: int = 100) -> QtGui.QPixmap:
-        raise NotImplementedError
+    def getQPixmap(self) -> QtGui.QPixmap:
+        """Obtain a QPixmap using a Fits2QPixmapConverter"""
+        return self._fits2QPixmapConverter().convert(self._getRawData())
 
     @abstractmethod
     def setCurrentColormap(self, colormap_name: str):
@@ -72,6 +78,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     def __init__(
         self,
         ccdCapture: CCDCaptureModel,
+        fits2QPixmapConverter: Fits2QPixmapConverter,
         cropBox: BoundingBox = BoundingBox.unbounded(),
         defaultColorMap: str = "Greys_r",
         conversionFunc: Optional[Callable[[float], float]] = None,
@@ -83,6 +90,13 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         self.__currentColorMap = defaultColorMap
         self._resetVizRange()
         self.__conversionFunc = conversionFunc
+        self.__fits2QPixmapConverter = fits2QPixmapConverter
+
+    def _fits2QPixmapConverter(self) -> Fits2QPixmapConverter:
+        return self.__fits2QPixmapConverter
+
+    def _getRawData(self) -> np.matrix:
+        return self.__ccdVizCapture.rawData()
 
     def crop(self, cropBox: BoundingBox):
         """Crops the current visualization by the specified BoundingBox"""
@@ -97,54 +111,26 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     def reset(self):
         """Restores displayed CCD capture visualization"""
         self.__ccdVizCapture = deepcopy(self.__ccdCapture)
-        self.__currentColorMap = self.__defaultColorMap
+        self.setCurrentColormap(self.__defaultColorMap)
         self._resetVizRange()
 
-    def applyFilter(self, filter: UniformVizFilter):
+    def applyFilter(self, filter: UniformVizFilter, useVizModel: bool = True):
         """Apply a filter to the current visualization"""
-        self.__ccdVizCapture.applyFilter(filter)
+        if useVizModel:
+            self.__ccdVizCapture.applyFilter(filter)
+        else:
+            self.__ccdVizCapture = deepcopy(self.__ccdCapture)
+            self.__ccdVizCapture.applyFilter(filter)
 
     def extractClusters(self) -> List[BoundingBox]:
         """Extract a list of relevant bounding boxes containing relevant features"""
         result = list()
         return result
 
-    def getRawPixmap(self) -> QtGui.QPixmap:
-        """Convert visualizable data into a QPixmap"""
-        image_data = self.__ccdVizCapture.rawData()
-        height, width = image_data.shape
-        q_image = QtGui.QImage(
-            image_data.data,
-            width,
-            height,
-            image_data.strides[0],
-            QtGui.QImage.Format_Grayscale8,
-        )
-        return QtGui.QPixmap.fromImage(q_image)
-
-    def getMatplotPixmap(self, dpi: int = 100) -> QtGui.QPixmap:
-        """Convert visualizable data into a QPixmap using matplotlib for rendering"""
-        image_data = self.__ccdVizCapture.rawData()
-
-        height, width = image_data.shape
-        fig, ax = plt.subplots(figsize=(width / dpi, height / dpi), dpi=dpi)
-
-        ax.matshow(image_data, cmap=colormaps[self.getCurrentColormap()])
-        ax.axis("off")
-        fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-        buf = BytesIO()
-        plt.savefig(buf, format="png")
-        buf.seek(0)
-        plt.close(fig)
-
-        pixmap = QtGui.QPixmap()
-        pixmap.loadFromData(buf.getvalue())
-        return pixmap
-
     def setCurrentColormap(self, colormap_name: str):
         """Set colormap state"""
         self.__currentColorMap = colormap_name
+        self.__fits2QPixmapConverter._colormap = colormap_name
 
     def getCurrentColormap(self) -> str:
         """Get colormap state"""
@@ -174,4 +160,4 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         filter = UniformFilter.SubstituteOutOfRange(
             self.__vizRange[0], self.__vizRange[1], blankValue
         )
-        self.applyFilter(filter)
+        self.applyFilter(filter, useVizModel=False)
