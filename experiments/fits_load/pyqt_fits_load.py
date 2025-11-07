@@ -1,3 +1,4 @@
+from matplotlib import colormaps
 from ccdioutils import (
     CCDCaptureModel,
     CCDCaptureViewModel,
@@ -26,8 +27,7 @@ def getOptions():
     )
 
     parser.add_argument(
-        "-f",
-        "--file",
+        "file",
         help="Path to the FITS file",
     )
 
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         convertedData = kevFactor * dump.rawData()
         exposure = CCDCaptureModel(convertedData, dump.info())
         if options.converter == "matplotlib":
-            converter = MatplotlibBasedConverter("Greys_r")
+            converter = MatplotlibBasedConverter(colormap=colormaps["Greys"])
         else:
             converter = FastPixmapConverter()
         viewModel = CCDCaptureViewModel(exposure, converter)
@@ -62,6 +62,7 @@ if __name__ == "__main__":
         widget.setWindowTitle(f"HDU[{i}]: {exposure.info().captureDate()}")
         widget.setMaximumWidth(1980)
         widget.show()
-        widgets.append(widget)  # Keep a reference to prevent garbage collection
+        # Keep a reference to prevent garbage collection
+        widgets.append(widget)
 
     app.exec()
