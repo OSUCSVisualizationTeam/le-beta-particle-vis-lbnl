@@ -93,10 +93,11 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._addLowerToolbarItems()
 
     def _addLowerToolbarItems(self):
-        applyButton = QtWidgets.QPushButton()
-        applyButton.setText("Apply")
-        applyButton.clicked.connect(self._onApplyExclusionClicked)
-        self._lowerToolbar.addWidget(applyButton)
+        if not self.__viewModel.isUsingAFastQPixmapConverter():
+            applyButton = QtWidgets.QPushButton()
+            applyButton.setText("Apply")
+            applyButton.clicked.connect(self._onApplyExclusionClicked)
+            self._lowerToolbar.addWidget(applyButton)
         self._addRangeSlider()
 
     def _addRangeSlider(self):
@@ -130,6 +131,8 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         scaled_min = value[0] / self.__sliderScaleFactor
         scaled_max = value[1] / self.__sliderScaleFactor
         self.__viewModel.setVisualizationRange((scaled_min, scaled_max))
+        if self.__viewModel.isUsingAFastQPixmapConverter():
+            self._onApplyExclusionClicked()
 
     def _updateVisualization(self):
         """Obtain data visualizable data from the view model"""
