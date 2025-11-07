@@ -3,7 +3,7 @@ import numpy as np
 from .BoundingBox import BoundingBox
 from . import CCDCaptureModel
 from .VizFilter import UniformVizFilter, UniformFilter
-from .Fits2QPixmapConverter import Fits2QPixmapConverter, FastPixmapConverter
+from .Fits2QPixmapConverter import Fits2QPixmapConverter
 from typing import List, Tuple, Callable, Optional
 from PySide6 import QtGui
 from abc import ABC, abstractmethod
