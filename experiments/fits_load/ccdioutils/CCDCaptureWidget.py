@@ -22,9 +22,15 @@ class _VizWidget(QtWidgets.QLabel):
 class CCDCaptureWidget(QtWidgets.QWidget):
     """A PyQT widget aimed at displaying CCD captured data"""
 
-    def __init__(self, viewModel: BaseCCDCaptureViewModel, parent=None):
+    def __init__(
+        self,
+        viewModel: BaseCCDCaptureViewModel,
+        sliderScaleFactor: int = 10000,
+        parent=None,
+    ):
         super().__init__(parent)
         self.__viewModel = viewModel
+        self.__sliderScaleFactor = sliderScaleFactor
         self._vbox = QtWidgets.QVBoxLayout(self)
 
         self._topToolbar = QtWidgets.QToolBar()
@@ -56,6 +62,8 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._addCurrentValueLabel()
 
     def _addColormapSelectionWidget(self):
+        if self.__viewModel.isUsingAFastQPixmapConverter():
+            return
         colormapContainer = QtWidgets.QWidget()
         colormapLayout = QtWidgets.QHBoxLayout(colormapContainer)
         colormapLayout.setContentsMargins(0, 0, 0, 0)
@@ -102,18 +110,23 @@ class CCDCaptureWidget(QtWidgets.QWidget):
 
     def _addRangeSlider(self):
         self.__originalVizRange = self.__viewModel.getVisualizationRange()
-        self.__sliderScaleFactor = 10000  # Choose a suitable scaling factor
 
-        scaled_min = int(self.__originalVizRange[0] * self.__sliderScaleFactor)
-        scaled_max = int(self.__originalVizRange[1] * self.__sliderScaleFactor)
+        scaledMin = self._scaleValue(self.__originalVizRange[0])
+        scaledMax = self._scaleValue(self.__originalVizRange[1])
 
         rangeSlider = QLabeledRangeSlider(QtCore.Qt.Horizontal)
-        rangeSlider.setMinimum(scaled_min)
-        rangeSlider.setMaximum(scaled_max)
-        rangeSlider.setValue((scaled_min, scaled_max))
+        rangeSlider.setMinimum(scaledMin)
+        rangeSlider.setMaximum(scaledMax)
+        rangeSlider.setValue((scaledMin, scaledMax))
         rangeSlider.valueChanged.connect(self._onRangeSliderValueChanged)
         self.__rangeSlider = rangeSlider
         self._lowerToolbar.addWidget(rangeSlider)
+
+    def _scaleValue(self, value: float) -> int:
+        return int(value * self.__sliderScaleFactor)
+
+    def _downscaleValue(self, scaled_value: int) -> float:
+        return scaled_value / self.__sliderScaleFactor
 
     # Callbacks
 
@@ -128,9 +141,9 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._updateVisualization()
 
     def _onRangeSliderValueChanged(self, value):
-        scaled_min = value[0] / self.__sliderScaleFactor
-        scaled_max = value[1] / self.__sliderScaleFactor
-        self.__viewModel.setVisualizationRange((scaled_min, scaled_max))
+        scaledMin = self._downscaleValue(value[0])
+        scaledMax = self._downscaleValue(value[1])
+        self.__viewModel.setVisualizationRange((scaledMin, scaledMax))
         if self.__viewModel.isUsingAFastQPixmapConverter():
             self._onApplyExclusionClicked()
 
@@ -143,7 +156,11 @@ class CCDCaptureWidget(QtWidgets.QWidget):
     def _resetViewModel(self):
         """Resets view model state"""
         self.__viewModel.reset()
-        self.__rangeSlider.setValue((0, self.__sliderScaleFactor))
+        oMin = self.__originalVizRange[0]
+        oMax = self.__originalVizRange[1]
+        scaledMin = self._scaleValue(oMin)
+        scaledMax = self._scaleValue(oMax)
+        self.__rangeSlider.setValue((scaledMin, scaledMax))
         self._updateVisualization()
 
     def _onVisualizationWidgetMouseMove(self, x: int, y: int):

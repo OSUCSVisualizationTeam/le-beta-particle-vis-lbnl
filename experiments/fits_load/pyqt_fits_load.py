@@ -37,7 +37,7 @@ def getOptions():
 class FitsLoadMainWindow(QtWidgets.QMainWindow):
     def __init__(self, ccd_widgets, window_title, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ccd_widgets = ccd_widgets
+        self.ccdWidgets = ccd_widgets
         self.setWindowTitle(window_title)
         self.resize(1200, 800)
 
@@ -56,9 +56,9 @@ class FitsLoadMainWindow(QtWidgets.QMainWindow):
         super().resizeEvent(event)
 
     def resizeCCDWidgets(self):
-        viewport_width = self.scrollArea.viewport().width()
-        for w in self.ccd_widgets:
-            w.setMaximumWidth(viewport_width - 20)
+        viewportWidth = self.scrollArea.viewport().width()
+        for w in self.ccdWidgets:
+            w.setMaximumWidth(viewportWidth - 20)
 
 
 if __name__ == "__main__":
