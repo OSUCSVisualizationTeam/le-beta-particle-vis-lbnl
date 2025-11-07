@@ -14,6 +14,14 @@ class Fits2QPixmapConverter(ABC):
         """Convert a numpy matrix into a QPixmap"""
         raise NotImplementedError
 
+    def isFast(self) -> bool:
+        """
+        Tells whether this converter is fast or not.
+
+        A fast converter is able to convert a 3200x550 matrix in less than 25ms
+        """
+        return False
+
 
 class MatplotlibBasedConverter(Fits2QPixmapConverter):
     """
@@ -58,3 +66,35 @@ class RawPixmapConverter(Fits2QPixmapConverter):
             QtGui.QImage.Format_Grayscale8,
         )
         return QtGui.QPixmap.fromImage(q_image)
+
+
+class FastPixmapConverter(Fits2QPixmapConverter):
+    """
+    Converts a FITS matrix into an 8-bit grayscale image
+
+    This converter clears out negavite values and scales the data down to a range of 256
+    levels of gray.
+    """
+
+    def convert(self, matrix: np.matrix) -> QtGui.QPixmap:
+        height, width = matrix.shape
+        if matrix.min() < 0:
+            vmatrix = matrix.copy()
+            vmatrix[vmatrix < 0] = 0
+        else:
+            vmatrix = matrix
+        valueRange = vmatrix.max()
+
+        vmatrix = vmatrix * 65536 / valueRange
+
+        q_image = QtGui.QImage(
+            matrix.data,
+            width,
+            height,
+            matrix.strides[0],
+            QtGui.QImage.Format_Grayscale16,
+        )
+        return QtGui.QPixmap.fromImage(q_image)
+
+    def isFast(self):
+        return True
