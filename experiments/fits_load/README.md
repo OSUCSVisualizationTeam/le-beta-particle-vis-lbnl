@@ -5,15 +5,17 @@
 To run it:
 
 ```
-usage: pyqt_fits_load [-h] [-c {matplotlib,fast}] [-f FILE]
+usage: pyqt_fits_load [-h] [-c {matplotlib,fast}] file
 
 Displays a CCD capture and allows minimal filtering
+
+positional arguments:
+  file                  Path to the FITS file
 
 options:
   -h, --help            show this help message and exit
   -c, --converter {matplotlib,fast}
                         Choose a FITS to pixmap converter
-  -f, --file FILE       Path to the FITS file
 ```
 
 Use the `fast` converter to get a 16-bit grayscale colormap and the ability to cull data in realtime
@@ -21,11 +23,11 @@ Use the `fast` converter to get a 16-bit grayscale colormap and the ability to c
 Example:
 
 ```bash
-# Fast render
-python pyqt_fits_load -c fast -f somefile.fits
+# Fast render (allows SNR reduction in realtime)
+python pyqt_fits_load -c fast somefile.fits
 
 # Beautiful matplotlib render (slow)
-python pyqt_fits_load -c matplotlib -f somefile.fits
+python pyqt_fits_load -c matplotlib somefile.fits
 ```
 
 ## ccdioutils

@@ -39,7 +39,7 @@ class MatplotlibBasedConverter(Fits2QPixmapConverter):
             figsize=(width / self._dpi, height / self._dpi), dpi=self._dpi
         )
 
-        ax.matshow(matrix, cmap=colormaps[self._colormap])
+        ax.matshow(matrix, cmap=self._colormap)
         ax.axis("off")
         fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
