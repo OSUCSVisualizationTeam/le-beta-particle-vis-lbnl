@@ -9,3 +9,6 @@ dependencies:
   - pyside6
   - superqt
   - coverage
+  - pytest
+  - opencv
+  - flake8
