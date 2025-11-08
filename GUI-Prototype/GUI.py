@@ -33,7 +33,7 @@ class MainWindow(QMainWindow):
         """Places all widgets in the main window."""
     # Create Image container and populate with sample pixmap, scale that image to fit container
         image_label = QLabel(parent=self.central_widget)
-        sample_image = QPixmap("GUI-Prototype\sampleImage.png")
+        sample_image = QPixmap("sampleImage.png")
         image_label.setPixmap(sample_image)
         image_label.setScaledContents(True)
     
@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    with open("GUI-Prototype\style.qss", 'r') as style:
+    with open("style.qss", 'r') as style:
         app.setStyleSheet(style.read())
     window = MainWindow()
     window.show()
