@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from PySide6 import QtGui
 from io import BytesIO
 import matplotlib.pyplot as plt
-from matplotlib import colormaps
+import matplotlib.colors as colors
 
 
 class Fits2QPixmapConverter(ABC):
@@ -29,7 +29,7 @@ class MatplotlibBasedConverter(Fits2QPixmapConverter):
     pre-processing
     """
 
-    def __init__(self, colormap: plt.Colormap, dpi: int = 100):
+    def __init__(self, colormap: colors.Colormap, dpi: int = 100):
         self._colormap = colormap
         self._dpi = dpi
 
