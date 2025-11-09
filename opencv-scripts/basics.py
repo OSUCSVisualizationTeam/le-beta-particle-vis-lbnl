@@ -1,16 +1,11 @@
 # Note: If wanting to run basics.py, change PATH_TO_IMAGE to the file path to the image you want to use
 import cv2 as cv
+from utilities.image_tools import rescaleFrame
 
 ################################################################################################################
 # rescale function
 ################################################################################################################
-def rescaleFrame(frame, scale=0.50) : 
-    # works with images, videos, and live videos
-    width = int(frame.shape[1] * scale)
-    height = int(frame.shape[0] * scale)
-    dims = (width, height)
-
-    return cv.resize(frame, dims, interpolation=cv.INTER_AREA)
+# Called from a custom package (see utilities/imgae_tools.py for reference)
 
 ################################################################################################################
 # Read Image
@@ -21,7 +16,7 @@ img = cv.imread('photos\\dog.jpg')
 ################################################################################################################
 # Rescale Image (via rescaleFrame)
 ################################################################################################################
-rescaled_img = rescaleFrame(img, 0.20)
+rescaled_img = rescaleFrame(img, 0.10)
 # img = rescaled_img       # use rescaled image for following example because original img is very large
 
 ################################################################################################################

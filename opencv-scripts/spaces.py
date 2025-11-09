@@ -1,15 +1,7 @@
 # NOTE: Uses 'photos\\dog.jpg' as the example img for the demo, it can be replaced with any path to an image if needed
 
 import cv2 as cv
-
-# Rescale Function -- from basics.py
-def rescaleFrame(frame, scale=0.50) : 
-    # works with images, videos, and live videos
-    width = int(frame.shape[1] * scale)
-    height = int(frame.shape[0] * scale)
-    dims = (width, height)
-
-    return cv.resize(frame, dims, interpolation=cv.INTER_AREA)
+from utilities.image_tools import rescaleFrame
 
 ################################################################################################################
 # Load Image

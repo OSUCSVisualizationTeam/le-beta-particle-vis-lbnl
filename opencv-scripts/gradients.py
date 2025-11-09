@@ -3,15 +3,7 @@
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
-
-# Rescale Function -- from basics.py
-def rescaleFrame(frame, scale=0.50) : 
-    # works with images, videos, and live videos
-    width = int(frame.shape[1] * scale)
-    height = int(frame.shape[0] * scale)
-    dims = (width, height)
-
-    return cv.resize(frame, dims, interpolation=cv.INTER_AREA)
+from utilities.image_tools import rescaleFrame
 
 ################################################################################################################
 # Load Image
@@ -46,12 +38,12 @@ canny = cv.Canny(gray, 150, 175)
 # Show/Display Images
 ################################################################################################################
 cv.imshow('Dog', img)
-cv.imshow('Gray', gray)
-cv.imshow('Laplacian', lap)
-cv.imshow('Sobel_X', sobelx)
-cv.imshow('Sobel_Y', sobely)
-cv.imshow('Combined_Sobel', combined_sobel)
-cv.imshow('Canny', canny)
+# cv.imshow('Gray', gray)
+# cv.imshow('Laplacian', lap)
+# cv.imshow('Sobel_X', sobelx)
+# cv.imshow('Sobel_Y', sobely)
+# cv.imshow('Combined_Sobel', combined_sobel)
+# cv.imshow('Canny', canny)
 
 cv.waitKey(0)
 
