@@ -1,6 +1,6 @@
 # Note: If wanting to run basics.py, change PATH_TO_IMAGE to the file path to the image you want to use
 import cv2 as cv
-from utilities.image_tools import rescaleFrame
+from utilities.image_tools import rescaleFrame, load_img
 
 ################################################################################################################
 # rescale function
@@ -11,7 +11,8 @@ from utilities.image_tools import rescaleFrame
 # Read Image
 ################################################################################################################
 # img = cv.imread('PATH_TO_IMAGE')
-img = cv.imread('photos\\dog.jpg')
+# img = cv.imread('photos\\dog.jpg')
+img = load_img('photos\\dog.jpg')
 
 ################################################################################################################
 # Rescale Image (via rescaleFrame)

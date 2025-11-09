@@ -3,6 +3,25 @@ import numpy as np
 
 ################################################################################################################
 '''
+Load Image
+
+Args: 
+    -- path: path to the image (jpg/png/etc..)
+
+Return: 
+    -- numpy array of shape (height, width, channels)
+'''
+################################################################################################################
+def load_img(path): 
+    img = cv.imread(path)
+
+    if img is None:
+        raise FileNotFoundError(f"Could not load image at: {path}")
+    
+    return img
+
+################################################################################################################
+'''
 Resize Function
 
 Args: 
