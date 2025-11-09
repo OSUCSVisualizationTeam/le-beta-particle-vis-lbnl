@@ -2,12 +2,12 @@
 
 import cv2 as cv
 import numpy as np
-from utilities.image_tools import rescaleFrame
+from utilities.image_tools import rescaleFrame, load_img
 
 ################################################################################################################
 # Load Image
 ################################################################################################################
-img = cv.imread('photos\\dog.jpg')  # dog is a large image -- rescale for better demo visualization
+img = load_img('photos\\dog.jpg')  # dog is a large image -- rescale for better demo visualization
 rescaled_img = rescaleFrame(img, 0.20)
 img = rescaled_img      
 

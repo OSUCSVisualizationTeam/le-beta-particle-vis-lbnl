@@ -1,12 +1,12 @@
 # NOTE: Uses 'photos\\dog.jpg' as the example img for the demo, it can be replaced with any path to an image if needed
 
 import cv2 as cv
-from utilities.image_tools import rescaleFrame
+from utilities.image_tools import rescaleFrame, load_img
 
 ################################################################################################################
 # Load Image
 ################################################################################################################
-img = cv.imread('photos\\dog.jpg')  # dog is a large image -- rescale for better demo visualization
+img = load_img('photos\\dog.jpg')  # dog is a large image -- rescale for better demo visualization
 rescaled_img = rescaleFrame(img, 0.20)
 img = rescaled_img
 
