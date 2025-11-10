@@ -34,9 +34,6 @@ All scripts have most of the image display commented out. Before running a progr
 ### Original/Rescaled Image (Keeps Aspect Ratio)
 ![Rescaled Dog](results/rescaled_dog.png)
 
-### Resized Dog (Does Not Keep Aspect Ratio)
-![Resized Dog](results/resized_dog.png)
-
 ### Average Blurring
 ![Average Blur Dog](results/avg_blur_dog.png)
 
