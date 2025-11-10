@@ -1,0 +1,169 @@
+from PySide6 import QtWidgets, QtCore, QtGui
+from superqt.sliders import QLabeledRangeSlider
+from .CCDCaptureViewModel import BaseCCDCaptureViewModel
+import matplotlib.pyplot as plt
+
+
+class _VizWidget(QtWidgets.QLabel):
+    """A visualization widget aimed at displaying CCD event data on its pixmap"""
+
+    mouseMoved = QtCore.Signal(int, int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+        self.setMouseTracking(True)  # Enable mouse tracking for this widget
+
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent):
+        self.mouseMoved.emit(event.x(), event.y())
+        super().mouseMoveEvent(event)  # Call base class implementation
+
+
+class CCDCaptureWidget(QtWidgets.QWidget):
+    """A PyQT widget aimed at displaying CCD captured data"""
+
+    def __init__(
+        self,
+        viewModel: BaseCCDCaptureViewModel,
+        sliderScaleFactor: int = 10000,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.__viewModel = viewModel
+        self.__sliderScaleFactor = sliderScaleFactor
+        self._vbox = QtWidgets.QVBoxLayout(self)
+
+        self._topToolbar = QtWidgets.QToolBar()
+        self._vbox.addWidget(self._topToolbar)
+
+        self._addTopToolbarItems()
+
+        self._vizWidget = _VizWidget()  # Use custom label
+        self._vizWidget.setAlignment(QtCore.Qt.AlignCenter)
+        self._vbox.addWidget(self._vizWidget)
+        self._addLowerToolbar()
+
+        self.setLayout(self._vbox)
+        self._updateVisualization()
+
+        self._vizWidget.mouseMoved.connect(self._onVisualizationWidgetMouseMove)
+
+    # Widget building
+
+    def _addTopToolbarItems(self):
+        self._addColormapSelectionWidget()
+        self._addResetButton()
+        spacer = QtWidgets.QWidget()
+        spacer.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
+        )
+        self._topToolbar.addWidget(spacer)
+
+        self._addCurrentValueLabel()
+
+    def _addColormapSelectionWidget(self):
+        if self.__viewModel.isUsingAFastQPixmapConverter():
+            return
+        colormapContainer = QtWidgets.QWidget()
+        colormapLayout = QtWidgets.QHBoxLayout(colormapContainer)
+        colormapLayout.setContentsMargins(0, 0, 0, 0)
+
+        colormapLabel = QtWidgets.QLabel("Colormap")
+        colormapLayout.addWidget(colormapLabel)
+
+        self._colormapComboBox = QtWidgets.QComboBox()
+        for cmap in plt.colormaps():
+            self._colormapComboBox.addItem(cmap)
+
+        default_colormap_index = self._colormapComboBox.findText("Greys_r")
+        if default_colormap_index != -1:
+            self._colormapComboBox.setCurrentIndex(default_colormap_index)
+
+        self._colormapComboBox.currentIndexChanged.connect(self._onColormapChanged)
+        colormapLayout.addWidget(self._colormapComboBox)
+        self._topToolbar.addWidget(colormapContainer)
+
+    def _addResetButton(self):
+        resetButton = QtWidgets.QToolButton()
+        resetButton.setText("Reset")
+        resetButton.clicked.connect(self._resetViewModel)
+        self._topToolbar.addWidget(resetButton)
+
+    def _addCurrentValueLabel(self):
+        self._valueLabel = QtWidgets.QLabel()
+        self._valueLabel.setText("Value: NaN")
+        self._valueLabel.setMinimumWidth(128)
+        self._topToolbar.addWidget(self._valueLabel)
+
+    def _addLowerToolbar(self):
+        self._lowerToolbar = QtWidgets.QToolBar()
+        self._vbox.addWidget(self._lowerToolbar)
+        self._addLowerToolbarItems()
+
+    def _addLowerToolbarItems(self):
+        if not self.__viewModel.isUsingAFastQPixmapConverter():
+            applyButton = QtWidgets.QPushButton()
+            applyButton.setText("Apply")
+            applyButton.clicked.connect(self._onApplyExclusionClicked)
+            self._lowerToolbar.addWidget(applyButton)
+        self._addRangeSlider()
+
+    def _addRangeSlider(self):
+        self.__originalVizRange = self.__viewModel.getVisualizationRange()
+
+        scaledMin = self._scaleValue(self.__originalVizRange[0])
+        scaledMax = self._scaleValue(self.__originalVizRange[1])
+
+        rangeSlider = QLabeledRangeSlider(QtCore.Qt.Horizontal)
+        rangeSlider.setMinimum(scaledMin)
+        rangeSlider.setMaximum(scaledMax)
+        rangeSlider.setValue((scaledMin, scaledMax))
+        rangeSlider.valueChanged.connect(self._onRangeSliderValueChanged)
+        self.__rangeSlider = rangeSlider
+        self._lowerToolbar.addWidget(rangeSlider)
+
+    def _scaleValue(self, value: float) -> int:
+        return int(value * self.__sliderScaleFactor)
+
+    def _downscaleValue(self, scaled_value: int) -> float:
+        return scaled_value / self.__sliderScaleFactor
+
+    # Callbacks
+
+    def _onColormapChanged(self, index: int):
+        """Callback invoked whenever the user selects a different colormap"""
+        selected_colormap = self._colormapComboBox.itemText(index)
+        self.__viewModel.setCurrentColormap(selected_colormap)
+        self._updateVisualization()
+
+    def _onApplyExclusionClicked(self):
+        self.__viewModel.restrictVisualizationToRange()
+        self._updateVisualization()
+
+    def _onRangeSliderValueChanged(self, value):
+        scaledMin = self._downscaleValue(value[0])
+        scaledMax = self._downscaleValue(value[1])
+        self.__viewModel.setVisualizationRange((scaledMin, scaledMax))
+        if self.__viewModel.isUsingAFastQPixmapConverter():
+            self._onApplyExclusionClicked()
+
+    def _updateVisualization(self):
+        """Obtain data visualizable data from the view model"""
+        display_data = self.__viewModel.getQPixmap()
+        if display_data:
+            self._vizWidget.setPixmap(display_data)
+
+    def _resetViewModel(self):
+        """Resets view model state"""
+        self.__viewModel.reset()
+        oMin = self.__originalVizRange[0]
+        oMax = self.__originalVizRange[1]
+        scaledMin = self._scaleValue(oMin)
+        scaledMax = self._scaleValue(oMax)
+        self.__rangeSlider.setValue((scaledMin, scaledMax))
+        self._updateVisualization()
+
+    def _onVisualizationWidgetMouseMove(self, x: int, y: int):
+        coord = f"({y},{x})"
+        value = self.__viewModel.valueAt(y, x)
+        self._valueLabel.setText(f"Value: {coord}: {value:.2e} keV")
