@@ -56,6 +56,8 @@ fits_data ='data\\subMed_proc_6oct2022_G2ccd_h3_meas_v2___EXP1_NSAMP1_VSUB70_img
 
 # open the FITS file at the specific path
 hdul = fits.open(fits_data)
+# save FIST data for later usage
+fits_data = [hdu.data for hdu in hdul if hdu.data is not None]
 ```
 
 ### Display Raw FITS Data via Matplotlib
@@ -79,3 +81,26 @@ for i, hdu in enumerate(hdul) :
 # display all HDUs
 plt.show()
 ```
+
+## Normalizing FITS Data: Float32 --> UInt8
+
+### Conversion Function
+Normalizes a NumPy float32 array to the 0–255 range and returns it as uint8, with a fallback to zeros if all values are identical
+```
+def float32_to_uint8(data) : 
+    data_min = np.min(data)
+    data_max = np.max(data)
+
+    if data_max == data_min : 
+        return np.zeros(data.shape, dtype.uint8)    # error handling for bad data that was passed
+    
+    normalized = (data - data_min) / (data_max - data_min)
+    uint8_data = (normalized * 255).astype(np.uint8)
+    return uint8_data
+```
+
+### Apply Conversion Function To FITS Data
+```
+uint8_data = [float32_to_uint8(image) for image in fits_data]
+```
+
