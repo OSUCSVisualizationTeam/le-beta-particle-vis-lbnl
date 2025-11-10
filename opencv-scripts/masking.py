@@ -30,4 +30,6 @@ cv.imshow('Dog', img)
 # cv.imshow('Mask', mask)
 # cv.imshow('Masked_Img', masked)
 
+# cv.imwrite('results\\masked_dog.png', masked)
+
 cv.waitKey(0)

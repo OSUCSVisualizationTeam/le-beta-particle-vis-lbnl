@@ -39,4 +39,7 @@ cv.imshow('Dog', img)
 # cv.imshow('Simple_Threshold_Inverse', thresh2)
 # cv.imshow('Adaptive_Threshold', adaptive_thresh)
 
+# cv.imwrite('results\\inverse_threshold_dog.png', thresh2)
+# cv.imwrite('results\\adaptive_thresholding_dog.png', adaptive_thresh)
+
 cv.waitKey(0)

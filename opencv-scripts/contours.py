@@ -66,12 +66,18 @@ cv.drawContours(blank, contours2, -1, (0, 0, 255), 1)
 ################################################################################################################
 # Show/Display Image
 ################################################################################################################
-cv.imshow('Dog', img)
+# cv.imshow('Dog', img)
 # cv.imshow('Gray_Scale_Dog', gray)
 # cv.imshow('Blur_Dog', blur)
 # cv.imshow('Canny_Edges', canny)
 # cv.imshow('Threshold_Img', thresh)
 # cv.imshow('Drawn_Contours', blank)
+
+# To save results into a folder e.g. results/...
+# cv.imwrite('results\\grayscale_dog.png', gray)
+# cv.imwrite('results\\canny_edges_dog.png', canny)
+# cv.imwrite('results\\threshold_dog.png', thresh)
+
 
 cv.waitKey(0)
 

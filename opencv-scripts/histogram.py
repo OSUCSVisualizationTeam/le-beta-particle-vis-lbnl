@@ -65,34 +65,34 @@ cv.imshow('Dog', img)
 
 ################################################################################################################
 # Color Histogram (No Mask)
-# plt.figure()
-# plt.title('Color Histogram')
-# plt.xlabel('Bins')
-# plt.ylabel('# of Pixels')
-# colors = ('b', 'g', 'r')
+plt.figure()
+plt.title('Color Histogram')
+plt.xlabel('Bins')
+plt.ylabel('# of Pixels')
+colors = ('b', 'g', 'r')
 
-# for i, col in enumerate(colors) : 
-#     hist = cv.calcHist([img], [i], None, [256], [0, 256])
-#     plt.plot(hist, color=col)
-#     plt.xlim([0, 256])
+for i, col in enumerate(colors) : 
+    hist = cv.calcHist([img], [i], None, [256], [0, 256])
+    plt.plot(hist, color=col)
+    plt.xlim([0, 256])
     
-# plt.show()
+plt.show()
 
 ################################################################################################################
 # Color Histogram (No Mask)
-# cv.imshow('Masked_Colors', masked2)
-# plt.figure()
-# plt.title('Color Histogram')
-# plt.xlabel('Bins')
-# plt.ylabel('# of Pixels')
-# colors = ('b', 'g', 'r')
+cv.imshow('Masked_Colors', masked2)
+plt.figure()
+plt.title('Color Histogram')
+plt.xlabel('Bins')
+plt.ylabel('# of Pixels')
+colors = ('b', 'g', 'r')
 
-# for i, col in enumerate(colors) : 
-#     hist = cv.calcHist([img], [i], mask2, [256], [0, 256])
-#     plt.plot(hist, color=col)
-#     plt.xlim([0, 256])
+for i, col in enumerate(colors) : 
+    hist = cv.calcHist([img], [i], mask2, [256], [0, 256])
+    plt.plot(hist, color=col)
+    plt.xlim([0, 256])
     
-# plt.show()
+plt.show()
 
 cv.waitKey(0)
  

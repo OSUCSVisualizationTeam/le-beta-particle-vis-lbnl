@@ -52,6 +52,10 @@ cv.imshow('Dog', img)
 # cv.imshow('HSV-To-BGR', hsv_to_bgr)
 # cv.imshow('LAB-To-BGR', lab_to_bgr)
 
+# cv.imwrite('results\\hsv_dog.png', hsv)
+# cv.imwrite('results\\lab_dog.png', lab)
+# cv.imwrite('results\\rgb_dog.png', rgb)
+
 cv.waitKey(0)
 
 # NOTE: Limitations -- Cannot convert Gray-Scale Images to HSV Images directly

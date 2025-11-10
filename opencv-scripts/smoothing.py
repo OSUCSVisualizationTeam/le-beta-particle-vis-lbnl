@@ -34,10 +34,14 @@ bilateral = cv.bilateralFilter(img, 10, 35, 25)
 ################################################################################################################
 # Show/Display Image
 ################################################################################################################
-cv.imshow('Dog', img)
+# cv.imshow('Dog', img)
 # cv.imshow('Average_Blur', average)
 # cv.imshow('Gaussian_Blur', gauss)
 # cv.imshow('Median_Blur', median)
 # cv.imshow('Bilateral_Blur', bilateral)
+
+# cv.imwrite('results\\gaussian_blur_dog.png', gauss)
+# cv.imwrite('results\\bilateral_blur_dog.png', bilateral)
+# cv.imwrite('results\\median_bur_dog.png', median)
 
 cv.waitKey(0)

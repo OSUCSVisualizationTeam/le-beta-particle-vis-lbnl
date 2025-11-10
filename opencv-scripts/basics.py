@@ -57,14 +57,22 @@ resized = cv.resize(img, (500,500), interpolation=cv.INTER_AREA)     # does not 
 # Show/Display Image
 ################################################################################################################
 # cv.imshow('NAME_OF_IMAGE', img)
-cv.imshow('Dog', img)
-# cv.imshow('Rescaled_Dog', rescaled_img)
+# cv.imshow('Dog', img)
+cv.imshow('Rescaled_Dog', rescaled_img)
 # cv.imshow('Blurred_Dog', blur)
 # cv.imshow('Canny_Edges1', canny1)
 # cv.imshow('Canny_Edges2', canny2)
 # cv.imshow('Dilated_Dog', dilated)
 # cv.imshow('Eroded_Dog', eroded)
 # cv.imshow('Resized_Dog', resized)
+
+# To save results into a folder e.g. results/...
+# cv.imwrite('results\\rescaled_dog.png', rescaled_img)
+# cv.imwrite('results\\blurred_dog.png', blur)
+# cv.imwrite('results\\canny_edges_dog.png', canny1)
+# cv.imwrite('results\\dialted_dog.png', rescaled_img)
+# cv.imwrite('results\\eroded_dog.png', rescaled_img)
+# cv.imwrite('results\\resized_dog.png', rescaled_img)
 
 # uncomment the images wanting to be displayed when script is ran
 

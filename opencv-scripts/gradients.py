@@ -45,6 +45,12 @@ cv.imshow('Dog', img)
 # cv.imshow('Combined_Sobel', combined_sobel)
 # cv.imshow('Canny', canny)
 
+# To save results into a folder e.g. results/...
+# cv.imwrite('results\\laplacian_dog.png', lap)
+# cv.imwrite('results\\sobelx_dog.png', sobelx)
+# cv.imwrite('results\\sobely_dog.png', sobely)
+# cv.imwrite('results\\combiend_sobel_dog.png', combined_sobel)
+
 cv.waitKey(0)
 
 # Canny Edge Detector is a more clean edge detector, however sobel is also used alot

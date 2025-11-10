@@ -49,4 +49,8 @@ cv.imshow('Dog', img)
 # cv.imshow('Green2', green)
 # cv.imshow('Red2', red)
 
+# cv.imwrite('results\\blue_dog.png', blue)
+# cv.imwrite('results\\green_dog.png', green)
+# cv.imwrite('results\\red_dog.png', red)
+
 cv.waitKey(0)
