@@ -4,6 +4,7 @@ import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 from utilities.image_tools import rescaleFrame, load_img
+from utilities.graphing_tools import plot_color_histogram
 
 ################################################################################################################
 # Load Image
@@ -38,7 +39,7 @@ masked2 = cv.bitwise_and(img, img, mask=mask2)
 ################################################################################################################
 # Show/Display Images/Histograms
 ################################################################################################################
-cv.imshow('Dog', img)
+# cv.imshow('Dog', img)
 
 ################################################################################################################
 # Full Gray Scale Histogram
@@ -65,34 +66,11 @@ cv.imshow('Dog', img)
 
 ################################################################################################################
 # Color Histogram (No Mask)
-plt.figure()
-plt.title('Color Histogram')
-plt.xlabel('Bins')
-plt.ylabel('# of Pixels')
-colors = ('b', 'g', 'r')
-
-for i, col in enumerate(colors) : 
-    hist = cv.calcHist([img], [i], None, [256], [0, 256])
-    plt.plot(hist, color=col)
-    plt.xlim([0, 256])
-    
-plt.show()
+plot_color_histogram(img)
 
 ################################################################################################################
 # Color Histogram (No Mask)
-cv.imshow('Masked_Colors', masked2)
-plt.figure()
-plt.title('Color Histogram')
-plt.xlabel('Bins')
-plt.ylabel('# of Pixels')
-colors = ('b', 'g', 'r')
-
-for i, col in enumerate(colors) : 
-    hist = cv.calcHist([img], [i], mask2, [256], [0, 256])
-    plt.plot(hist, color=col)
-    plt.xlim([0, 256])
-    
-plt.show()
+plot_color_histogram(img, 'Color Histogram 2', mask2)
 
 cv.waitKey(0)
  
