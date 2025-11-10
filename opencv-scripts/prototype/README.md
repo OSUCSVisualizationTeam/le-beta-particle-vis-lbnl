@@ -47,3 +47,35 @@ No.    Name      Ver    Type      Cards   Dimensions   Format
   2                1 ImageHDU       162   (3200, 550)   float32
   3                1 ImageHDU       162   (3200, 550)   float32
 ```
+
+## Read FITS Data
+
+### Load FITS data
+```
+fits_data ='data\\subMed_proc_6oct2022_G2ccd_h3_meas_v2___EXP1_NSAMP1_VSUB70_img591.fits'
+
+# open the FITS file at the specific path
+hdul = fits.open(fits_data)
+```
+
+### Display Raw FITS Data via Matplotlib
+NOTE: FITS data supplied by LBNL contains 4 HDUs in each FITS file
+```
+# since our FITS data contains 4 images per file, loop through all HDUs to see each one 
+for i, hdu in enumerate(hdul) : 
+
+    # display the image using matplotlib
+    if hdu.data is not None : 
+        # Display the image
+        plt.figure(i)
+        plt.imshow(hdu.data, cmap='gray', origin='lower')
+        plt.axis('off')
+        plt.title(f'HDU {i} Image')
+        
+        # plt.savefig(f'images\\background_only_hdu_{i}_image.png', bbox_inches='tight', pad_inches=0)     # save image to disk space for easier reference
+    else : 
+        print("No image data in this HDU")
+
+# display all HDUs
+plt.show()
+```
