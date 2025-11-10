@@ -104,10 +104,52 @@ def float32_to_uint8(data) :
 uint8_data = [float32_to_uint8(image) for image in fits_data]
 ```
 
-## Display HDU Images Using OpenCV
+## Display Original HDU Images Using OpenCV
 
 ### Use OpenCV's imshow() Function
 ```
 for i, hdu in enumerate(uint8_data) : 
     cv.imshow(f"HDU: {i}", hdu)
 ```
+
+## OpenCV Operations on FITS Data: Edge Detection + Thresholds
+FITS HDU used for follow OpenCV operations: `uint8_image = uint8_data[3]`
+
+### Canny Edge Detection
+The cv.Canny function detects edges in the image. You can adjust the `threshold1` and `threshold2` parameters to control the sensitivity of edge detection.
+```
+# Canny Edge Detection
+canny_edges = cv.Canny(uint8_image, threshold1=100, threshold2=200)
+
+# Display Canny Edges
+cv.imshow('Canny Edges', canny_edges)
+```
+
+### Canny Edge Results
+![Canny Edges](images/opencv_results/canny_edges_background_and_tritium_hdu3.png)
+
+### Simple Threshold
+The cv.threshold function converts the image to a binary image based on a fixed threshold (25 in this case). Pixels above this threshold are set to 255 (white), and those below are set to 0 (black).
+```
+# Simple Threshold
+ret, thresh = cv.threshold(uint8_image, 25, 255, cv.THRESH_BINARY)
+
+# Display Simple Threshold
+cv.imshow('Simple Threshold', thresh)
+```
+
+### Simple Threshold Results
+![Simple Thresh](images/opencv_results/simple_thresh_background_and_tritium_hdu3.png)
+
+### Adaptive Threshold
+The cv.adaptiveThreshold function calculates the threshold for smaller regions of the image, which can be useful for images with varying lighting conditions.
+```
+# Adaptive Threshold
+adaptive_thresh = cv.adaptiveThreshold(uint8_image, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, blockSize=11, C=2)
+
+# Display Adaptive Threshold
+cv.imshow('Adaptive Threshold', adaptive_thresh)
+```
+
+### Adaptive Threshold Results
+![Adaptive Thresh](images/opencv_results/adaptive_thresh_background_and_tritium_hdu3.png)
