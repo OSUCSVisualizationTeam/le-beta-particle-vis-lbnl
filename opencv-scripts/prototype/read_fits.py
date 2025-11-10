@@ -13,7 +13,7 @@ def float32_to_uint8(data) :
     data_max = np.max(data)
 
     if data_max == data_min : 
-        return np.zeros(data.shape, dtype.uint8)    # error handling for bad data that was passed
+        return np.zeros(data.shape, dtype=uint8)    # error handling for bad data that was passed
     
     normalized = (data - data_min) / (data_max - data_min)
     uint8_data = (normalized * 255).astype(np.uint8)
