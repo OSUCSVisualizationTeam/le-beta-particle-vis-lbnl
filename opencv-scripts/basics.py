@@ -17,7 +17,7 @@ img = load_img('photos\\dog.jpg')
 ################################################################################################################
 # Rescale Image (via rescaleFrame)
 ################################################################################################################
-rescaled_img = rescaleFrame(img, 0.10)
+rescaled_img = rescaleFrame(img, 0.20)
 # img = rescaled_img       # use rescaled image for following example because original img is very large
 
 ################################################################################################################
@@ -68,7 +68,7 @@ cv.imshow('Rescaled_Dog', rescaled_img)
 
 # To save results into a folder e.g. results/...
 # cv.imwrite('results\\rescaled_dog.png', rescaled_img)
-# cv.imwrite('results\\blurred_dog.png', blur)
+# cv.imwrite('results\\avg_blur_dog.png', blur)
 # cv.imwrite('results\\canny_edges_dog.png', canny1)
 # cv.imwrite('results\\dialted_dog.png', rescaled_img)
 # cv.imwrite('results\\eroded_dog.png', rescaled_img)
