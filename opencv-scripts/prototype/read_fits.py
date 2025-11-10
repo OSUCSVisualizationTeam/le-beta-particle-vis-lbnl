@@ -67,8 +67,10 @@ uint8_data = [float32_to_uint8(image) for image in fits_data]
 Display UInt8 Images Using OpenCV
 '''
 ################################################################################################################
-# for i, hdu in enumerate(uint8_data) : 
-#     cv.imshow(f"HDU: {i}", hdu)
+for i, hdu in enumerate(uint8_data) : 
+    cv.imshow(f"HDU: {i}", hdu)
+    # cv.imwrite(f"images\\original\\uint8_background_and_tritium_hdu_{i}.png", hdu)
+    # cv.imwrite(f"images\\original\\uint8_background_only_hdu_{i}.png", hdu)
 cv.imshow('HDU 3', uint8_data[3])
 
 ################################################################################################################

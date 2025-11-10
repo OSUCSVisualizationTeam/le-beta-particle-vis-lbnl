@@ -113,7 +113,7 @@ for i, hdu in enumerate(uint8_data) :
 ```
 
 ## Original UInt8 Image of HDU 3 - Background + Tritium
-![HDU 3 Original](images/original/background_and_tritium_hdu_3_image.png)
+![UInt8 HDU 3 Original](images/original/uint8_background_and_tritium_hdu_3.png)
 
 ## OpenCV Operations on FITS Data: Edge Detection + Thresholds
 FITS HDU used for follow OpenCV operations: `uint8_image = uint8_data[3]`
