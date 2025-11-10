@@ -104,3 +104,10 @@ def float32_to_uint8(data) :
 uint8_data = [float32_to_uint8(image) for image in fits_data]
 ```
 
+## Display HDU Images Using OpenCV
+
+### Use OpenCV's imshow() Function
+```
+for i, hdu in enumerate(uint8_data) : 
+    cv.imshow(f"HDU: {i}", hdu)
+```
