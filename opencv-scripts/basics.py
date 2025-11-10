@@ -72,7 +72,7 @@ cv.imshow('Rescaled_Dog', rescaled_img)
 # cv.imwrite('results\\canny_edges_dog.png', canny1)
 # cv.imwrite('results\\dialted_dog.png', rescaled_img)
 # cv.imwrite('results\\eroded_dog.png', rescaled_img)
-# cv.imwrite('results\\resized_dog.png', rescaled_img)
+# cv.imwrite('results\\resized_dog.png', resized)
 
 # uncomment the images wanting to be displayed when script is ran
 
