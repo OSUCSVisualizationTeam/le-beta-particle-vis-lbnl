@@ -2,6 +2,7 @@ from astropy.io import fits
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.metrics import silhouette_score
 
 ################################################################################################################
 '''
@@ -33,7 +34,7 @@ def kmeans_segmentation(image, k=2) :
     # Reshape back to the original image shape
     segmented_image = segmented_image.reshape(image.shape)
 
-    return segmented_image
+    return segmented_image, ret, labels
 
 
 
@@ -61,8 +62,21 @@ Preform K-Means
 # demo different k-values on a singular image: using HDU 3
 hdu_3 = fits_data[3]
 
-for i in range(1, 11) : 
-    segmented_hdu = kmeans_segmentation(hdu_3, k=i)
-    cv.imwrite(f'images\\kmeans_results\\_kmeans_at_{i}_background_and_tritium_hdu_3.png', segmented_hdu)
+for i in range(2, 11) : 
+    print(f'HDU 3 (K = {i}): ')
+    segmented_hdu, ret, labels = kmeans_segmentation(hdu_3, k=i)
+    
+    # Calculate silhouette score, however only works when k >= 2
+    # silhouette_avg = silhouette_score(segmented_hdu.reshape(-1, 1), labels.flatten())       # 
+    # print(f'Silhouette Score: {silhouette_avg}')
+    
+    # Print inertia
+    print(f'Inertia: {ret}')
+
+    # Calculate and print cluster sizes
+    unique, counts = np.unique(labels, return_counts=True)
+    cluster_sizes = dict(zip(unique, counts))
+    cleaned_cluster_sizes = {int(k): int(v) for k, v in cluster_sizes.items()}      # convert into integers for readability
+    print(f'Cluster sizes for k={i}: {cleaned_cluster_sizes}\n')
 
 cv.waitKey(0)

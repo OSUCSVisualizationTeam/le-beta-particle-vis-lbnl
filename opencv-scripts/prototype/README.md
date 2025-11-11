@@ -200,11 +200,47 @@ for i in range(1, 11) :
     segmented_hdu = kmeans_segmentation(hdu_3, k=i)
 ```
 
-## K Means Results For K = 1-10 On HDU 3 - Background + Tritium Image
-NOTE: On the sample data provided by LBNL, there is not much visual variation beyond K=3; however, increasing the number of clusters may still help in identifying subtle differences in pixel intensity distributions or in enhancing specific features that could be relevant for further analysis.
+## K Means Results For K = 2-10 On HDU 3 - Background + Tritium Image
+NOTE: On the sample data provided by LBNL, there is not much visual variation, increasing the number of clusters may still help in identifying subtle differences in pixel intensity distributions or in enhancing specific features that could be relevant for further analysis.
 
-### K = 1
-![K Means 1](images/kmeans_results/_kmeans_at_1_background_and_tritium_hdu_3.png)
+### Numerical Outputs:
+```
+HDU 3 (K = 2):
+Inertia: 187950035155300.66
+Cluster sizes for k=2: {0: 1758159, 1: 1841}
+
+HDU 3 (K = 3):
+Inertia: 86314520999836.31
+Cluster sizes for k=3: {0: 670, 1: 4744, 2: 1754586}
+
+HDU 3 (K = 4):
+Inertia: 47899679496499.21
+Cluster sizes for k=4: {0: 6029, 1: 1752383, 2: 1279, 3: 309}
+
+HDU 3 (K = 5):
+Inertia: 31371455486042.89
+Cluster sizes for k=5: {0: 1749934, 1: 248, 2: 777, 3: 2330, 4: 6711}
+
+HDU 3 (K = 6):
+Inertia: 22591338836445.742
+Cluster sizes for k=6: {0: 2908, 1: 190, 2: 464, 3: 1748317, 4: 7075, 5: 1046}
+
+HDU 3 (K = 7):
+Inertia: 17086301540888.545
+Cluster sizes for k=7: {0: 626, 1: 1747299, 2: 274, 3: 129, 4: 1292, 5: 3104, 6: 7276}
+
+HDU 3 (K = 8):
+Inertia: 13514509376135.861
+Cluster sizes for k=8: {0: 108, 1: 393, 2: 750, 3: 1746135, 4: 1704, 5: 196, 6: 3380, 7: 7334}
+
+HDU 3 (K = 9):
+Inertia: 11023379616080.006
+Cluster sizes for k=9: {0: 102, 1: 583, 2: 980, 3: 329, 4: 2098, 5: 1744530, 6: 3709, 7: 7496, 8: 173}
+
+HDU 3 (K = 10):
+Inertia: 9308014294049.87
+Cluster sizes for k=10: {0: 95, 1: 1743628, 2: 228, 3: 454, 4: 690, 5: 1263, 6: 2161, 7: 151, 8: 3768, 9: 7562}
+```
 
 ### K = 2
 ![K Means 2](images/kmeans_results/_kmeans_at_2_background_and_tritium_hdu_3.png)
