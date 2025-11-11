@@ -156,3 +156,78 @@ cv.imshow('Adaptive Threshold', adaptive_thresh)
 
 ### Adaptive Threshold Results
 ![Adaptive Thresh](images/opencv_results/adaptive_thresh_background_and_tritium_hdu3.png)
+
+## K Means Implementation
+
+### Function Definition
+This function performs K-Means clustering on the input image, reshaping it for processing, applying the K-Means algorithm, and returning a segmented image based on the specified number of clusters k.
+```
+def kmeans_segmentation(image, k=2) : 
+    pixel_values = image.reshape((-1, 1))  # Reshape to (num_pixels, 1)
+    pixel_values = np.float32(pixel_values)  # Convert to float32 (if not already)
+
+    criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 100, 0.2)
+    ret, labels, centers = cv.kmeans(pixel_values, k, None, criteria, 10, cv.KMEANS_RANDOM_CENTERS)
+
+    # Convert to uint8 for visualization purposes
+    centers = float32_to_uint8(centers)
+    segmented_image = centers[labels.flatten()]
+    
+    # Reshape back to the original image shape
+    segmented_image = segmented_image.reshape(image.shape)
+
+    return segmented_image
+```
+
+### Read FITS Data
+This section opens the specified FITS file, extracts the image data from each HDU (Header Data Unit), and stores it in a list for further processing, ensuring that only valid data is retained.
+NOTE: No need to convert float32 to uint8 until later, as k-means expects float32 values.
+```
+fits_data ='data\\subMed_proc_6oct2022_G2ccd_h3_meas_v2___EXP1_NSAMP1_VSUB70_img591.fits'     # Background + Tritium
+
+# open the FITS file at the specific path
+hdul = fits.open(fits_data)
+fits_data = [hdu.data for hdu in hdul if hdu.data is not None]
+
+hdul.close()
+```
+
+### Preform K Means
+This part selects the third HDU from the FITS data and iteratively applies K-Means segmentation with varying values of k (from 1 to 10), saving the resulting segmented images to the specified directory for analysis.
+```
+hdu_3 = fits_data[3]
+for i in range(1, 11) : 
+    segmented_hdu = kmeans_segmentation(hdu_3, k=i)
+```
+
+## K Means Results For K = 1-10 On HDU 3 - Background + Tritium Image
+
+### K = 1
+![K Means 1](images/kmeans_results/_kmeans_at_1_background_and_tritium_hdu_3.png)
+
+### K = 2
+![K Means 2](images/kmeans_results/_kmeans_at_2_background_and_tritium_hdu_3.png)
+
+### K = 3
+![K Means 3](images/kmeans_results/_kmeans_at_3_background_and_tritium_hdu_3.png)
+
+### K = 4
+![K Means 4](images/kmeans_results/_kmeans_at_4_background_and_tritium_hdu_3.png)
+
+### K = 5
+![K Means 5](images/kmeans_results/_kmeans_at_5_background_and_tritium_hdu_3.png)
+
+### K = 6
+![K Means 6](images/kmeans_results/_kmeans_at_6_background_and_tritium_hdu_3.png)
+
+### K = 7
+![K Means 7](images/kmeans_results/_kmeans_at_7_background_and_tritium_hdu_3.png)
+
+### K = 8
+![K Means 8](images/kmeans_results/_kmeans_at_8_background_and_tritium_hdu_3.png)
+
+### K = 9
+![K Means 9](images/kmeans_results/_kmeans_at_9_background_and_tritium_hdu_3.png)
+
+### K = 10
+![K Means 10](images/kmeans_results/_kmeans_at_10_background_and_tritium_hdu_3.png)
