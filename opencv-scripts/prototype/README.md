@@ -204,10 +204,12 @@ for i in range(1, 11) :
 NOTE: On the sample data provided by LBNL, there is not much visual variation, increasing the number of clusters may still help in identifying subtle differences in pixel intensity distributions or in enhancing specific features that could be relevant for further analysis.
 
 ### Definitions
-- **Inertia**: Inertia, also known as the within-cluster sum of squares, is a metric used to evaluate the compactness of clusters formed by the K-Means clustering algorithm. It measures the total distance between each data point and the centroid (center) of the cluster to which it belongs. Mathematically, inertia is calculated as the sum of squared distances from each point to its assigned cluster centroid
+- **Inertia**: Inertia, also known as the within-cluster sum of squares, is a metric used to evaluate the compactness of clusters formed by the K-Means clustering algorithm. It measures the total distance between each data point and the centroid (center) of the cluster to which it belongs. Mathematically, inertia is calculated as the sum of squared distances from each point to its assigned cluster centroid. 
+    - A lower inertia value indicates that the clusters are more compact, meaning that the data points are closer to their respective centroids. Conversely, a higher inertia value suggests that the clusters are more spread out. When comparing different values of the number of clusters (k), a decrease in inertia typically indicates improved clustering performance.
 
 - **Cluster Size**: Cluster sizes refer to the number of data points assigned to each cluster after performing K-Means clustering. Each cluster is represented by a unique label, and the size of a cluster is determined by counting how many data points belong to that cluster.
-
+    -  Analyzing cluster sizes provides insight into the distribution of data points across different clusters. It helps to understand how well the data is partitioned and whether certain clusters are significantly larger or smaller than others. This information can be useful for evaluating the effectiveness of the clustering and for identifying potential imbalances in the data distribution.
+    
 ### Numerical Outputs:
 ```
 HDU 3 (K = 2):
