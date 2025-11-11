@@ -201,6 +201,7 @@ for i in range(1, 11) :
 ```
 
 ## K Means Results For K = 1-10 On HDU 3 - Background + Tritium Image
+NOTE: On the sample data provided by LBNL, there is not much visual variation beyond K=3; however, increasing the number of clusters may still help in identifying subtle differences in pixel intensity distributions or in enhancing specific features that could be relevant for further analysis.
 
 ### K = 1
 ![K Means 1](images/kmeans_results/_kmeans_at_1_background_and_tritium_hdu_3.png)
