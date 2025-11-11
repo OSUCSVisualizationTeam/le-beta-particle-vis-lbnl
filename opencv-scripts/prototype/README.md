@@ -158,6 +158,7 @@ cv.imshow('Adaptive Threshold', adaptive_thresh)
 ![Adaptive Thresh](images/opencv_results/adaptive_thresh_background_and_tritium_hdu3.png)
 
 ## K Means Implementation
+NOTE: Limited Variation - If you notice that images look similar beyond k=3, it may indicate that the underlying data does not have enough distinct intensity values to warrant more clusters. In such cases, additional clusters may not provide meaningful segmentation.
 
 ### Function Definition
 This function performs K-Means clustering on the input image, reshaping it for processing, applying the K-Means algorithm, and returning a segmented image based on the specified number of clusters k.
@@ -209,7 +210,7 @@ NOTE: On the sample data provided by LBNL, there is not much visual variation, i
 
 - **Cluster Size**: Cluster sizes refer to the number of data points assigned to each cluster after performing K-Means clustering. Each cluster is represented by a unique label, and the size of a cluster is determined by counting how many data points belong to that cluster.
     -  Analyzing cluster sizes provides insight into the distribution of data points across different clusters. It helps to understand how well the data is partitioned and whether certain clusters are significantly larger or smaller than others. This information can be useful for evaluating the effectiveness of the clustering and for identifying potential imbalances in the data distribution.
-    
+
 ### Numerical Outputs:
 ```
 HDU 3 (K = 2):
