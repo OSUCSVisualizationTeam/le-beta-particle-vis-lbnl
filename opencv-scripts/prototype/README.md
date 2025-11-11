@@ -203,6 +203,11 @@ for i in range(1, 11) :
 ## K Means Results For K = 2-10 On HDU 3 - Background + Tritium Image
 NOTE: On the sample data provided by LBNL, there is not much visual variation, increasing the number of clusters may still help in identifying subtle differences in pixel intensity distributions or in enhancing specific features that could be relevant for further analysis.
 
+### Definitions
+- **Inertia**: Inertia, also known as the within-cluster sum of squares, is a metric used to evaluate the compactness of clusters formed by the K-Means clustering algorithm. It measures the total distance between each data point and the centroid (center) of the cluster to which it belongs. Mathematically, inertia is calculated as the sum of squared distances from each point to its assigned cluster centroid
+
+- **Cluster Size**: Cluster sizes refer to the number of data points assigned to each cluster after performing K-Means clustering. Each cluster is represented by a unique label, and the size of a cluster is determined by counting how many data points belong to that cluster.
+
 ### Numerical Outputs:
 ```
 HDU 3 (K = 2):
