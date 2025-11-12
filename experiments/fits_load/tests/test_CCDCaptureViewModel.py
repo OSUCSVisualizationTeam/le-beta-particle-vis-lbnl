@@ -5,6 +5,7 @@ from ccdioutils.CCDCaptureViewModel import CCDCaptureViewModel
 from ccdioutils.BoundingBox import BoundingBox
 from ccdioutils.VizFilter import UniformFilter
 from ccdioutils.Fits2QPixmapConverter import Fits2QPixmapConverter
+from ccdioutils.ClusterExtractor import ClusterExtractor, ClusteredEventInfo
 from PySide6 import QtGui
 
 
@@ -13,6 +14,13 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
         def convert(self, matrix: np.matrix):
             return QtGui.QPixmap([])
 
+    class MockExtractor(ClusterExtractor):
+        def _mockClusterEventInfo(self) -> ClusteredEventInfo:
+            return ClusteredEventInfo(BoundingBox(0, 0, 1, 1), np.ones((10, 10)))
+
+        def extract(self, callback):
+            callback([self._mockClusterEventInfo()])
+
     def _mockMatrix(self, min: float, max: float) -> np.matrix:
         assert min < max
         mock = np.eye(max)
@@ -20,12 +28,16 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
         mock[max - 1][max - 1] = 255
         return mock
 
+    def _mockClusterExtractor(self) -> ClusterExtractor:
+        return TestCCDCaptureViewModelTest.MockExtractor()
+
     def setUp(self):
         self.mockNpMatrix = self._mockMatrix(-255, 255)
         self.ccdCaptureModel = CCDCaptureModel(ccdData=self.mockNpMatrix)
         self.ccdCaptureViewModel = CCDCaptureViewModel(
             self.ccdCaptureModel,
             fits2QPixmapConverter=TestCCDCaptureViewModelTest.MockConverter(),
+            clusterExtractor=self._mockClusterExtractor(),
         )
         self.mockFilter = UniformFilter.Add(1)
         self.mockFits2QPixmapConverter = TestCCDCaptureViewModelTest.MockConverter()
@@ -56,8 +68,14 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
         self.assertEqual(self.ccdCaptureViewModel.valueAt(0, 0), -254)
 
     def test_extractClusters_always_returnsEmptyList(self):
-        result = self.ccdCaptureViewModel.extractClusters()
-        self.assertEqual(result, [])
+        def callback(x):
+            self._extractResult = x
+
+        expected = self._mockClusterExtractor()._mockClusterEventInfo()
+
+        self.ccdCaptureViewModel.startClusterExtraction(callback)
+        self.assertTrue(np.array_equal(self._extractResult[0].data, expected.data))
+        self.assertEqual(self._extractResult[0].boundingBox, expected.boundingBox)
 
     def test_setCurrentColormap_givenColormapName_setsCurrentColormap(self):
         newColormap = "plasma"
@@ -80,6 +98,7 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
         self.ccdCaptureViewModel = CCDCaptureViewModel(
             self.ccdCaptureModel,
             self.mockFits2QPixmapConverter,
+            self._mockClusterExtractor(),
             conversionFunc=lambda x: x * 2,
         )
         expectedConvertedValue = -510
@@ -113,7 +132,9 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
         expected[0][1] = 2
         expected[0][2] = 3
         model = CCDCaptureModel(rawData)
-        viewModel = CCDCaptureViewModel(model, self.mockFits2QPixmapConverter)
+        viewModel = CCDCaptureViewModel(
+            model, self.mockFits2QPixmapConverter, self._mockClusterExtractor()
+        )
 
         viewModel.setVisualizationRange((2, 3))
         viewModel.restrictVisualizationToRange()

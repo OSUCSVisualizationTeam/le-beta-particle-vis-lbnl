@@ -2,6 +2,7 @@ from copy import deepcopy
 import numpy as np
 from .BoundingBox import BoundingBox
 from . import CCDCaptureModel
+from .ClusterExtractor import ClusterExtractor, ClusteredEventInfo
 from .VizFilter import UniformVizFilter, UniformFilter
 from .Fits2QPixmapConverter import Fits2QPixmapConverter
 from typing import List, Tuple, Callable, Optional
@@ -36,8 +37,10 @@ class BaseCCDCaptureViewModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def extractClusters(self) -> List[BoundingBox]:
-        """Extract a list of relevant bounding boxes containing relevant features"""
+    def startClusterExtraction(
+        self, callback: Callable[[List[ClusteredEventInfo]], None]
+    ):
+        """Starts the asynchronous cluster extraction process."""
         raise NotImplementedError
 
     def getQPixmap(self) -> QtGui.QPixmap:
@@ -92,6 +95,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         self,
         ccdCapture: CCDCaptureModel,
         fits2QPixmapConverter: Fits2QPixmapConverter,
+        clusterExtractor: ClusterExtractor,
         cropBox: BoundingBox = BoundingBox.unbounded(),
         defaultColorMap: str = "Greys_r",
         conversionFunc: Optional[Callable[[float], float]] = None,
@@ -99,6 +103,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         self.__cropBox = cropBox
         self.__ccdCapture = ccdCapture
         self.__ccdVizCapture = ccdCapture.copy()
+        self.__clusterExtractor = clusterExtractor
         self.__defaultColorMap = defaultColorMap
         self.__currentColorMap = defaultColorMap
         self._resetVizRange()
@@ -132,9 +137,13 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
             self.__ccdVizCapture = deepcopy(self.__ccdCapture)
             self.__ccdVizCapture.applyFilter(filter)
 
-    def extractClusters(self) -> List[BoundingBox]:
-        result = list()
-        return result
+    def startClusterExtraction(
+        self, callback: Callable[[List[ClusteredEventInfo]], None]
+    ):
+        """
+        Starts the asynchronous cluster extraction process by delegating to the injected ClusterExtractor.
+        """
+        self.__clusterExtractor.extract(callback)
 
     def setCurrentColormap(self, colormap_name: str):
         self.__currentColorMap = colormap_name
