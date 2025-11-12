@@ -16,9 +16,9 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
 
     class MockExtractor(ClusterExtractor):
         def _mockClusterEventInfo(self) -> ClusteredEventInfo:
-            return ClusteredEventInfo(BoundingBox(0, 0, 1, 1), np.ones((10, 10)))
+            return ClusteredEventInfo(BoundingBox(0, 0, 1, 1), np.ones((10, 10)), 0, 0)
 
-        def extract(self, callback):
+        def extract(self, callback, energyMinimum=None, energyMaximum=None):
             callback([self._mockClusterEventInfo()])
 
     def _mockMatrix(self, min: float, max: float) -> np.matrix:
@@ -67,15 +67,19 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
         self.ccdCaptureViewModel.applyFilter(self.mockFilter)
         self.assertEqual(self.ccdCaptureViewModel.valueAt(0, 0), -254)
 
-    def test_extractClusters_always_returnsEmptyList(self):
-        def callback(x):
-            self._extractResult = x
+    def test_startClusterExtraction_givenCallback_invokesCallbackWithResults(self):
+        def callback(results):
+            self._extractResult = results
 
         expected = self._mockClusterExtractor()._mockClusterEventInfo()
 
-        self.ccdCaptureViewModel.startClusterExtraction(callback)
+        self.ccdCaptureViewModel.startClusterExtraction(
+            callback, energyMinimum=0.0, energyMaximum=100.0
+        )
         self.assertTrue(np.array_equal(self._extractResult[0].data, expected.data))
         self.assertEqual(self._extractResult[0].boundingBox, expected.boundingBox)
+        self.assertEqual(self._extractResult[0].centerX, expected.centerX)
+        self.assertEqual(self._extractResult[0].centerY, expected.centerY)
 
     def test_setCurrentColormap_givenColormapName_setsCurrentColormap(self):
         newColormap = "plasma"

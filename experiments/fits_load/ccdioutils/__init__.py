@@ -6,10 +6,7 @@ from .CCDCaptureModel import CCDCaptureModel
 from .CCDCaptureViewModel import CCDCaptureViewModel
 from .CCDCaptureWidget import CCDCaptureWidget
 from .BoundingBox import BoundingBox
-from .VizFilter import UniformVizFilter
-from .VizFilter import PerPixelFilter
-from .VizFilter import PerValueFilter
-from .VizFilter import UniformFilter
+from .VizFilter import UniformVizFilter, PerPixelFilter, PerValueFilter, UniformFilter
 from .Fits2QPixmapConverter import Fits2QPixmapConverter
 from .Fits2QPixmapConverter import MatplotlibBasedConverter
 from .Fits2QPixmapConverter import RawPixmapConverter

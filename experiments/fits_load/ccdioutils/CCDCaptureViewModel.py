@@ -38,9 +38,23 @@ class BaseCCDCaptureViewModel(ABC):
 
     @abstractmethod
     def startClusterExtraction(
-        self, callback: Callable[[List[ClusteredEventInfo]], None]
+        self,
+        callback: Callable[[List[ClusteredEventInfo]], None],
+        energyMinimum: Optional[float] = None,
+        energyMaximum: Optional[float] = None,
     ):
-        """Starts the asynchronous cluster extraction process."""
+        """
+        Starts the asynchronous cluster extraction process.
+
+        Args:
+            callback (Callable[[List[ClusteredEventInfo]], None]): A function that will be called
+                when the cluster extraction process completes. It will receive a list of
+                ClusteredEventInfo objects as its single argument.
+            energyMinimum (Optional[float], optional): The minimum energy value to consider for
+                cluster extraction. Pixels with values below this will be ignored. Defaults to None.
+            energyMaximum (Optional[float], optional): The maximum energy value to consider for
+                cluster extraction. Pixels with values above this will be ignored. Defaults to None.
+        """
         raise NotImplementedError
 
     def getQPixmap(self) -> QtGui.QPixmap:
@@ -138,12 +152,24 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
             self.__ccdVizCapture.applyFilter(filter)
 
     def startClusterExtraction(
-        self, callback: Callable[[List[ClusteredEventInfo]], None]
+        self,
+        callback: Callable[[List[ClusteredEventInfo]], None],
+        energyMinimum: Optional[float] = None,
+        energyMaximum: Optional[float] = None,
     ):
         """
         Starts the asynchronous cluster extraction process by delegating to the injected ClusterExtractor.
+
+        Args:
+            callback (Callable[[List[ClusteredEventInfo]], None]): A function that will be called
+                when the cluster extraction process completes. It will receive a list of
+                ClusteredEventInfo objects as its single argument.
+            energyMinimum (Optional[float], optional): The minimum energy value to consider for
+                cluster extraction. Pixels with values below this will be ignored. Defaults to None.
+            energyMaximum (Optional[float], optional): The maximum energy value to consider for
+                cluster extraction. Pixels with values above this will be ignored. Defaults to None.
         """
-        self.__clusterExtractor.extract(callback)
+        self.__clusterExtractor.extract(callback, energyMinimum, energyMaximum)
 
     def setCurrentColormap(self, colormap_name: str):
         self.__currentColorMap = colormap_name
