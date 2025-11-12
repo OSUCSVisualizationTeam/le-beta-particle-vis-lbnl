@@ -158,7 +158,8 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         energyMaximum: Optional[float] = None,
     ):
         """
-        Starts the asynchronous cluster extraction process by delegating to the injected ClusterExtractor.
+        Starts the asynchronous cluster extraction process by delegating to the injected
+        ClusterExtractor.
 
         Args:
             callback (Callable[[List[ClusteredEventInfo]], None]): A function that will be called
