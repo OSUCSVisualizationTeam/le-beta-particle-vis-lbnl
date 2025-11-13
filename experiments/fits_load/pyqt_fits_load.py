@@ -5,10 +5,13 @@ from ccdioutils import (
     CCDCaptureWidget,
     MatplotlibBasedConverter,
     FastPixmapConverter,
+    ClusterExtractor,
+    ClusteredEventInfo,
 )
 from PySide6 import QtWidgets, QtCore
 from sys import argv, stderr
 from pathlib import Path
+from typing import Callable, Optional, List
 import argparse
 
 
@@ -61,6 +64,16 @@ class FitsLoadMainWindow(QtWidgets.QMainWindow):
             w.setMaximumWidth(viewportWidth - 20)
 
 
+class NoopClusterExtractor(ClusterExtractor):
+    def extract(
+        self,
+        callback: Callable[[List[ClusteredEventInfo]], None],
+        energyMinimum: Optional[float] = None,
+        energyMaximum: Optional[float] = None,
+    ):
+        callback([])
+
+
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])
 
@@ -87,9 +100,10 @@ if __name__ == "__main__":
             converter = MatplotlibBasedConverter(colormap=colormaps["Greys"])
         else:
             converter = FastPixmapConverter()
-        viewModel = CCDCaptureViewModel(exposure, converter)
+        viewModel = CCDCaptureViewModel(exposure, converter, NoopClusterExtractor())
 
         widget = CCDCaptureWidget(viewModel)
+        widget.setMinimumHeight(640)
 
         vbox = QtWidgets.QVBoxLayout()
         label = QtWidgets.QLabel(f"HDU[{i}]: {exposure.info().captureDate()}")
