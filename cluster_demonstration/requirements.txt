@@ -3,10 +3,8 @@ scipy
 pandas
 matplotlib
 tqdm
-uproot
 awkward-pandas
 scikit-learn
 tables
 h5py
 astropy
-seaborn
