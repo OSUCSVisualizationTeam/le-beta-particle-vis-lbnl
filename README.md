@@ -15,3 +15,7 @@ The goal for this project would be a graphical user interface that's capable of 
 ### Motivations
 
 This project would enhance the capabilities of the existing system by extending its utility for real-time applications. The ability to visualize multiple particle types in real-time, and provide insight into the detection results would offer significant utility in a range of nuclear safety and security use cases.
+
+### References
+
+FITS files and relevant cited functionality were provided by the Applied Nuclear Physics program at the Lawrence Berkeley National Laboratory.
