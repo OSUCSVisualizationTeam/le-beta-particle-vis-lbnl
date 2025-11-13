@@ -18,7 +18,7 @@ class BaseCCDCaptureViewModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _getRawData(self) -> np.matrix:
+    def getRawData(self) -> np.matrix:
         raise NotImplementedError
 
     @abstractmethod
@@ -59,7 +59,7 @@ class BaseCCDCaptureViewModel(ABC):
 
     def getQPixmap(self) -> QtGui.QPixmap:
         """Obtain a QPixmap using a Fits2QPixmapConverter"""
-        return self._fits2QPixmapConverter().convert(self._getRawData())
+        return self._fits2QPixmapConverter().convert(self.getRawData())
 
     @abstractmethod
     def setCurrentColormap(self, colormap_name: str):
@@ -127,7 +127,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     def _fits2QPixmapConverter(self) -> Fits2QPixmapConverter:
         return self.__fits2QPixmapConverter
 
-    def _getRawData(self) -> np.matrix:
+    def getRawData(self) -> np.matrix:
         return self.__ccdVizCapture.rawData()
 
     def crop(self, cropBox: BoundingBox):
@@ -184,6 +184,10 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         if self.__conversionFunc is not None:
             value = self.__conversionFunc(value)
         return value
+
+    def getConversionFunc(self) -> Optional[Callable[[float], float]]:
+        """Returns the current conversion function."""
+        return self.__conversionFunc
 
     def captureInfo(self) -> CCDCaptureModel.Info:
         return self.__ccdVizCapture.info()

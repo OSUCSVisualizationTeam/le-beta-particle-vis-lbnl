@@ -14,3 +14,4 @@ from .Fits2QPixmapConverter import FastPixmapConverter
 from .ClusterExtractor import ClusterExtractor, ClusteredEventInfo
 from .CCDCaptureGraphicsView import CCDCaptureGraphicsView
 from .CCDCaptureGraphicsViewModel import CCDCaptureGraphicsViewModel
+from .MagnifierGraphicsItem import MagnifierGraphicsItem
