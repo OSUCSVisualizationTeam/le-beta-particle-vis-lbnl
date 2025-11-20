@@ -24,3 +24,5 @@ This meeting covered a range of topics related to the beta particle track visual
 ### 4. Project Management & Next Steps
 - **Design Document:** The student team is preparing a design document, due December 1st, which will outline the project's architecture and data flows.
 - **Follow-up Meeting:** A meeting is scheduled for the following Monday morning to review the consolidated design and plan.
+
+This summary was generated using Google's Gemini AI
