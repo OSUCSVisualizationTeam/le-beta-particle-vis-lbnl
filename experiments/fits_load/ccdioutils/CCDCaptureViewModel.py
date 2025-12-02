@@ -2,6 +2,7 @@ from copy import deepcopy
 import numpy as np
 from .BoundingBox import BoundingBox
 from . import CCDCaptureModel
+from .ClusterExtractor import ClusterExtractor, ClusteredEventInfo
 from .VizFilter import UniformVizFilter, UniformFilter
 from .Fits2QPixmapConverter import Fits2QPixmapConverter
 from typing import List, Tuple, Callable, Optional
@@ -17,7 +18,7 @@ class BaseCCDCaptureViewModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _getRawData(self) -> np.matrix:
+    def getRawData(self) -> np.matrix:
         raise NotImplementedError
 
     @abstractmethod
@@ -36,13 +37,29 @@ class BaseCCDCaptureViewModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def extractClusters(self) -> List[BoundingBox]:
-        """Extract a list of relevant bounding boxes containing relevant features"""
+    def startClusterExtraction(
+        self,
+        callback: Callable[[List[ClusteredEventInfo]], None],
+        energyMinimum: Optional[float] = None,
+        energyMaximum: Optional[float] = None,
+    ):
+        """
+        Starts the asynchronous cluster extraction process.
+
+        Args:
+            callback (Callable[[List[ClusteredEventInfo]], None]): A function that will be called
+                when the cluster extraction process completes. It will receive a list of
+                ClusteredEventInfo objects as its single argument.
+            energyMinimum (Optional[float], optional): The minimum energy value to consider for
+                cluster extraction. Pixels with values below this will be ignored. Defaults to None.
+            energyMaximum (Optional[float], optional): The maximum energy value to consider for
+                cluster extraction. Pixels with values above this will be ignored. Defaults to None.
+        """
         raise NotImplementedError
 
     def getQPixmap(self) -> QtGui.QPixmap:
         """Obtain a QPixmap using a Fits2QPixmapConverter"""
-        return self._fits2QPixmapConverter().convert(self._getRawData())
+        return self._fits2QPixmapConverter().convert(self.getRawData())
 
     @abstractmethod
     def setCurrentColormap(self, colormap_name: str):
@@ -92,6 +109,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         self,
         ccdCapture: CCDCaptureModel,
         fits2QPixmapConverter: Fits2QPixmapConverter,
+        clusterExtractor: ClusterExtractor,
         cropBox: BoundingBox = BoundingBox.unbounded(),
         defaultColorMap: str = "Greys_r",
         conversionFunc: Optional[Callable[[float], float]] = None,
@@ -99,6 +117,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         self.__cropBox = cropBox
         self.__ccdCapture = ccdCapture
         self.__ccdVizCapture = ccdCapture.copy()
+        self.__clusterExtractor = clusterExtractor
         self.__defaultColorMap = defaultColorMap
         self.__currentColorMap = defaultColorMap
         self._resetVizRange()
@@ -108,7 +127,7 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
     def _fits2QPixmapConverter(self) -> Fits2QPixmapConverter:
         return self.__fits2QPixmapConverter
 
-    def _getRawData(self) -> np.matrix:
+    def getRawData(self) -> np.matrix:
         return self.__ccdVizCapture.rawData()
 
     def crop(self, cropBox: BoundingBox):
@@ -132,9 +151,26 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
             self.__ccdVizCapture = deepcopy(self.__ccdCapture)
             self.__ccdVizCapture.applyFilter(filter)
 
-    def extractClusters(self) -> List[BoundingBox]:
-        result = list()
-        return result
+    def startClusterExtraction(
+        self,
+        callback: Callable[[List[ClusteredEventInfo]], None],
+        energyMinimum: Optional[float] = None,
+        energyMaximum: Optional[float] = None,
+    ):
+        """
+        Starts the asynchronous cluster extraction process by delegating to the injected
+        ClusterExtractor.
+
+        Args:
+            callback (Callable[[List[ClusteredEventInfo]], None]): A function that will be called
+                when the cluster extraction process completes. It will receive a list of
+                ClusteredEventInfo objects as its single argument.
+            energyMinimum (Optional[float], optional): The minimum energy value to consider for
+                cluster extraction. Pixels with values below this will be ignored. Defaults to None.
+            energyMaximum (Optional[float], optional): The maximum energy value to consider for
+                cluster extraction. Pixels with values above this will be ignored. Defaults to None.
+        """
+        self.__clusterExtractor.extract(callback, energyMinimum, energyMaximum)
 
     def setCurrentColormap(self, colormap_name: str):
         self.__currentColorMap = colormap_name
@@ -148,6 +184,10 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
         if self.__conversionFunc is not None:
             value = self.__conversionFunc(value)
         return value
+
+    def getConversionFunc(self) -> Optional[Callable[[float], float]]:
+        """Returns the current conversion function."""
+        return self.__conversionFunc
 
     def captureInfo(self) -> CCDCaptureModel.Info:
         return self.__ccdVizCapture.info()

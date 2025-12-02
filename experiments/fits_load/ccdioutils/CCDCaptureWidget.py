@@ -1,22 +1,9 @@
-from PySide6 import QtWidgets, QtCore, QtGui
+from PySide6 import QtWidgets, QtCore
 from superqt.sliders import QLabeledRangeSlider
 from .CCDCaptureViewModel import BaseCCDCaptureViewModel
+from .CCDCaptureGraphicsView import CCDCaptureGraphicsView
+from .CCDCaptureGraphicsViewModel import CCDCaptureGraphicsViewModel
 import matplotlib.pyplot as plt
-
-
-class _VizWidget(QtWidgets.QLabel):
-    """A visualization widget aimed at displaying CCD event data on its pixmap"""
-
-    mouseMoved = QtCore.Signal(int, int)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
-        self.setMouseTracking(True)  # Enable mouse tracking for this widget
-
-    def mouseMoveEvent(self, event: QtGui.QMouseEvent):
-        self.mouseMoved.emit(event.x(), event.y())
-        super().mouseMoveEvent(event)  # Call base class implementation
 
 
 class CCDCaptureWidget(QtWidgets.QWidget):
@@ -38,20 +25,26 @@ class CCDCaptureWidget(QtWidgets.QWidget):
 
         self._addTopToolbarItems()
 
-        self._vizWidget = _VizWidget()  # Use custom label
-        self._vizWidget.setAlignment(QtCore.Qt.AlignCenter)
-        self._vbox.addWidget(self._vizWidget)
+        self.__graphicsViewModel = CCDCaptureGraphicsViewModel(self)
+        self.__graphicsView = CCDCaptureGraphicsView(self)
+        self.__graphicsView.setScene(self.__graphicsViewModel.scene())
+
+        self._vbox.addWidget(self.__graphicsView)
         self._addLowerToolbar()
 
         self.setLayout(self._vbox)
         self._updateVisualization()
 
-        self._vizWidget.mouseMoved.connect(self._onVisualizationWidgetMouseMove)
+        self.__graphicsView.pixelHovered.connect(self._onPixelHovered)
+        self.__graphicsView.magnificationFactorChanged.connect(
+            self.__graphicsViewModel.changeMagnificationFactor
+        )
 
     # Widget building
 
     def _addTopToolbarItems(self):
         self._addColormapSelectionWidget()
+        self._addMagnifierButton()
         self._addResetButton()
         spacer = QtWidgets.QWidget()
         spacer.setSizePolicy(
@@ -82,6 +75,17 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self._colormapComboBox.currentIndexChanged.connect(self._onColormapChanged)
         colormapLayout.addWidget(self._colormapComboBox)
         self._topToolbar.addWidget(colormapContainer)
+
+    def _addMagnifierButton(self):
+        magnifierButton = QtWidgets.QToolButton()
+        magnifierButton.setText("Magnifier")
+        magnifierButton.setCheckable(True)
+        magnifierButton.setToolTip(
+            "Show a magnifier overlay, use left/right arrow keys to reduce/enlarge preview,"
+            " up/down to zoom in/out"
+        )
+        magnifierButton.clicked.connect(self._showMagnifier)
+        self._topToolbar.addWidget(magnifierButton)
 
     def _addResetButton(self):
         resetButton = QtWidgets.QToolButton()
@@ -148,10 +152,13 @@ class CCDCaptureWidget(QtWidgets.QWidget):
             self._onApplyExclusionClicked()
 
     def _updateVisualization(self):
-        """Obtain data visualizable data from the view model"""
+        """Obtain data visualizable data from the view model and update the graphics view."""
         display_data = self.__viewModel.getQPixmap()
-        if display_data:
-            self._vizWidget.setPixmap(display_data)
+        raw_data = self.__viewModel.getRawData()
+        if display_data and raw_data is not None:
+            self.__graphicsViewModel.updateImage(
+                display_data, raw_data, self.__viewModel.getConversionFunc()
+            )
 
     def _resetViewModel(self):
         """Resets view model state"""
@@ -163,7 +170,21 @@ class CCDCaptureWidget(QtWidgets.QWidget):
         self.__rangeSlider.setValue((scaledMin, scaledMax))
         self._updateVisualization()
 
-    def _onVisualizationWidgetMouseMove(self, x: int, y: int):
-        coord = f"({y},{x})"
-        value = self.__viewModel.valueAt(y, x)
-        self._valueLabel.setText(f"Value: {coord}: {value:.2e} keV")
+    def _showMagnifier(self):
+        """Toggles the magnifier overlay and sets focus to the graphics view."""
+        self.__graphicsViewModel.toggleMagnifier()
+        self.__graphicsView.setFocus()  # Set focus to the graphics view for key events
+
+    @QtCore.Slot(int, int)
+    def _onPixelHovered(self, row: int, col: int):
+        """
+        Slot to receive pixel coordinates from CCDCaptureGraphicsView and update the value label.
+        """
+        data_rows, data_cols = self.__viewModel.getRawData().shape
+        if 0 <= row < data_rows and 0 <= col < data_cols:
+            value = self.__viewModel.valueAt(row, col)
+            self._valueLabel.setText(f"Value: ({row},{col}): {value:.2e} keV")
+            self.__graphicsViewModel.updateMagnifierPosition(row, col)
+        else:
+            self._valueLabel.setText("Value: NaN")
+            self.__graphicsViewModel.updateMagnifierPosition(-1, -1)

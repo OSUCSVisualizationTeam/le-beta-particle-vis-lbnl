@@ -1,5 +1,6 @@
 import numpy as np
 from abc import ABC, abstractmethod
+from skimage.filters import gaussian  # Import gaussian filter
 
 
 class UniformVizFilter(ABC):
@@ -72,3 +73,19 @@ class UniformFilter:
             matrix = omatrix.copy()
             matrix[(matrix < self.__start) | (matrix > self.__end)] = self.__value
             return matrix
+
+    class Gaussian(UniformVizFilter):
+        """Applies a Gaussian filter to the matrix for smoothing."""
+
+        def __init__(self, sigma: float):
+            """
+            Initializes the Gaussian filter.
+
+            Args:
+                sigma (float): Standard deviation for Gaussian kernel. Larger values mean more
+                blurring.
+            """
+            self.__sigma = sigma
+
+        def filter(self, omatrix: np.matrix) -> np.matrix:
+            return gaussian(omatrix, sigma=self.__sigma)
