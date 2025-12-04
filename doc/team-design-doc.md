@@ -466,80 +466,7 @@ decoupled communication strategy:
   from the Configuration Service, ensuring consistent behavior (such as
   shared database connection strings) across separate processes.
 
-```plantuml
-@startuml
-!theme plain
-skinparam componentStyle rectangle
-' Polyline allows curves to avoid text collisions
-skinparam linetype polyline
-' Control spacing to keep it compact but readable
-skinparam nodesep 80
-skinparam ranksep 60
-
-title System Architecture: Beta Particle Visualization System
-
-actor "Scientist" as Scientist
-
-package "Beta Particle Visualization System" {
-
-    ' --- Layer 1 (Top) ---
-    package "Presentation Layer" {
-        component "Desktop GUI Client\n[PySide6]" as GUI {
-            note right of GUI
-               Modes:
-               - Raw Data Analysis
-               - Historical Analysis (Live)
-            end note
-        }
-    }
-
-    ' --- Layer 2 (Middle) ---
-    package "Processing Layer" {
-        component "Unattended Ingress &\nProcessing Pipeline" as Pipeline
-        component "Model Training\nService" as Training
-    }
-
-    ' --- Layer 3 (Bottom) ---
-    package "Data & Infrastructure Layer" {
-        component "Configuration\nService" as Config
-        queue "Notification Bus\n[Redis Pub/Sub]" as Redis
-        database "Event Database\n[MySQL]" as DB
-        
-        node "File Storage" {
-            file "Raw FITS Files" as FITS
-            file "ML Models" as Models
-        }
-    }
-}
-
-' --- Layout Enforcers (Invisible lines to stack packages) ---
-GUI -[hidden]down- Pipeline
-Pipeline -[hidden]down- DB
-
-' --- Relationships (All arrows point DOWN to force verticality) ---
-
-' Top -> Middle
-Scientist -down-> GUI
-
-' Layer 1 -> Layer 2
-GUI -down-> Training : Exports Curated\nDatasets
-
-' Layer 1 -> Layer 3 (Bypassing Layer 2)
-GUI -down-> FITS : Interactive Analysis
-GUI -down-> DB : Queries History
-GUI .down.> Redis : Subscribes (Signal)
-GUI -down-> Config : Reads Settings
-
-' Layer 2 -> Layer 3
-Pipeline -down-> FITS : Watches & Ingests
-Pipeline -down-> Models : Loads Classifiers
-Pipeline -down-> DB : Persists Results
-Pipeline .down.> Redis : Publishes Signal
-Pipeline -down-> Config : Reads Settings
-Training -down-> Models : Retrains
-
-@enduml
-```
+![](img/architecture_uml.png)
 
 ### Justification
 
@@ -727,90 +654,7 @@ Figma: [Raw Analysis Wireframe](https://www.figma.com/design/CynlZxFAClT7j4A7aBa
 
 #### High-Level Flow Diagram
 
-```plantuml
-@startuml
-title: Interactive Raw Data Analysis Flow (Detailed)
-
-actor Scientist
-participant "MainWindow" as UI
-participant "CCDCaptureViewModel" as ViewModel
-participant "EventPersistenceService" as Persistence
-participant "ClusterExtractor" as ClusterService
-participant "ConfigurationService" as Config
-participant "CNNService" as CNN
-participant "ModelTrainingService" as Training
-
-autonumber
-
-== 1. Data Loading and Initial View ==
-Scientist -> UI: Select FITS file (choosing which HDUs to load)
-UI -> ViewModel: loadRawData("path/to/file.fits", hdu_indices)
-ViewModel -> ViewModel: Load data using AstroPy
-
-ViewModel -> Persistence: checkForExistingClusters(filename)
-Persistence --> ViewModel: historical_clusters
-UI <-- ViewModel: rawDataUpdated(raw_model)
-UI -> UI: Display image and "Historical Analysis Overlay"
-
-== 2. Interactive Exploration and Analysis ==
-... User pans, zooms, and applies filters ...
-Scientist -> UI: Applies Image Filter (e.g., Gaussian)
-UI -> ViewModel: applyFilter("gaussian", {sigma: 1.5})
-ViewModel -> Config: getFilterDefaults("gaussian")
-UI <-- ViewModel: rawDataUpdated(filtered_model)
-UI -> UI: Displays filtered image
-
-...
-
-Scientist -> UI: Adjusts Dynamic Filter (e.g., range slider)
-UI -> ViewModel: setVisualizationRange((min_val, max_val))
-UI <-- ViewModel: rawDataUpdated(dynamically_filtered_model)
-UI -> UI: Displays dynamically filtered image
-
-...
-
-Scientist -> UI: Selects a region and clicks "Find Clusters"
-UI -> ViewModel: findClustersInRegion(selection_box)
-ViewModel -> ClusterService: extract(region_data, params, callback)
-activate ClusterService
-UI -> UI: Shows "Processing..." indicator
-ClusterService -> ViewModel: callback(foundClusters)
-deactivate ClusterService
-UI <-- ViewModel: clustersUpdated(foundClusters)
-UI -> UI: Draws new bounding boxes for interactively-found clusters
-
-== 3. Inspection and Curation ==
-... User examines the new clusters ...
-Scientist -> UI: Selects a single interactive cluster for inspection
-UI -> ViewModel: inspectCluster(cluster_id)
-ViewModel -> ViewModel: Calculates stats (histogram, intensity, etc.)
-UI <-- ViewModel: clusterDetailsUpdated(stats)
-UI -> UI: Displays detailed stats for the selected cluster
-
-...
-
-Scientist -> UI: Clicks "Curate" to classify the interesting event
-UI -> ViewModel: curateCluster(cluster_id)
-ViewModel -> CNN: classify(cluster_data)
-activate CNN
-CNN --> ViewModel: classification_result
-deactivate CNN
-UI <-- ViewModel: clusterClassificationUpdated(result)
-UI -> UI: Updates UI with the new classification label
-
-== 4. Export for Model Training ==
-... User has identified one or more valuable events ...
-Scientist -> UI: Selects several clusters and clicks "Export Selection for Training"
-UI -> ViewModel: exportSelectionForTraining(selected_clusters, "new_label")
-ViewModel -> Training: exportForTraining(selected_clusters, "new_label")
-note right of Training: Uses REST API to send data\nto the training service
-activate Training
-Training --> ViewModel: success
-deactivate Training
-UI -> UI: Shows export confirmation
-
-@enduml
-```
+![](img/raw_analisys_flow.png)
 
 #### Dependencies and Contracts
 
@@ -839,7 +683,9 @@ UI -> UI: Shows export confirmation
 
 ### 2. Historical Event Analysis Application
 
-![](media/image5.png)This functional area provides a powerful suite of
+![](img/historical_analysis_lg.png)
+
+This functional area provides a powerful suite of
 tools for long-term monitoring and statistical analysis of processed
 data. It allows scientists to query the entire history of classified
 events using a custom interface with fine-grained filtering and sorting
@@ -904,65 +750,7 @@ Figma: [Real-Time View Wireframe](https://www.figma.com/design/CynlZxFAClT7j4A7a
 
 #### High-Level Flow Diagram
 
-```plantuml
-@startuml
-title: Historical Event Analysis Flow (Detailed)
-
-actor Scientist
-participant "HistoricalView" as UI
-participant "HistoricalViewModel" as ViewModel
-participant "HistoricalDataService" as DBService
-participant "ExportService" as Export
-
-autonumber
-
-== 1. Query and Display ==
-Scientist -> UI: Navigates to "Historical Analysis" mode
-UI -> UI: Displays query controls (filters, sorting)
-
-...
-
-Scientist -> UI: Sets query parameters and clicks "Load Events"
-UI -> ViewModel: fetchEvents(query)
-ViewModel -> DBService: getEvents(query)
-activate DBService
-
-note right of DBService
-  Queries the historical database
-  (e.g., MySQL) for classified
-  events matching the query.
-end note
-
-DBService --> ViewModel: List[ClassifiedEvent]
-deactivate DBService
-
-ViewModel -> ViewModel: Stores event list and generates summary statistics
-UI <-- ViewModel: eventsUpdated(eventList, stats)
-UI -> UI: Populates Event Browser with thumbnails and displays Summary Plots
-
-== 2. Interact with Results ==
-... User reviews the displayed events and plots ...
-
-alt User inspects a single event
-
-    Scientist -> UI: Selects an event from the browser
-    UI -> ViewModel: showEventDetails(event_id)
-    UI <-- ViewModel: eventDetailsUpdated(full_event_details)
-    UI -> UI: Displays "Detailed Event View" with a larger thumbnail and full properties
-
-else User exports data
-
-    Scientist -> UI: Clicks "Export"
-    UI -> ViewModel: exportData(current_results)
-    ViewModel -> Export: exportResults(results, format)
-    activate Export
-    Export --> ViewModel: success
-    deactivate Export
-    ViewModel -> UI: showExportConfirmation()
-end
-
-@enduml
-```
+![](img/historical_analysis_flow.png)
 
 #### Proposed Technologies
 
@@ -1028,40 +816,7 @@ maintainable.
 
 #### High-Level Flow Diagram
 
-```plantuml
-@startuml
-title: Results Export & Reporting Flow
-
-participant "CallingViewModel" as ViewModel
-participant "ExportService" as Service
-participant "ConfigurationService" as Config
-participant "QFileDialog" as FileDialog
-
-autonumber
-
-ViewModel -> Service: exportEventsToCSV(eventList)
-activate Service
-
-Service -> Config: getDefaultExportPath()
-Config --> Service: "/path/to/exports/"
-
-Service -> FileDialog: getSaveFileName(defaultPath)
-activate FileDialog
-FileDialog --> Service: selectedFilePath
-deactivate FileDialog
-
-alt User selected a file
-    Service -> Service: Write eventList to CSV at selectedFilePath
-    note right: Uses Pandas to create a DataFrame and save to CSV.
-    Service --> ViewModel: success = True
-else User cancelled
-    Service --> ViewModel: success = False
-end
-
-deactivate Service
-
-@enduml
-```
+![](img/results_export_flow.png)
 
 #### 
 
