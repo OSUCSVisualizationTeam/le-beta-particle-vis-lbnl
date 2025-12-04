@@ -1,5 +1,19 @@
 # Visualization and Discernment of Low-Energy Beta Particle Tracks from Live CCD Detector Data
 
+Building on exisiting deep learning research from Lawrence Berkeley
+National Laboratory (LBNL), this project addresses the logistical
+challenges of traditional radiation detection. The core goal is to
+create an interactive visual analysis tool that empowers scientists to
+accelerate discovery and improve machine learning (ML) models. The
+system will provide a Graphical User Interface (GUI) to directly
+explore, filter, and experiment with raw Charge-Coupled Device (CCD)
+data. This visual-first approach facilitates the insights needed to
+design and refine more effective ML classifiers for particle
+interactions. While the initial focus is on enhancing tritium detection,
+the solution is fundamentally a flexible discovery platform, designed to
+uncover a broad range of phenomena hidden within the data and bridge the
+gap between research and a real-time, portable detection system.
+
 ## Team Documentation and Research
 
 - Pre [kickoff questions](notes/InitialQuestions.md)
