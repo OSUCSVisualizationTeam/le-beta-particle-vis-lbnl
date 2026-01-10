@@ -1,0 +1,7 @@
+Type,Title,Person Responsible,Description,Priority,Difficulty,Status
+Task,Setup Configuration Service Infrastructure,nickkvu,Set up Redis and local file fallback for config service.,High,High,To-do
+Task,Define Configuration Namespaces,nickkvu,Establish 'global', 'pipeline', and 'gui' config key schemas.,High,Low,To-do
+Task,Design MySQL Schema,troyr1,Create SQL scripts for 'fits_files' and 'clusters' tables.,High,Medium,To-do
+Task,Implement Ingress File Watcher,troyr1,Service to detect new FITS files and insert metadata to DB.,High,Medium,To-do
+Task,Initialize Main Window GUI,coredumped,Create the PySide6 application shell and layout.,High,Low,To-do
+Task,Implement CCDCaptureModel & Mosaic View,coredumped,AstroPy integration for parsing and thumbnail generation.,High,High,To-do
