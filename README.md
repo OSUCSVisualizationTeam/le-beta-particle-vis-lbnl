@@ -33,3 +33,16 @@ This project would enhance the capabilities of the existing system by extending 
 ### References
 
 FITS files and relevant cited functionality were provided by the Applied Nuclear Physics program at the Lawrence Berkeley National Laboratory.
+
+## Directory Structure
+
+The project follows a "src-layout" to separate product code from research artifacts.
+
+- `src/le_beta_vis/`: The main source code for the application.
+    - `common/`: Shared logic and data models (e.g., `CCDCaptureModel`) used by both Backend and Frontend.
+    - `backend/`: The Unattended Ingress & Processing Pipeline services.
+    - `frontend/`: The PySide6 Desktop GUI Application.
+- `experiments/`: Research scratchpads and prototyping scripts.
+- `cluster_demonstration/`: Jupyter notebooks for algorithm demonstrations.
+- `design/`: Design documents and assets.
+- `environment.yml`: The consolidated Conda environment file for the project.
