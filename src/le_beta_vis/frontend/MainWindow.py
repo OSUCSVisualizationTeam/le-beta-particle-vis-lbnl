@@ -6,12 +6,13 @@ from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
 from .viewmodels.HistoricalViewModel import HistoricalViewModel
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        
+
         self.viewModel = MainViewModel()
-        
+
         # self.tr() marks the string for translation
         self.setWindowTitle(self.tr("LE Beta Particle Visualization"))
         self.resize(1024, 768)
@@ -27,7 +28,7 @@ class MainWindow(QMainWindow):
 
         # Initialize Child ViewModels with Configuration Service
         self.rawDataViewModel = RawDataViewModel(self.viewModel.configService)
-        self.historicalViewModel = HistoricalViewModel() # Will add config later
+        self.historicalViewModel = HistoricalViewModel()  # Will add config later
 
         # Initialize Child Views
         self.rawDataView = RawDataView(self.rawDataViewModel)
@@ -65,10 +66,10 @@ class MainWindow(QMainWindow):
     def onOpenFile(self):
         """Open a file dialog to select a FITS file and load it into the Raw Data view."""
         filePath, _ = QFileDialog.getOpenFileName(
-            self, 
-            self.tr("Open FITS File"), 
-            "", 
-            self.tr("FITS Files (*.fits);;All Files (*)")
+            self,
+            self.tr("Open FITS File"),
+            "",
+            self.tr("FITS Files (*.fits);;All Files (*)"),
         )
         if filePath:
             # Switch to Raw Data tab
