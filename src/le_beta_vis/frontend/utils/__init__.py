@@ -1,4 +1,4 @@
 # flake8: noqa
 # pylint: disable=unused-import
 # pyright: reportUnusedImport=false
-from .MainWindow import MainWindow
+from .Fits2QPixmapConverter import Fits2QPixmapConverter, NoOpConverter
