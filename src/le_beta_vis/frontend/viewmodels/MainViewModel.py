@@ -1,6 +1,5 @@
 from PySide6.QtCore import QObject
 from le_beta_vis.common.ConfigurationService import (
-    ConfigurationService,
     MockConfigurationService,
 )
 

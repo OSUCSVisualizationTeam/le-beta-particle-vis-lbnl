@@ -1,9 +1,7 @@
 import pytest
-import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import RawDataViewModel
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
-from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 
 
 @pytest.fixture

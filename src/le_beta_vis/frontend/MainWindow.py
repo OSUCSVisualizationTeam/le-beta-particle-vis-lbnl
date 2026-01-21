@@ -4,7 +4,7 @@ from .viewmodels.MainViewModel import MainViewModel
 from .views.RawDataView import RawDataView
 from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
-from .viewmodels.HistoricalViewModel import HistoricalViewModel
+from .viewmodels.HistoricalViewModel import HistoricalViewModel, HistoricalMode
 
 
 class MainWindow(QMainWindow):
@@ -28,7 +28,7 @@ class MainWindow(QMainWindow):
 
         # Initialize Child ViewModels with Configuration Service
         self.rawDataViewModel = RawDataViewModel(self.viewModel.configService)
-        self.historicalViewModel = HistoricalViewModel()  # Will add config later
+        self.historicalViewModel = HistoricalViewModel(self.viewModel.configService)
 
         # Initialize Child Views
         self.rawDataView = RawDataView(self.rawDataViewModel)
@@ -40,6 +40,9 @@ class MainWindow(QMainWindow):
 
         # Setup Menu Bar
         self.setupMenuBar()
+
+        # Bind ViewModel callbacks
+        self.historicalViewModel.add_mode_changed_callback(self.onModeChanged)
 
     def setupMenuBar(self):
         menuBar = self.menuBar()
@@ -63,6 +66,19 @@ class MainWindow(QMainWindow):
         exitAction.triggered.connect(self.close)
         fileMenu.addAction(exitAction)
 
+        # View Menu
+        viewMenu = menuBar.addMenu(self.tr("&View"))
+
+        # Toggle Live Mode Action
+        self.toggleLiveAction = QAction(self.tr("Switch to Live Mode"), self)
+        self.toggleLiveAction.setCheckable(True)
+        self.toggleLiveAction.setChecked(False)  # Initial state
+        self.toggleLiveAction.triggered.connect(self.onToggleLiveMode)
+        viewMenu.addAction(self.toggleLiveAction)
+
+        # Sync initial state
+        self.onModeChanged(self.historicalViewModel.mode)
+
     def onOpenFile(self):
         """Open a file dialog to select a FITS file and load it into the Raw Data view."""
         filePath, _ = QFileDialog.getOpenFileName(
@@ -76,3 +92,24 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentWidget(self.rawDataView)
             # Load the file via the ViewModel
             self.rawDataViewModel.loadFile(filePath)
+
+    def onToggleLiveMode(self):
+        """Handle the toggle action from the menu."""
+        # 1. Ensure Historical Tab is active if we are toggling
+        if self.tabs.currentWidget() == self.rawDataView:
+            self.tabs.setCurrentWidget(self.historicalView)
+
+        # 2. Toggle the mode in the ViewModel
+        self.historicalViewModel.toggleMode()
+
+    def onModeChanged(self, mode: HistoricalMode):
+        """Callback from ViewModel when mode changes."""
+        is_live = mode == HistoricalMode.LIVE
+
+        # Update Check State
+        self.toggleLiveAction.setChecked(is_live)
+
+        if is_live:
+            self.toggleLiveAction.setText(self.tr("Switch to Historical Mode"))
+        else:
+            self.toggleLiveAction.setText(self.tr("Switch to Live Mode"))

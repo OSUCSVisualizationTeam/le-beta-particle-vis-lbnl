@@ -44,6 +44,7 @@ class MockConfigurationService(ConfigurationService):
             # Historical Event Analysis (GUI)
             "gui:historical:default_query_hours": 24,
             "gui:historical:live_update_rate_ms": 1000,
+            "gui:historical:mode": "historical",
             "gui:inspector:histogram_bins": 50,
             # Export & Reporting (GUI)
             "gui:export:default_path": "~/Data",
