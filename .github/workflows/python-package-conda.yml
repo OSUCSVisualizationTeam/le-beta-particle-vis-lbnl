@@ -36,9 +36,7 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: mlccd_viz
-          environment-file: 'experiments/experiments-conda-env.yml'
-          python-version: ${{ matrix.python-version }}
-          auto-activate: true
+          environment-file: environment.yml
           conda-remove-defaults: true
           use-only-tar-bz2: true
 
@@ -52,5 +50,7 @@ jobs:
 
       - name: Test with pytest
         shell: bash -el {0}
+        env:
+          PYTHONPATH: src
         run: |
           pytest tests
