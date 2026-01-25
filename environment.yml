@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - https://conda.anaconda.org/conda-forge
 dependencies:
+  - python=3.10
   - astropy
   - matplotlib
   - numpy<2
