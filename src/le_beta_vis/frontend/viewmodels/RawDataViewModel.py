@@ -51,14 +51,14 @@ class RawDataViewModel:
         # Load all HDUs from the FITS file
         self._captures = CCDCaptureModel.load(path)
 
+        # Reset active index so the MosaicVM sync triggers an update.
+        self._activeIndex = -1
+
         # Pass data to Mosaic VM
         self.mosaicViewModel.setCaptures(self._captures)
 
         if self._captures:
-            self._activeIndex = 0
-            self._updatePixmap()
             self._notify_file_loaded()
-            self._notify_image_changed()
 
     def setActiveHDU(self, index: int):
         """Changes the active HDU and updates the visualization."""
