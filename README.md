@@ -46,3 +46,60 @@ The project follows a "src-layout" to separate product code from research artifa
 - `cluster_demonstration/`: Jupyter notebooks for algorithm demonstrations.
 - `design/`: Design documents and assets.
 - `environment.yml`: The consolidated Conda environment file for the project.
+
+## Getting Started
+
+### Prerequisites
+
+- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/products/distribution) installed on your system.
+
+### Installation
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/OSUCSVisualizationTeam/le-beta-particle-vis-lbnl.git
+    cd le-beta-particle-vis-lbnl
+    ```
+
+2.  **Create and activate the Conda environment:**
+    This installs all dependencies including Python 3.12, PySide6, NumPy, AstroPy, and OpenCV.
+    ```bash
+    conda env create -f environment.yml
+    conda activate mlccd_viz
+    ```
+
+### Running the Application
+
+To launch the main Desktop GUI:
+
+```bash
+python run_app.py
+```
+
+### Running Tests
+
+To run the unit test suite (headless-compatible):
+
+```bash
+# Ensure src is in the python path
+PYTHONPATH=src pytest tests
+```
+
+### Troubleshooting
+
+#### Rebuilding the Conda Environment
+If you encounter dependency issues or a broken environment, you can rebuild it from scratch:
+
+```bash
+# Deactivate current environment
+conda deactivate
+
+# Remove the existing environment
+conda env remove -n mlccd_viz
+
+# Recreate from environment.yml
+conda env create -f environment.yml
+
+# Activate again
+conda activate mlccd_viz
+```
