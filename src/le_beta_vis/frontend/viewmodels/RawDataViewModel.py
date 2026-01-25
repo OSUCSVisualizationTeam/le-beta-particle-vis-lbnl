@@ -4,6 +4,7 @@ from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.frontend.utils.Fits2QPixmapConverter import (
     NoOpConverter,
 )
+from .MosaicViewModel import MosaicViewModel
 from PySide6.QtGui import QPixmap
 from pathlib import Path
 
@@ -21,6 +22,11 @@ class RawDataViewModel:
 
         self._captures: List[CCDCaptureModel] = []
         self._activeIndex: int = -1
+
+        # Sub-ViewModels
+        self.mosaicViewModel = MosaicViewModel(configService)
+        # Bidirectional sync: When mosaic selection changes, update this VM
+        self.mosaicViewModel.add_selection_changed_callback(self.setActiveHDU)
 
         # Viz Parameters - Loaded from Config
         self._colormap = self._config.get(
@@ -45,6 +51,9 @@ class RawDataViewModel:
         # Load all HDUs from the FITS file
         self._captures = CCDCaptureModel.load(path)
 
+        # Pass data to Mosaic VM
+        self.mosaicViewModel.setCaptures(self._captures)
+
         if self._captures:
             self._activeIndex = 0
             self._updatePixmap()
@@ -54,8 +63,15 @@ class RawDataViewModel:
     def setActiveHDU(self, index: int):
         """Changes the active HDU and updates the visualization."""
         if 0 <= index < len(self._captures):
+            if self._activeIndex == index:
+                return  # Avoid infinite recursion
+
             self._activeIndex = index
             self._updatePixmap()
+
+            # Sync Mosaic Selection
+            self.mosaicViewModel.selectIndex(index)
+
             self._notify_image_changed()
 
     def setColormap(self, colormap: str):

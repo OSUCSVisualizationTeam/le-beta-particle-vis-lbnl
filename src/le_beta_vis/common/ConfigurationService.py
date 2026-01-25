@@ -41,6 +41,9 @@ class MockConfigurationService(ConfigurationService):
             "gui:raw_analysis:vis_range_max": 20.0,
             "gui:raw_analysis:filter_gaussian_sigma": 1.5,
             "gui:raw_analysis:clustering_threshold": 4.0,
+            # Mosaic View
+            "gui:mosaic:threshold_min": 0.0,
+            "gui:mosaic:threshold_max": 1000000.0,
             # Historical Event Analysis (GUI)
             "gui:historical:default_query_hours": 24,
             "gui:historical:live_update_rate_ms": 1000,

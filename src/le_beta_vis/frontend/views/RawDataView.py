@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from ..viewmodels.RawDataViewModel import RawDataViewModel
+from .MosaicView import MosaicView
 
 
 class RawDataView(QWidget):
@@ -22,57 +23,54 @@ class RawDataView(QWidget):
         self.bindViewModel()
 
     def initUI(self):
-        # Main Layout (Top Strip + Body)
+        """Initializes the UI components and layout."""
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.setSpacing(0)
 
-        # 1. Top Strip: HDU Mosaic View
-        # ---------------------------------------------------------
-        self.mosaicFrame = QFrame()
-        self.mosaicFrame.setFixedHeight(120)  # Fixed height for thumbnail strip
-        self.mosaicFrame.setStyleSheet(
-            "background-color: #1e1e1e;"
-        )  # Dark background per wireframe
-        self.mosaicLayout = QHBoxLayout(self.mosaicFrame)
-        self.mosaicLabel = QLabel(self.tr("HDU EXTENSIONS (MOSAIC VIEW) - Placeholder"))
-        self.mosaicLabel.setStyleSheet("color: #888;")
-        self.mosaicLayout.addWidget(self.mosaicLabel)
+        self._setupMosaicView()
+        self._setupMainBody()
 
-        self.mainLayout.addWidget(self.mosaicFrame)
+    def _setupMosaicView(self):
+        """Creates the top HDU Mosaic View."""
+        self.mosaicView = MosaicView(self.viewModel.mosaicViewModel)
+        self.mainLayout.addWidget(self.mosaicView)
 
-        # 2. Main Body (Left Toolbar + Center Image + Right Sidebar)
-        # ---------------------------------------------------------
+    def _setupMainBody(self):
+        """Creates the main content area with toolbar, image, and sidebar."""
         self.bodyWidget = QWidget()
         self.bodyLayout = QHBoxLayout(self.bodyWidget)
         self.bodyLayout.setContentsMargins(0, 0, 0, 0)
         self.bodyLayout.setSpacing(0)
         self.mainLayout.addWidget(self.bodyWidget)
 
-        # 2a. Left Toolbar (Tools)
-        # ------------------------
+        self._setupLeftToolbar()
+        self._setupCenterImageArea()
+        self._setupRightSidebar()
+
+    def _setupLeftToolbar(self):
+        """Creates the tool selection bar on the left."""
         self.leftToolbar = QFrame()
         self.leftToolbar.setFixedWidth(50)
         self.leftToolbar.setStyleSheet(
             "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
         )
-        self.leftToolbarLayout = QVBoxLayout(self.leftToolbar)
-        self.leftToolbarLayout.setContentsMargins(5, 10, 5, 10)
-        self.leftToolbarLayout.setSpacing(10)
-        self.leftToolbarLayout.setAlignment(Qt.AlignTop)
+        layout = QVBoxLayout(self.leftToolbar)
+        layout.setContentsMargins(5, 10, 5, 10)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignTop)
 
-        # Placeholder Tools (Pointer, Magnifier, etc.)
         tools = [self.tr("Ptr"), self.tr("Mag"), self.tr("Box"), self.tr("Roi")]
         for tool in tools:
             btn = QToolButton()
-            btn.setText(tool)  # Icon would go here
+            btn.setText(tool)
             btn.setFixedSize(40, 40)
-            self.leftToolbarLayout.addWidget(btn)
+            layout.addWidget(btn)
 
         self.bodyLayout.addWidget(self.leftToolbar)
 
-        # 2b. Center Image Area
-        # ---------------------
+    def _setupCenterImageArea(self):
+        """Creates the scrollable central area for data visualization."""
         self.scrollArea = QScrollArea()
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setAlignment(Qt.AlignCenter)
@@ -81,11 +79,10 @@ class RawDataView(QWidget):
         self.imageLabel = QLabel()
         self.imageLabel.setAlignment(Qt.AlignCenter)
         self.scrollArea.setWidget(self.imageLabel)
-
         self.bodyLayout.addWidget(self.scrollArea)
 
-        # 2c. Right Sidebar (Controls)
-        # ----------------------------
+    def _setupRightSidebar(self):
+        """Creates and populates the control sidebar on the right."""
         self.rightSidebar = QFrame()
         self.rightSidebar.setFixedWidth(300)
         self.rightSidebar.setStyleSheet(
@@ -96,68 +93,68 @@ class RawDataView(QWidget):
         self.rightLayout.setSpacing(15)
         self.rightLayout.setAlignment(Qt.AlignTop)
 
-        # Section: Visualization
-        vizGroup = QGroupBox(self.tr("Visualization"))
-        vizLayout = QVBoxLayout()
+        self._addVisualizationSection()
+        self._addFilteringSection()
+        self._addExtractionSection()
+        self._addInspectorSection()
 
-        vizLayout.addWidget(QLabel(self.tr("Colormap")))
+        self.bodyLayout.addWidget(self.rightSidebar)
+
+    def _addVisualizationSection(self):
+        """Adds visualization controls to the sidebar."""
+        group = QGroupBox(self.tr("Visualization"))
+        layout = QVBoxLayout(group)
+
+        layout.addWidget(QLabel(self.tr("Colormap")))
         self.cmapSelector = QComboBox()
         self.cmapSelector.addItems(
             ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool"]
         )
         self.cmapSelector.currentTextChanged.connect(self.onColormapChanged)
-        vizLayout.addWidget(self.cmapSelector)
+        layout.addWidget(self.cmapSelector)
 
-        # Range Slider Placeholder
-        vizLayout.addWidget(QLabel(self.tr("Range (keV)")))
+        layout.addWidget(QLabel(self.tr("Range (keV)")))
         rangePlaceholder = QFrame()
         rangePlaceholder.setFixedHeight(30)
         rangePlaceholder.setStyleSheet("background-color: #ddd; border-radius: 4px;")
-        vizLayout.addWidget(rangePlaceholder)
+        layout.addWidget(rangePlaceholder)
 
-        vizGroup.setLayout(vizLayout)
-        self.rightLayout.addWidget(vizGroup)
+        self.rightLayout.addWidget(group)
 
-        # Section: Filtering Pipeline (Placeholder)
-        filterGroup = QGroupBox(self.tr("Filtering Pipeline"))
-        filterLayout = QVBoxLayout()
+    def _addFilteringSection(self):
+        """Adds the filtering pipeline section to the sidebar."""
+        group = QGroupBox(self.tr("Filtering Pipeline"))
+        layout = QVBoxLayout(group)
 
-        filterPlaceholder = QLabel(self.tr("(Not implemented yet)"))
-        filterPlaceholder.setStyleSheet("color: #666; font-style: italic;")
-        filterLayout.addWidget(filterPlaceholder)
+        placeholder = QLabel(self.tr("(Not implemented yet)"))
+        placeholder.setStyleSheet("color: #666; font-style: italic;")
+        layout.addWidget(placeholder)
 
-        filterLayout.addWidget(QLabel(self.tr("1. Pedestal Subtraction")))
-        filterLayout.addWidget(QLabel(self.tr("2. Gaussian Blur")))
-        filterGroup.setLayout(filterLayout)
-        self.rightLayout.addWidget(filterGroup)
+        layout.addWidget(QLabel(self.tr("1. Pedestal Subtraction")))
+        layout.addWidget(QLabel(self.tr("2. Gaussian Blur")))
+        self.rightLayout.addWidget(group)
 
-        # Section: Cluster Extraction (Placeholder)
-        clusterGroup = QGroupBox(self.tr("Cluster Extraction"))
-        clusterLayout = QVBoxLayout()
-        clusterPlaceholder = QLabel(self.tr("(Not implemented yet)"))
-        clusterPlaceholder.setStyleSheet("color: #666; font-style: italic;")
-        clusterLayout.addWidget(clusterPlaceholder)
-        clusterGroup.setLayout(clusterLayout)
-        clusterGroup.setFixedHeight(100)
-        self.rightLayout.addWidget(clusterGroup)
+    def _addExtractionSection(self):
+        """Adds the cluster extraction section to the sidebar."""
+        group = QGroupBox(self.tr("Cluster Extraction"))
+        layout = QVBoxLayout(group)
+        placeholder = QLabel(self.tr("(Not implemented yet)"))
+        placeholder.setStyleSheet("color: #666; font-style: italic;")
+        layout.addWidget(placeholder)
+        group.setFixedHeight(100)
+        self.rightLayout.addWidget(group)
 
-        # Section: Inspector (Placeholder)
-        inspectorGroup = QGroupBox(self.tr("Inspector: Selection"))
-        inspectorLayout = QVBoxLayout()
-        inspectorLayout.addWidget(QLabel(self.tr("No selection")))
-        inspectorGroup.setLayout(inspectorLayout)
-
-        # Push inspector to bottom or let it expand?
-        # For now, let it take available space
-        inspectorGroup.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self.rightLayout.addWidget(inspectorGroup)
-
-        self.bodyLayout.addWidget(self.rightSidebar)
+    def _addInspectorSection(self):
+        """Adds the selection inspector section to the sidebar."""
+        group = QGroupBox(self.tr("Inspector: Selection"))
+        layout = QVBoxLayout(group)
+        layout.addWidget(QLabel(self.tr("No selection")))
+        group.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.rightLayout.addWidget(group)
 
     def bindViewModel(self):
         """Register callbacks with the ViewModel."""
         self.viewModel.add_image_changed_callback(self.updateImage)
-        self.viewModel.add_file_loaded_callback(self.updateHDUList)
 
     def updateImage(self):
         """Update the displayed pixmap from the ViewModel."""
@@ -166,18 +163,6 @@ class RawDataView(QWidget):
             self.imageLabel.setPixmap(pixmap)
         else:
             self.imageLabel.clear()
-
-    def updateHDUList(self):
-        """
-        Update the HDU list.
-        TODO: In the future, this will populate the Mosaic View thumbnails.
-        For now, we just log it or update a label to show a file was loaded.
-        """
-        if self.viewModel.hduSummaries:
-            self.mosaicLabel.setText(f"Loaded {len(self.viewModel.hduSummaries)} HDUs")
-
-    def onHDUChanged(self, index):
-        self.viewModel.setActiveHDU(index)
 
     def onColormapChanged(self, text):
         self.viewModel.setColormap(text)
