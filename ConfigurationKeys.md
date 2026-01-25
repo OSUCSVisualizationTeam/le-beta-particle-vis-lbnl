@@ -14,6 +14,8 @@ This document serves as the authoritative registry for all configuration keys us
 | **gui:raw_analysis** | `vis_range_max` | Float | `20.0` | Upper bound (in keV) for visualization thresholding. Values above this are clipped or normalized. Shared by Main View and Mosaic View. |
 | **gui:raw_analysis** | `filter_gaussian_sigma` | Float | `1.5` | Sigma (radius) value for the interactive Gaussian blur filter. |
 | **gui:raw_analysis** | `clustering_threshold` | Float | `4.0` | Signal-to-noise ratio (sigma multiplier) used for identifying event clusters. |
+| **gui:window** | `default_width` | Integer | `1024` | Default initial width of the application window. |
+| **gui:window** | `default_height` | Integer | `700` | Default initial height of the application window. |
 | **gui:mosaic** | `height` | Integer | `130` | Fixed height (in pixels) of the Mosaic View container strip. |
 | **gui:mosaic** | `thumbnail_height` | Integer | `100` | Height (in pixels) of the individual thumbnail images inside the strip. Width is calculated dynamically. |
 | **gui:mosaic** | `scaling_function` | Enum (Str) | `log` | Transfer function used to render thumbnails. Values: `linear`, `log`, `sqrt`. |

@@ -3,6 +3,7 @@ from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.frontend.utils.Fits2QPixmapConverter import (
     NoOpConverter,
+    # FastPixmapConverter,
 )
 from .MosaicViewModel import MosaicViewModel
 from PySide6.QtGui import QPixmap
@@ -19,6 +20,8 @@ class RawDataViewModel:
     def __init__(self, configService: ConfigurationService):
         self._config = configService
         self._converter = NoOpConverter()
+        # Enable to use the default greyscale converter
+        # self._converter = FastPixmapConverter()
 
         self._captures: List[CCDCaptureModel] = []
         self._activeIndex: int = -1

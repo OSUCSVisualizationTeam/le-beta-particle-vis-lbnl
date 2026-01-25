@@ -15,7 +15,12 @@ class MainWindow(QMainWindow):
 
         # self.tr() marks the string for translation
         self.setWindowTitle(self.tr("LE Beta Particle Visualization"))
-        self.resize(1024, 768)
+
+        # Window Geometry
+        self.setMinimumSize(960, 600)
+        width = self.viewModel.configService.get("gui:window:default_width", 1024)
+        height = self.viewModel.configService.get("gui:window:default_height", 700)
+        self.resize(width, height)
 
         # Central Widget
         self.central_widget = QWidget()
