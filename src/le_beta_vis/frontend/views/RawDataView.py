@@ -24,6 +24,7 @@ class RawDataView(QWidget):
 
     def initUI(self):
         """Initializes the UI components and layout."""
+        # Main Layout (Top Strip + Body)
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.setSpacing(0)
@@ -33,8 +34,11 @@ class RawDataView(QWidget):
 
     def _setupMosaicView(self):
         """Creates the top HDU Mosaic View."""
+        # Use the specialized MosaicView widget
         self.mosaicView = MosaicView(self.viewModel.mosaicViewModel)
         self.mainLayout.addWidget(self.mosaicView)
+        # Initially hidden until loaded
+        self.mosaicView.setVisible(False)
 
     def _setupMainBody(self):
         """Creates the main content area with toolbar, image, and sidebar."""
@@ -155,6 +159,17 @@ class RawDataView(QWidget):
     def bindViewModel(self):
         """Register callbacks with the ViewModel."""
         self.viewModel.add_image_changed_callback(self.updateImage)
+        # Subscribe to mosaic changes to toggle visibility
+        self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
+            self.updateMosaicVisibility
+        )
+        # Initial check
+        self.updateMosaicVisibility()
+
+    def updateMosaicVisibility(self):
+        """Hides the mosaic view if there are 0 or 1 HDUs."""
+        count = len(self.viewModel.mosaicViewModel.thumbnails)
+        self.mosaicView.setVisible(count > 1)
 
     def updateImage(self):
         """Update the displayed pixmap from the ViewModel."""
