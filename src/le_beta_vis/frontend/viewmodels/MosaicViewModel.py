@@ -4,6 +4,7 @@ from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.frontend.fitsconverters import FastPixmapConverter, ScalingFunction
 
+
 class MosaicViewModel:
     """
     ViewModel for the Mosaic View (HDU Thumbnail Strip).
