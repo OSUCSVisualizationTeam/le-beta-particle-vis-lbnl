@@ -1,7 +1,7 @@
 import numpy as np
 from PySide6 import QtGui
-from typing import Tuple, Any
-from .interface import Fits2QPixmapConverter, ScalingFunction
+from typing import Tuple, Any, Dict, Optional
+from .interface import Fits2QPixmapConverter, ScalingFunction, Colormap
 
 
 class OpenCVBasedConverter(Fits2QPixmapConverter):
@@ -10,10 +10,12 @@ class OpenCVBasedConverter(Fits2QPixmapConverter):
     Uses lazy import for cv2 to avoid CI dependency issues.
     """
 
+    _COLORMAP_MAPPING: Optional[Dict[Colormap, int]] = None
+
     def convert(
         self,
         matrix: np.ndarray,
-        colormap: str,
+        colormap: Colormap,
         vrange: Tuple[float, float],
         scaling: ScalingFunction = ScalingFunction.LINEAR,
     ) -> QtGui.QPixmap:
@@ -63,33 +65,37 @@ class OpenCVBasedConverter(Fits2QPixmapConverter):
     def _normalize(self, matrix: np.ndarray, max_val: float) -> np.ndarray:
         return np.clip(matrix * 255, 0, 255).astype(np.uint8)
 
-    def _colorize(self, matrix: np.ndarray, colormap: str) -> Any:
+    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> Any:
         import cv2
 
-        # Map string to OpenCV constant
-        cmap_id = cv2.COLORMAP_VIRIDIS
-        lname = colormap.lower()
-        if lname == "plasma":
-            cmap_id = cv2.COLORMAP_PLASMA
-        elif lname == "inferno":
-            cmap_id = cv2.COLORMAP_INFERNO
-        elif lname == "magma":
-            cmap_id = cv2.COLORMAP_MAGMA
-        elif lname == "jet":
-            cmap_id = cv2.COLORMAP_JET
-        elif lname == "bone":
-            cmap_id = cv2.COLORMAP_BONE
-        elif lname == "hot":
-            cmap_id = cv2.COLORMAP_HOT
-        elif lname == "cool":
-            cmap_id = cv2.COLORMAP_COOL
-
+        cmap_id = self._get_cv2_colormap_id(colormap)
         color_img = cv2.applyColorMap(matrix, cmap_id)
 
         # Convert BGR (OpenCV) to RGB (Qt)
         color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
 
         return np.ascontiguousarray(color_img)
+
+    def _get_cv2_colormap_id(self, colormap: Colormap) -> int:
+        """Lazily initializes and returns the OpenCV colormap ID mapping."""
+        import cv2
+
+        if OpenCVBasedConverter._COLORMAP_MAPPING is None:
+            # Map Colormap Enum to OpenCV constant
+            OpenCVBasedConverter._COLORMAP_MAPPING = {
+                Colormap.VIRIDIS: cv2.COLORMAP_VIRIDIS,
+                Colormap.PLASMA: cv2.COLORMAP_PLASMA,
+                Colormap.INFERNO: cv2.COLORMAP_INFERNO,
+                Colormap.MAGMA: cv2.COLORMAP_MAGMA,
+                Colormap.JET: cv2.COLORMAP_JET,
+                Colormap.BONE: cv2.COLORMAP_BONE,
+                Colormap.HOT: cv2.COLORMAP_HOT,
+                Colormap.COOL: cv2.COLORMAP_COOL,
+            }
+
+        return OpenCVBasedConverter._COLORMAP_MAPPING.get(
+            colormap, cv2.COLORMAP_VIRIDIS
+        )
 
     def _to_qpixmap(self, image_data: Any, width: int, height: int) -> QtGui.QPixmap:
         # Format_RGB888 expects 3 bytes per pixel

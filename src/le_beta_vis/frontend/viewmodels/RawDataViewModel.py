@@ -1,9 +1,7 @@
 from typing import List, Optional, Callable
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
-from le_beta_vis.frontend.fitsconverters import (
-    OpenCVBasedConverter,
-)
+from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter, Colormap
 from .MosaicViewModel import MosaicViewModel
 from PySide6.QtGui import QPixmap
 from pathlib import Path
@@ -29,9 +27,11 @@ class RawDataViewModel:
         self.mosaicViewModel.add_selection_changed_callback(self.setActiveHDU)
 
         # Viz Parameters - Loaded from Config
-        self._colormap = self._config.get(
-            "gui:raw_analysis:default_colormap", "viridis"
+        colormap_str = self._config.get(
+            "gui:raw_analysis:default_colormap", Colormap.VIRIDIS
         )
+        self._colormap = Colormap(colormap_str)
+
         self._vrange = (
             self._config.get("gui:raw_analysis:vis_range_min", 0.0),
             self._config.get("gui:raw_analysis:vis_range_max", 20.0),
@@ -76,9 +76,12 @@ class RawDataViewModel:
 
     def setColormap(self, colormap: str):
         """Updates the colormap and refreshes the image."""
-        self._colormap = colormap
-        self._updatePixmap()
-        self._notify_image_changed()
+        try:
+            self._colormap = Colormap(colormap)
+            self._updatePixmap()
+            self._notify_image_changed()
+        except ValueError:
+            pass  # Ignore invalid colormaps
 
     def setVisualizationRange(self, vmin: float, vmax: float):
         """Updates the intensity range and refreshes the image."""

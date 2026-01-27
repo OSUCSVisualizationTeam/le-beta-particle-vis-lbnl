@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from ..viewmodels.RawDataViewModel import RawDataViewModel
+from ..fitsconverters import Colormap
 from .MosaicView import MosaicView
 
 
@@ -111,9 +112,8 @@ class RawDataView(QWidget):
 
         layout.addWidget(QLabel(self.tr("Colormap")))
         self.cmapSelector = QComboBox()
-        self.cmapSelector.addItems(
-            ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool"]
-        )
+        # Use Enum values to ensure consistency
+        self.cmapSelector.addItems([c.value for c in Colormap])
         self.cmapSelector.currentTextChanged.connect(self.onColormapChanged)
         layout.addWidget(self.cmapSelector)
 

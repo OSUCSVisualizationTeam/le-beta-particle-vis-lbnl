@@ -13,6 +13,19 @@ class ScalingFunction(str, Enum):
     SQRT = "sqrt"
 
 
+class Colormap(str, Enum):
+    """Available colormaps for false-color visualization."""
+
+    VIRIDIS = "viridis"
+    PLASMA = "plasma"
+    INFERNO = "inferno"
+    MAGMA = "magma"
+    JET = "jet"
+    BONE = "bone"
+    HOT = "hot"
+    COOL = "cool"
+
+
 class Fits2QPixmapConverter(ABC):
     """
     Interface for converting raw FITS data (keV matrices) into Qt Pixmaps for display.
@@ -23,7 +36,7 @@ class Fits2QPixmapConverter(ABC):
     def convert(
         self,
         matrix: np.ndarray,
-        colormap: str,
+        colormap: Colormap,
         vrange: Tuple[float, float],
         scaling: ScalingFunction = ScalingFunction.LINEAR,
     ) -> QtGui.QPixmap:
@@ -50,10 +63,10 @@ class Fits2QPixmapConverter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _colorize(self, matrix: np.ndarray, colormap: str) -> Any:
+    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> Any:
         """
-        Step 4: Apply false color map (or keep grayscale).
-        Returns image data compatible with QImage.
+        Step 4: Apply false color map (or keep grayscale). Returns image data compatible with
+        QImage.
         """
         raise NotImplementedError
 

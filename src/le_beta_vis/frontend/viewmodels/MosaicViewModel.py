@@ -2,7 +2,11 @@ from typing import List, Callable
 from PySide6.QtGui import QPixmap
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
-from le_beta_vis.frontend.fitsconverters import FastPixmapConverter, ScalingFunction
+from le_beta_vis.frontend.fitsconverters import (
+    FastPixmapConverter,
+    ScalingFunction,
+    Colormap,
+)
 
 
 class MosaicViewModel:
@@ -54,7 +58,7 @@ class MosaicViewModel:
 
             # Generate Thumbnail
             pixmap = self._converter.convert(
-                data_kev, "grayscale", (vmin, vmax), scaling=scaling
+                data_kev, Colormap.VIRIDIS, (vmin, vmax), scaling=scaling
             )
 
             self._thumbnails.append(pixmap)
