@@ -41,6 +41,13 @@ class MockConfigurationService(ConfigurationService):
             "gui:raw_analysis:vis_range_max": 20.0,
             "gui:raw_analysis:filter_gaussian_sigma": 1.5,
             "gui:raw_analysis:clustering_threshold": 4.0,
+            # Window Geometry
+            "gui:window:default_width": 1024,
+            "gui:window:default_height": 700,
+            # Mosaic View
+            "gui:mosaic:height": 130,
+            "gui:mosaic:thumbnail_height": 100,
+            "gui:mosaic:scaling_function": "log",
             # Historical Event Analysis (GUI)
             "gui:historical:default_query_hours": 24,
             "gui:historical:live_update_rate_ms": 1000,

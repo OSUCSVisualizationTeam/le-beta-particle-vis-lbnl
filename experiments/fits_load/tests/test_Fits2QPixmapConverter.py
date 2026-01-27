@@ -18,7 +18,10 @@ class TestFits2QPixmapConverter(unittest.TestCase):
         cls.is_ci = getenv("CI") == "true"
         if cls.is_ci:
             return
-        cls.app = QApplication([])
+        if not QApplication.instance():
+            cls.app = QApplication([])
+        else:
+            cls.app = QApplication.instance()
 
     @classmethod
     def tearDownClass(cls):
