@@ -2,11 +2,7 @@ from typing import List, Callable
 from PySide6.QtGui import QPixmap
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
-from le_beta_vis.frontend.utils.Fits2QPixmapConverter import (
-    FastPixmapConverter,
-    ScalingFunction,
-)
-
+from le_beta_vis.frontend.fitsconverters import FastPixmapConverter, ScalingFunction
 
 class MosaicViewModel:
     """

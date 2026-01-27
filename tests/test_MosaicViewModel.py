@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from le_beta_vis.frontend.viewmodels.MosaicViewModel import MosaicViewModel
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
-from le_beta_vis.frontend.utils.Fits2QPixmapConverter import ScalingFunction
+from le_beta_vis.frontend.fitsconverters import ScalingFunction
 
 
 @pytest.fixture
