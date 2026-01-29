@@ -30,6 +30,7 @@ class MockConfigurationService(ConfigurationService):
         self._store: Dict[str, Any] = {
             # Global / Infrastructure
             "global:db:connection_string": "mysql://localhost/le_beta_vis",
+            "global:db:polling_location": "~/Google\ Drive\/My\ Drive/FITS",
             "global:redis:host": "localhost",
             "global:redis:port": 6379,
             "global:redis:channel_events": "events/new_class",
