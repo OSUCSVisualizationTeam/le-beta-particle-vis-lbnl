@@ -16,6 +16,7 @@ dependencies:
   - scikit-image
   - pip
   - watchdog
+  - mysql-connector-python
   - pip:
     - numpy<2
     - git+https://gitlab.com/lbl-anp/mlccd/mlccd_models.git
