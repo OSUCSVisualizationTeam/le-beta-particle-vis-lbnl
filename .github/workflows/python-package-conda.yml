@@ -41,7 +41,7 @@ jobs:
       
       - name: Create schema
         run: |
-          mysql -u root --password=root --port=3306 --host=127.0.0.1 --database=cs340test < src/le_beta_vis/backend/eventPersistence.sql
+          mysql -u root --password=root --port=3306 --host=127.0.0.1 --database=mlccd_viz < src/le_beta_vis/backend/eventPersistence.sql
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
