@@ -31,6 +31,17 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: '3.10'
+      
+      - name: Start MySQL
+        run: sudo service mysql start
+
+      - name: Create database
+        run: |
+          mysql -u root --password=root --port=3306 --host=127.0.0.1 -e "CREATE DATABASE mlccd_viz;"
+      
+      - name: Create schema
+        run: |
+          mysql -u root --password=root --port=3306 --host=127.0.0.1 --database=cs340test < src/le_beta_vis/backend/eventPersistence.sql
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3

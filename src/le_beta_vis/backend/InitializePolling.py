@@ -11,14 +11,21 @@ import threading
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from FileProcessing import ProcessFile
+
+config = MockConfigurationService()
 
 class PollingThread():
     """
     Polling thread class for input database, location determined from configuration service.
     Manages starting polls and processing.
     """
-    def __init__(self, configService: MockConfigurationService):
-        self.polling_location = configService["global:db:polling_location"]
+    def __init__(self, config_service: MockConfigurationService):
+
+        # Temporary polling location, will be taken from config_service.get("pipeline:ingress:polling_location")
+        # Modify this path for testing
+
+        self.polling_location = config_service.get("pipeline:ingress:polling_location")
 
         #Ensure temp and processed dirs are created and set
         # os.makedirs(os.path.join(self.polling_location, "/_temp"), exist_ok=True)
@@ -41,7 +48,6 @@ class PollingThread():
         """Kills outstanding worker threads when polling stops."""
         self.observer.stop()
         self.ingest.stop()
-
 
 class EventHandler(FileSystemEventHandler):
     """
@@ -78,7 +84,8 @@ def file_uploaded(queue: queue.Queue):
         if file_type.lower() != '.fits':
             continue
         print(path)
+        ProcessFile(config_service=config, file=path)
 
 if __name__ == "__main__":
-    polling = PollingThread(MockConfigurationService)
+    polling = PollingThread(config)
     polling.begin()
