@@ -26,7 +26,7 @@ def test_file_created_queue():
     handler.on_created(event)
     mock_queue.put.assert_called_with("testing.fits")
 
-def test_only_fits_processed():
+def test_only_fits_processed(mock_config):
     """
     Tests the file watcher to ensure that it only acts on .fits files.
     """
@@ -35,7 +35,7 @@ def test_only_fits_processed():
 
     with patch('le_beta_vis.backend.InitializePolling.ProcessFile') as mock_process:
         with pytest.raises(Exception, match="STOP"):
-            file_uploaded(mock_queue, mock_config())
+            file_uploaded(mock_queue, mock_config)
         mock_process.assert_called_once_with(config_service=ANY, file="testing.fits")
 
 def test_polling_thread_begins(mock_config):
