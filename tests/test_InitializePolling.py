@@ -33,7 +33,7 @@ def test_only_fits_processed():
     mock_queue = MagicMock()
     mock_queue.get.side_effect = ["testing.fits", "testing.txt", Exception("STOP")]
 
-    with patch('ProcessFile') as mock_process:
+    with patch('le_beta_vis.backend.InitializePolling.ProcessFile') as mock_process:
         with pytest.raises(Exception, match="STOP"):
             file_uploaded(mock_queue)
         mock_process.assert_called_once_with(config_service=ANY, file="testing.fits")
@@ -42,7 +42,7 @@ def test_polling_thread_begins(mock_config):
     """
     Tests the polling thread creation of the file watcher and event handler
     """
-    with patch('FileWatcher') as MockWatcher, patch('threading.Thread') as MockThread:
+    with patch('le_beta_vis.backend.InitializePolling.FileWatcher') as MockWatcher, patch('threading.Thread') as MockThread:
         polling = PollingThread(mock_config)
         polling.begin()
         MockWatcher.assert_called_once_with(polling.handler, "/tmp")
