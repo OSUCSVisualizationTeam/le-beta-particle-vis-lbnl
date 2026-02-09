@@ -41,7 +41,7 @@ class PollingThread():
         Begins polling the configured location with an observer
         """
         self.observer = FileWatcher(self.handler, self.polling_location)
-        self.ingest = threading.Thread(target=file_uploaded(self.file_queue), daemon=True)
+        self.ingest = threading.Thread(target=file_uploaded, args=(self.file_queue, config), daemon=True)
         self.ingest.start()
 
     def end(self):
@@ -77,13 +77,12 @@ class FileWatcher():
         self.observer.schedule(self.handler, self.path, recursive=False)
         self.observer.start()
 
-def file_uploaded(queue: queue.Queue):
+def file_uploaded(queue: queue.Queue, config: MockConfigurationService):
     while True:
         path = queue.get()
         file_type = os.path.splitext(path)[1] # return extension of file in queue
         if file_type.lower() != '.fits':
             continue
-        print(path)
         ProcessFile(config_service=config, file=path)
 
 if __name__ == "__main__":

@@ -47,7 +47,7 @@ class ProcessFile():
         Iterates through HDUs, creating clusters from each
         """
         for hdu in self.capture:
-            data = hdu._CCDCaptureModel__data
+            data = hdu.rawData()
             # Label as a cluster if the data passes the four sigma threshold comparison to the background noise
             labeled_array, num_features = label(data > 4 * self.ped_width) # 4 sigma threshold
             for i in range(num_features):
