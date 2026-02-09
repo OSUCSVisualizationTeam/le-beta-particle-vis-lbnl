@@ -6,11 +6,13 @@ from le_beta_vis.backend.InitializePolling import PollingThread
 from le_beta_vis.backend.InitializePolling import EventHandler
 from le_beta_vis.backend.InitializePolling import FileWatcher
 from le_beta_vis.backend.InitializePolling import file_uploaded
+from le_beta_vis.common.ConfigurationService import MockConfigurationService
 
 @pytest.fixture
 def mock_config():
-    config = MagicMock()
-    config.get.return_value = "/tmp"
+    config = MockConfigurationService()
+    # Reset config to known state
+    config.set("pipeline:ingress:polling_location", "/tmp")
     return config
 
 def test_file_created_queue():

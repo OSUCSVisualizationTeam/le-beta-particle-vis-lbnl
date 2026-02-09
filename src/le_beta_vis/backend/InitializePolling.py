@@ -11,7 +11,7 @@ import threading
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
-from FileProcessing import ProcessFile
+from le_beta_vis.backend.FileProcessing import ProcessFile
 
 config = MockConfigurationService()
 
