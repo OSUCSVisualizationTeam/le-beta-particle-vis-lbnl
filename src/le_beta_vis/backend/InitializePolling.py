@@ -10,21 +10,19 @@ import threading
 # Needed for local imports, can be removed later when called by main program
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.backend.FileProcessing import ProcessFile
-
-config = MockConfigurationService()
 
 class PollingThread():
     """
     Polling thread class for input database, location determined from configuration service.
     Manages starting polls and processing.
     """
-    def __init__(self, config_service: MockConfigurationService):
+    def __init__(self, config_service: ConfigurationService):
 
         # Temporary polling location, will be taken from config_service.get("pipeline:ingress:polling_location")
         # Modify this path for testing
-
+        self.config_service = config_service
         self.polling_location = config_service.get("pipeline:ingress:polling_location")
 
         #Ensure temp and processed dirs are created and set
@@ -36,12 +34,13 @@ class PollingThread():
         self.file_queue = queue.Queue()
         self.handler = EventHandler(self.file_queue)
 
+
     def begin(self):
         """
         Begins polling the configured location with an observer
         """
         self.observer = FileWatcher(self.handler, self.polling_location)
-        self.ingest = threading.Thread(target=file_uploaded, args=(self.file_queue, config), daemon=True)
+        self.ingest = threading.Thread(target=file_uploaded, args=(self.file_queue, self.config_service), daemon=True)
         self.ingest.start()
 
     def end(self):
@@ -77,7 +76,7 @@ class FileWatcher():
         self.observer.schedule(self.handler, self.path, recursive=False)
         self.observer.start()
 
-def file_uploaded(queue: queue.Queue, config: MockConfigurationService):
+def file_uploaded(queue: queue.Queue, config: ConfigurationService):
     while True:
         path = queue.get()
         file_type = os.path.splitext(path)[1] # return extension of file in queue
@@ -86,5 +85,5 @@ def file_uploaded(queue: queue.Queue, config: MockConfigurationService):
         ProcessFile(config_service=config, file=path)
 
 if __name__ == "__main__":
-    polling = PollingThread(config)
+    polling = PollingThread(ConfigurationService())
     polling.begin()

@@ -1,6 +1,6 @@
 import numpy as np
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from le_beta_vis.common.ConfigurationService import ConfigurationService
 import mysql.connector
 from astropy.io import fits
 from scipy.ndimage import label, maximum_position
@@ -12,7 +12,7 @@ class ProcessFile():
     """
     FITS ingress processing operation class, saves data from file path and clusters
     """
-    def __init__(self, config_service: MockConfigurationService, file: Path):
+    def __init__(self, config_service: ConfigurationService, file: Path):
         self.kev = config_service.get(key = "global:physics:kev_conversion") # Will be adjusted for real config service
         self.ped_width = config_service.get(key = "global:physics:ped_width")
         self.db = config_service.get(key = "global:db:connection_string")
@@ -39,7 +39,7 @@ class ProcessFile():
 
         except mysql.connector.Error as err:
             print(f"Could not connect: {err}")
-        
+
         raise NotImplementedError
 
     def cluster_fits(self):
@@ -111,10 +111,10 @@ class Cluster():
     """
     Cluster class with methods for classification and storage
     """
-    def __init__(self, 
-                 sigmaX: float, 
-                 sigmaY: float, 
-                 energy: float, 
+    def __init__(self,
+                 sigmaX: float,
+                 sigmaY: float,
+                 energy: float,
                  pixels: int
                  ):
         self.sigmaX = sigmaX
@@ -125,7 +125,7 @@ class Cluster():
         print(f"Sigma x: {self.sigmaX}\nSigma Y: {self.sigmaY}\nEnergy: {self.total_energy}\n Pixels: {self.total_pixels}")
 
     def classify_clusters(self):
-        """ 
+        """
         Run clusters through classification models to save in database.
         """
         raise NotImplementedError
