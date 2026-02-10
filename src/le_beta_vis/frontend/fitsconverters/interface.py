@@ -3,6 +3,7 @@ import numpy as np
 from PySide6 import QtGui
 from typing import Tuple, Any
 from enum import Enum
+from .colormaps import Colormap
 
 
 class ScalingFunction(str, Enum):
@@ -11,19 +12,6 @@ class ScalingFunction(str, Enum):
     LINEAR = "linear"
     LOG = "log"
     SQRT = "sqrt"
-
-
-class Colormap(str, Enum):
-    """Available colormaps for false-color visualization."""
-
-    VIRIDIS = "viridis"
-    PLASMA = "plasma"
-    INFERNO = "inferno"
-    MAGMA = "magma"
-    JET = "jet"
-    BONE = "bone"
-    HOT = "hot"
-    COOL = "cool"
 
 
 class Fits2QPixmapConverter(ABC):

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from ..viewmodels.RawDataViewModel import RawDataViewModel
 from ..fitsconverters import Colormap
+from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .MosaicView import MosaicView
 
 
@@ -54,9 +55,9 @@ class RawDataView(QWidget):
         self._setupRightSidebar()
 
     def _setupLeftToolbar(self):
-        """Creates the tool selection bar on the left."""
+        """Creates the tool selection bar and range control on the left."""
         self.leftToolbar = QFrame()
-        self.leftToolbar.setFixedWidth(50)
+        self.leftToolbar.setFixedWidth(100)  # ADR-001: Increased to 100px
         self.leftToolbar.setStyleSheet(
             "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
         )
@@ -65,12 +66,23 @@ class RawDataView(QWidget):
         layout.setSpacing(10)
         layout.setAlignment(Qt.AlignTop)
 
-        tools = [self.tr("Ptr"), self.tr("Mag"), self.tr("Box"), self.tr("Roi")]
+        # Tools Section
+        tools = [self.tr("Ptr"), self.tr("Mag"), self.tr("Box"), self.tr("Zoom")]
         for tool in tools:
             btn = QToolButton()
             btn.setText(tool)
-            btn.setFixedSize(40, 40)
+            btn.setFixedSize(90, 40)
             layout.addWidget(btn)
+
+        layout.addSpacing(20)
+
+        # Unified Vertical Range Control
+        # Initialize with temporary default; updateImage will set real data range
+        self.rangeControl = VerticalRangeControl(abs_min=0.0, abs_max=1.0)
+        self.rangeControl.setVisible(False) # Hidden until file loaded
+        self.rangeControl.rangeChanged.connect(self.onRangeChanged)
+
+        layout.addWidget(self.rangeControl)
 
         self.bodyLayout.addWidget(self.leftToolbar)
 
@@ -117,12 +129,6 @@ class RawDataView(QWidget):
         self.cmapSelector.currentTextChanged.connect(self.onColormapChanged)
         layout.addWidget(self.cmapSelector)
 
-        layout.addWidget(QLabel(self.tr("Range (keV)")))
-        rangePlaceholder = QFrame()
-        rangePlaceholder.setFixedHeight(30)
-        rangePlaceholder.setStyleSheet("background-color: #ddd; border-radius: 4px;")
-        layout.addWidget(rangePlaceholder)
-
         self.rightLayout.addWidget(group)
 
     def _addFilteringSection(self):
@@ -159,12 +165,15 @@ class RawDataView(QWidget):
     def bindViewModel(self):
         """Register callbacks with the ViewModel."""
         self.viewModel.add_image_changed_callback(self.updateImage)
-        # Subscribe to mosaic changes to toggle visibility
         self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
             self.updateMosaicVisibility
         )
-        # Initial check
         self.updateMosaicVisibility()
+
+        # Initialize Range Control state
+        vmin, vmax = self.viewModel.visualizationRange
+        self.rangeControl.setValues(vmin, vmax)
+        self.rangeControl.setColormap(self.viewModel.colormap)
 
     def updateMosaicVisibility(self):
         """Hides the mosaic view if there are 0 or 1 HDUs."""
@@ -173,11 +182,30 @@ class RawDataView(QWidget):
 
     def updateImage(self):
         """Update the displayed pixmap from the ViewModel."""
+        
+        # 1. Update Pixmap and toggle visibility
         pixmap = self.viewModel.currentPixmap
+        self.rangeControl.setVisible(pixmap is not None)
+        
         if pixmap is not None:
             self.imageLabel.setPixmap(pixmap)
         else:
             self.imageLabel.clear()
+            
+        # 2. Update Range Control with Data Limits
+        dmin, dmax = self.viewModel.dataRange
+        self.rangeControl.setAbsoluteRange(dmin, dmax)
+
+        # 3. Ensure handles reflect the current thresholds
+        vmin, vmax = self.viewModel.visualizationRange
+        self.rangeControl.setValues(vmin, vmax)
+        
+        # 4. Force gradient refresh
+        self.rangeControl.setColormap(self.viewModel.colormap)
 
     def onColormapChanged(self, text):
         self.viewModel.setColormap(text)
+        self.rangeControl.setColormap(text)
+
+    def onRangeChanged(self, vmin, vmax):
+        self.viewModel.setVisualizationRange(vmin, vmax)

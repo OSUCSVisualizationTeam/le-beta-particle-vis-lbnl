@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Tuple
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter, Colormap
@@ -107,8 +107,30 @@ class RawDataViewModel:
     # --- Data Accessors ---
 
     @property
+    def dataRange(self) -> Tuple[float, float]:
+        """Returns the absolute min/max of the current active capture in keV."""
+        if self._activeIndex == -1 or not self._captures:
+            return 0.0, 1000.0  # Default fallback
+
+        capture = self._captures[self._activeIndex]
+        kev_factor = self._config.get("global:physics:kev_conversion", 1.0)
+
+        # Use cached info for performance
+        info = capture.info()
+        return (float(info.min * kev_factor), float(info.max * kev_factor))
+
+    @property
     def currentPixmap(self) -> QPixmap:
         return self._pixmap
+
+    @property
+    def visualizationRange(self) -> Tuple[float, float]:
+        return self._vrange
+
+    @property
+    def colormap(self) -> str:
+        # Return string value of Enum for UI compatibility
+        return self._colormap.value
 
     @property
     def hduSummaries(self) -> List[str]:

@@ -2,6 +2,7 @@ import numpy as np
 from PySide6 import QtGui
 from typing import Tuple, Any, Dict, Optional
 from .interface import Fits2QPixmapConverter, ScalingFunction, Colormap
+from .colormaps import get_cv2_colormap_id
 
 
 class OpenCVBasedConverter(Fits2QPixmapConverter):
@@ -9,8 +10,6 @@ class OpenCVBasedConverter(Fits2QPixmapConverter):
     High-performance converter using OpenCV to generate false-color bitmaps.
     Uses lazy import for cv2 to avoid CI dependency issues.
     """
-
-    _COLORMAP_MAPPING: Optional[Dict[Colormap, int]] = None
 
     def convert(
         self,
@@ -68,34 +67,13 @@ class OpenCVBasedConverter(Fits2QPixmapConverter):
     def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> Any:
         import cv2
 
-        cmap_id = self._get_cv2_colormap_id(colormap)
+        cmap_id = get_cv2_colormap_id(colormap)
         color_img = cv2.applyColorMap(matrix, cmap_id)
 
         # Convert BGR (OpenCV) to RGB (Qt)
         color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
 
         return np.ascontiguousarray(color_img)
-
-    def _get_cv2_colormap_id(self, colormap: Colormap) -> int:
-        """Lazily initializes and returns the OpenCV colormap ID mapping."""
-        import cv2
-
-        if OpenCVBasedConverter._COLORMAP_MAPPING is None:
-            # Map Colormap Enum to OpenCV constant
-            OpenCVBasedConverter._COLORMAP_MAPPING = {
-                Colormap.VIRIDIS: cv2.COLORMAP_VIRIDIS,
-                Colormap.PLASMA: cv2.COLORMAP_PLASMA,
-                Colormap.INFERNO: cv2.COLORMAP_INFERNO,
-                Colormap.MAGMA: cv2.COLORMAP_MAGMA,
-                Colormap.JET: cv2.COLORMAP_JET,
-                Colormap.BONE: cv2.COLORMAP_BONE,
-                Colormap.HOT: cv2.COLORMAP_HOT,
-                Colormap.COOL: cv2.COLORMAP_COOL,
-            }
-
-        return OpenCVBasedConverter._COLORMAP_MAPPING.get(
-            colormap, cv2.COLORMAP_VIRIDIS
-        )
 
     def _to_qpixmap(self, image_data: Any, width: int, height: int) -> QtGui.QPixmap:
         # Format_RGB888 expects 3 bytes per pixel
