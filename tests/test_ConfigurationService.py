@@ -6,7 +6,7 @@ def test_mock_configuration_service_defaults():
     service = MockConfigurationService()
 
     # Test Global
-    assert service.get("global:db:connection_string") == "mysql://localhost/le_beta_vis"
+    assert service.get("global:db:connection_string") == "mysql://localhost/mlccd_viz"
 
     # Test Physics
     assert service.get("global:physics:kev_conversion") == 1.02857e-5

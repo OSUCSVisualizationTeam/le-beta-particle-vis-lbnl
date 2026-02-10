@@ -29,12 +29,13 @@ class MockConfigurationService(ConfigurationService):
     def __init__(self):
         self._store: Dict[str, Any] = {
             # Global / Infrastructure
-            "global:db:connection_string": "mysql://localhost/le_beta_vis",
+            "global:db:connection_string": "mysql://localhost/mlccd_viz",
             "global:redis:host": "localhost",
             "global:redis:port": 6379,
             "global:redis:channel_events": "events/new_class",
             # Physics (From Design Q&A section)
             "global:physics:kev_conversion": 1.02857e-5,
+            "global:physics:ped_width": 1400,
             # Interactive Raw Data Analysis (GUI)
             "gui:raw_analysis:default_colormap": "viridis",
             "gui:raw_analysis:vis_range_min": 0.0,
@@ -56,6 +57,8 @@ class MockConfigurationService(ConfigurationService):
             # Export & Reporting (GUI)
             "gui:export:default_path": "~/Data",
             "gui:export:image_format": "png",
+            # Pipeline and Ingress
+            "pipeline:ingress:polling_location": "~/Google\ Drive\/My\ Drive/FITS",
         }
 
     def get(self, key: str, default: Any = None) -> Any:
