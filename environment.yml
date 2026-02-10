@@ -15,7 +15,7 @@ dependencies:
   - flake8
   - scikit-image
   - pip
-  - redis
+  - redis-py
   - pip:
     - numpy<2
     - git+https://gitlab.com/lbl-anp/mlccd/mlccd_models.git
