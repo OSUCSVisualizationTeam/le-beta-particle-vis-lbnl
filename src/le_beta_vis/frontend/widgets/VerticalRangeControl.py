@@ -5,32 +5,38 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QLabel,
     QStackedLayout,
+    QToolTip,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QEvent
 from superqt import QRangeSlider
 from typing import Tuple
 from le_beta_vis.frontend.fitsconverters.colormaps import generate_gradient_pixmap
 
-# QSS Stylesheet for the transparent range slider
-SLIDER_STYLE = """
-    QRangeSlider {
-        background: transparent;
-    }
-    QRangeSlider::groove:vertical {
-        background: transparent;
-        width: 80px;
-    }
-    QRangeSlider::handle:vertical {
-        background: rgba(255, 255, 255, 150);
-        border: 1px solid #ffffff;
-        border-radius: 0px;
-        height: 4px;
-        width: 80px;
-    }
-    QRangeSlider::sub-page:vertical {
-        background: transparent;
-    }
-"""
+
+# Private namespace for widget styles
+class _Style:
+    SLIDER = """
+        QRangeSlider {
+            background: transparent;
+        }
+        QRangeSlider::groove:vertical {
+            background: transparent;
+            width: 80px;
+        }
+        QRangeSlider::handle:vertical {
+            background: rgba(255, 255, 255, 150);
+            border: 1px solid #ffffff;
+            border-radius: 0px;
+            height: 4px;
+            width: 80px;
+        }
+        QRangeSlider::sub-page:vertical {
+            background: transparent;
+        }
+    """
+    TOOLTIP = (
+        "color: black; background-color: white; padding: 2px; border: 1px solid #ccc;"
+    )
 
 
 class GradientBar(QLabel):
@@ -137,11 +143,32 @@ class VerticalRangeControl(QWidget):
 
         self.slider = QRangeSlider(Qt.Vertical)
         self.slider.setRange(0, self._steps)
-        self.slider.setStyleSheet(SLIDER_STYLE)
+        self.slider.setStyleSheet(_Style.SLIDER)
+        self.slider.setMouseTracking(True)
+        self.slider.installEventFilter(self)
         self.slider.valueChanged.connect(self._onSliderChanged)
 
         stackLayout.addWidget(self.slider)
         stackLayout.setCurrentWidget(self.slider)
+
+    def eventFilter(self, obj, event):
+        if obj == self.slider and event.type() == QEvent.MouseMove:
+            height = self.slider.height()
+            if height > 0:
+                # ratio = 1.0 is top (max), 0.0 is bottom (min)
+                ratio = 1.0 - (event.position().y() / height)
+                ratio = max(0.0, min(1.0, ratio))
+                val = self._abs_min + ratio * (self._abs_max - self._abs_min)
+                QToolTip.showText(
+                    event.globalPosition().toPoint(),
+                    self._getTooltipText(val),
+                    self.slider,
+                )
+        return super().eventFilter(obj, event)
+
+    def _getTooltipText(self, value: float) -> str:
+        """Generates styled HTML for the energy tooltip."""
+        return f"<span style='{_Style.TOOLTIP}'>{self._formatLabel(value)}</span>"
 
     def setAbsoluteRange(self, abs_min: float, abs_max: float):
         """Sets the absolute limits of the control."""
