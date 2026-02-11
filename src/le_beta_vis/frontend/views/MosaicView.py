@@ -1,4 +1,11 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QScrollArea, QToolButton, QStyle
+from PySide6.QtWidgets import (
+    QWidget,
+    QHBoxLayout,
+    QScrollArea,
+    QToolButton,
+    QScroller,
+    QScrollerProperties,
+)
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QImage, QPixmap
 from ..viewmodels.MosaicViewModel import MosaicViewModel
@@ -26,7 +33,34 @@ class MosaicView(QWidget):
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scrollArea.setStyleSheet("background-color: #1e1e1e; border: none;")
+        self.scrollArea.setStyleSheet(
+            """
+            QScrollArea {
+                background-color: #1e1e1e;
+                border: none;
+            }
+            QScrollBar:horizontal {
+                height: 12px;
+                background: transparent;
+                margin: 0px;
+            }
+            QScrollBar::handle:horizontal {
+                background: rgba(100, 100, 100, 165);
+                min-width: 30px;
+                border-radius: 6px;
+                margin: 2px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: rgba(150, 150, 150, 200);
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0px;
+            }
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+                background: transparent;
+            }
+            """
+        )
 
         self.container = QWidget()
         self.container.setStyleSheet("background-color: #1e1e1e;")
@@ -38,6 +72,25 @@ class MosaicView(QWidget):
         self.scrollArea.setWidget(self.container)
         layout.addWidget(self.scrollArea)
 
+        # Enable Drag-to-Scroll (Kinetic Scrolling)
+        QScroller.grabGesture(
+            self.scrollArea.viewport(), QScroller.LeftMouseButtonGesture
+        )
+
+        # Lock to Horizontal Axis and disable overshoot/bounce
+        scroller = QScroller.scroller(self.scrollArea.viewport())
+        props = scroller.scrollerProperties()
+        props.setScrollMetric(QScrollerProperties.AxisLockThreshold, 0.6)
+        props.setScrollMetric(
+            QScrollerProperties.HorizontalOvershootPolicy,
+            QScrollerProperties.OvershootAlwaysOff,
+        )
+        props.setScrollMetric(
+            QScrollerProperties.VerticalOvershootPolicy,
+            QScrollerProperties.OvershootAlwaysOff,
+        )
+        scroller.setScrollerProperties(props)
+
         # Initial height calculation
         self.updateGeometryConstraints()
 
@@ -45,13 +98,10 @@ class MosaicView(QWidget):
         """Calculates and sets the fixed height based on content + scrollbar."""
         thumb_h = self.viewModel.thumbnailHeight
 
-        # Get system scrollbar height
-        scrollbar_h = self.style().pixelMetric(QStyle.PM_ScrollBarExtent)
-
-        # Padding (Margins + extra buffer)
-        padding = 20
-
-        total_h = thumb_h + scrollbar_h + padding
+        # Button height = thumb_h + 10 (padding) + 20 (text) = thumb_h + 30
+        # Container margins = 5 top + 5 bottom = 10
+        # Scrollbar height = 12
+        total_h = (thumb_h + 30) + 10 + 12
         total_h = max(total_h, self.MIN_HEIGHT)
 
         self.setFixedHeight(total_h)
