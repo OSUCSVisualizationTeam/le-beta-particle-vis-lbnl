@@ -37,6 +37,19 @@ class _Style:
     TOOLTIP = (
         "color: black; background-color: white; padding: 2px; border: 1px solid #ccc;"
     )
+    SPINBOX = """
+        QDoubleSpinBox {
+            background-color: #3d3d3d;
+            color: #eeeeee;
+            border: 1px solid #555555;
+            border-radius: 3px;
+            padding: 2px;
+        }
+        QDoubleSpinBox:focus {
+            border: 1px solid #0078d7;
+        }
+    """
+    LABEL = "color: #eeeeee; font-size: 10px; font-weight: bold;"
 
 
 class GradientBar(QLabel):
@@ -101,14 +114,14 @@ class VerticalRangeControl(QWidget):
 
     def _setupLabels(self):
         """Initializes the absolute range labels."""
-        self.lblAbsMax = QLabel(self._formatLabel(self._abs_max))
+        self.lblAbsMax = QLabel(f"Max: {self._formatLabel(self._abs_max)}")
         self.lblAbsMax.setAlignment(Qt.AlignCenter)
-        self.lblAbsMax.setStyleSheet("color: #888; font-size: 10px;")
+        self.lblAbsMax.setStyleSheet(_Style.LABEL)
         self.lblAbsMax.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        self.lblAbsMin = QLabel(self._formatLabel(self._abs_min))
+        self.lblAbsMin = QLabel(f"Min: {self._formatLabel(self._abs_min)}")
         self.lblAbsMin.setAlignment(Qt.AlignCenter)
-        self.lblAbsMin.setStyleSheet("color: #888; font-size: 10px;")
+        self.lblAbsMin.setStyleSheet(_Style.LABEL)
         self.lblAbsMin.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
     def _setupSpinBoxes(self):
@@ -119,6 +132,7 @@ class VerticalRangeControl(QWidget):
         self.spinMax.setRange(self._abs_min, self._abs_max)
         self.spinMax.setDecimals(2)
         self.spinMax.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.spinMax.setStyleSheet(_Style.SPINBOX)
         self.spinMax.editingFinished.connect(self._onSpinBoxChanged)
 
         self.spinMin = QDoubleSpinBox()
@@ -127,6 +141,7 @@ class VerticalRangeControl(QWidget):
         self.spinMin.setRange(self._abs_min, self._abs_max)
         self.spinMin.setDecimals(2)
         self.spinMin.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.spinMin.setStyleSheet(_Style.SPINBOX)
         self.spinMin.editingFinished.connect(self._onSpinBoxChanged)
 
     def _setupSliderStack(self):
@@ -176,8 +191,8 @@ class VerticalRangeControl(QWidget):
         self._abs_max = abs_max
 
         # Update Labels
-        self.lblAbsMax.setText(self._formatLabel(abs_max))
-        self.lblAbsMin.setText(self._formatLabel(abs_min))
+        self.lblAbsMax.setText(f"Max: {self._formatLabel(abs_max)}")
+        self.lblAbsMin.setText(f"Min: {self._formatLabel(abs_min)}")
 
         self.spinMin.setRange(abs_min, abs_max)
         self.spinMax.setRange(abs_min, abs_max)
