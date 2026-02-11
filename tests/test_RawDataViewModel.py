@@ -56,20 +56,45 @@ def test_load_file_success(view_model):
             assert "100x100" in view_model.hduSummaries[0]
 
 
-def test_set_active_hdu(view_model):
-    """Test switching HDUs."""
+def test_load_file_renders_first_hdu(view_model):
+    """Test that loadFile results in a render request for the first HDU."""
     mock_capture = MagicMock(spec=CCDCaptureModel)
     mock_capture.rawData.return_value = np.zeros((10, 10))
+    mock_capture.info.return_value.rows = 10
+    mock_capture.info.return_value.cols = 10
+
+    module = sys.modules["le_beta_vis.frontend.viewmodels.RawDataViewModel"]
+    with patch.object(module, "Path") as MockPath:
+        MockPath.return_value.exists.return_value = True
+        with patch.object(CCDCaptureModel, "load", return_value=[mock_capture]):
+            view_model.loadFile("dummy.fits")
+
+            # The flow is:
+            # 1. loadFile
+            # 2. mosaic.setCaptures
+            # 3. notify_selection(0)
+            # 4. setActiveHDU(0)
+            # 5. render
+            assert view_model.activeIndex == 0
+            view_model._converter.convert.assert_called()
+
+
+def test_set_active_hdu(view_model):
+    """Test switching HDUs and verify keV conversion factor."""
+    view_model._config.set("global:physics:kev_conversion", 0.5)
+
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    data = np.array([[10, 20], [30, 40]])
+    mock_capture.rawData.return_value = data
     view_model._captures = [mock_capture, mock_capture]
     view_model._activeIndex = 0
-
-    mock_image_changed_cb = MagicMock()
-    view_model.add_image_changed_callback(mock_image_changed_cb)
 
     view_model.setActiveHDU(1)
 
     assert view_model.activeIndex == 1
-    view_model._converter.convert.assert_called()
+    # Verify converter called with scaled data (data * 0.5)
+    args, _ = view_model._converter.convert.call_args
+    assert np.array_equal(args[0], data * 0.5)
     assert isinstance(view_model.currentBuffer, np.ndarray)
 
 

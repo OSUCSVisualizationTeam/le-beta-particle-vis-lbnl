@@ -66,13 +66,13 @@ def test_set_captures(view_model):
     assert isinstance(view_model.thumbnails[0], np.ndarray)
     assert view_model.selectedIndex == 0
 
-    from unittest.mock import ANY
-
-    # Verify Converter Calls
-    # Logic: raw * kev_factor(2.0) -> convert(..., Colormap.VIRIDIS, (10.0, 100.0), scaling=LOG)
-    view_model._converter.convert.assert_any_call(
-        ANY, Colormap.VIRIDIS, (10.0, 100.0), scaling=ScalingFunction.LOG
-    )
+    # Verify Converter Calls with scaled data (0.0 * 2.0 = 0.0)
+    # Using np.array_equal check on call arguments
+    args, kwargs = view_model._converter.convert.call_args
+    assert np.array_equal(args[0], np.zeros((10, 10)) * 2.0)
+    assert args[1] == Colormap.VIRIDIS
+    assert args[2] == (10.0, 100.0)
+    assert kwargs["scaling"] == ScalingFunction.LOG
 
     # Verify Callbacks
     thumbnails_cb.assert_called_once()
