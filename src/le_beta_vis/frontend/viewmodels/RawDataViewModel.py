@@ -1,17 +1,19 @@
 from typing import List, Optional, Callable, Tuple
+import threading
+import queue
+import numpy as np
+from pathlib import Path
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter, Colormap
-from .MosaicViewModel import MosaicViewModel
-from PySide6.QtGui import QPixmap
-from pathlib import Path
 
 
 class RawDataViewModel:
     """
     ViewModel for the Interactive Raw Data Analysis mode.
-    Manages loading FITS files, HDU selection, and visualization state.
-    Pure Python class - No Qt Signals/Slots to ensure easy testing.
+    Manages loading FITS files and visualization state.
+    Uses background threading for high-performance rendering.
+    Pure Python class - No Qt dependencies.
     """
 
     def __init__(self, configService: ConfigurationService):
@@ -22,106 +24,110 @@ class RawDataViewModel:
         self._activeIndex: int = -1
 
         # Sub-ViewModels
+        from .MosaicViewModel import MosaicViewModel
+
         self.mosaicViewModel = MosaicViewModel(configService)
-        # Bidirectional sync: When mosaic selection changes, update this VM
         self.mosaicViewModel.add_selection_changed_callback(self.setActiveHDU)
 
-        # Viz Parameters - Loaded from Config
+        # Viz Parameters
         colormap_str = self._config.get(
             "gui:raw_analysis:default_colormap", Colormap.VIRIDIS
         )
         self._colormap = Colormap(colormap_str)
-
         self._vrange = (
             self._config.get("gui:raw_analysis:vis_range_min", 0.0),
             self._config.get("gui:raw_analysis:vis_range_max", 20.0),
         )
-        self._pixmap: Optional[QPixmap] = None
 
-        # Simple Observer pattern for View updates (optional, or View can just poll)
+        # Async Rendering State
+        self._current_buffer: Optional[np.ndarray] = None
+        self._render_queue = queue.Queue(maxsize=1)
+        self._render_thread = threading.Thread(target=self._render_worker, daemon=True)
+        self._render_thread.start()
+
+        # Callbacks
         self._on_image_changed_callbacks: List[Callable] = []
         self._on_file_loaded_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
-        """Loads a FITS file and populates the HDU list."""
         path = Path(filePath)
         if not path.exists():
             return
 
-        # Load all HDUs from the FITS file
         self._captures = CCDCaptureModel.load(path)
-
-        # Reset active index so the MosaicVM sync triggers an update.
         self._activeIndex = -1
-
-        # Pass data to Mosaic VM
         self.mosaicViewModel.setCaptures(self._captures)
 
         if self._captures:
             self._notify_file_loaded()
 
     def setActiveHDU(self, index: int):
-        """Changes the active HDU and updates the visualization."""
         if 0 <= index < len(self._captures):
             if self._activeIndex == index:
-                return  # Avoid infinite recursion
-
+                return
             self._activeIndex = index
-            self._updatePixmap()
-
-            # Sync Mosaic Selection
             self.mosaicViewModel.selectIndex(index)
-
-            self._notify_image_changed()
+            self._request_render()
 
     def setColormap(self, colormap: str):
-        """Updates the colormap and refreshes the image."""
         try:
             self._colormap = Colormap(colormap)
-            self._updatePixmap()
-            self._notify_image_changed()
+            self._request_render()
         except ValueError:
-            pass  # Ignore invalid colormaps
+            pass
 
     def setVisualizationRange(self, vmin: float, vmax: float):
-        """Updates the intensity range and refreshes the image."""
         self._vrange = (vmin, vmax)
-        self._updatePixmap()
-        self._notify_image_changed()
+        self._request_render()
 
-    def _updatePixmap(self):
-        """Internal helper to regenerate the QPixmap using the current state."""
+    def _request_render(self):
+        """Queues a render request."""
+        try:
+            self._render_queue.get_nowait()
+        except queue.Empty:
+            pass
+        self._render_queue.put(True)
+
+    def _render_worker(self):
+        """Background thread loop."""
+        while True:
+            self._render_queue.get()
+            self._render_worker_logic()
+
+    def _render_worker_logic(self):
+        """Core rendering logic, extracted for testability."""
         if self._activeIndex == -1 or not self._captures:
-            self._pixmap = None
-            return
+            self._current_buffer = None
+        else:
+            try:
+                current_capture = self._captures[self._activeIndex]
+                raw_data = current_capture.rawData()
+                kev_factor = self._config.get(
+                    "global:physics:kev_conversion", 1.02857e-5
+                )
+                viz_data = raw_data * kev_factor
 
-        current_capture = self._captures[self._activeIndex]
-        raw_data = current_capture.rawData()
+                self._current_buffer = self._converter.convert(
+                    viz_data, self._colormap, self._vrange
+                )
+            except Exception:
+                self._current_buffer = None
 
-        # Apply keV conversion if needed
-        kev_factor = self._config.get("global:physics:kev_conversion", 1.0)
-        viz_data = raw_data * kev_factor
-
-        self._pixmap = self._converter.convert(viz_data, self._colormap, self._vrange)
+        self._notify_image_changed()
 
     # --- Data Accessors ---
 
     @property
-    def dataRange(self) -> Tuple[float, float]:
-        """Returns the absolute min/max of the current active capture in keV."""
-        if self._activeIndex == -1 or not self._captures:
-            return 0.0, 1000.0  # Default fallback
-
-        capture = self._captures[self._activeIndex]
-        kev_factor = self._config.get("global:physics:kev_conversion", 1.0)
-
-        # Use cached info for performance
-        info = capture.info()
-        return (float(info.min * kev_factor), float(info.max * kev_factor))
+    def currentBuffer(self) -> Optional[np.ndarray]:
+        return self._current_buffer
 
     @property
-    def currentPixmap(self) -> QPixmap:
-        return self._pixmap
+    def dataRange(self) -> Tuple[float, float]:
+        if self._activeIndex == -1 or not self._captures:
+            return 0.0, 1000.0
+        info = self._captures[self._activeIndex].info()
+        kev_factor = self._config.get("global:physics:kev_conversion", 1.02857e-5)
+        return (float(info.min * kev_factor), float(info.max * kev_factor))
 
     @property
     def visualizationRange(self) -> Tuple[float, float]:
@@ -129,12 +135,10 @@ class RawDataViewModel:
 
     @property
     def colormap(self) -> str:
-        # Return string value of Enum for UI compatibility
         return self._colormap.value
 
     @property
     def hduSummaries(self) -> List[str]:
-        """Returns a list of strings describing the available HDUs."""
         return [
             f"HDU {i}: {c.info().rows}x{c.info().cols}"
             for i, c in enumerate(self._captures)

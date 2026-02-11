@@ -38,7 +38,7 @@ class MockConfigurationService(ConfigurationService):
             # Interactive Raw Data Analysis (GUI)
             "gui:raw_analysis:default_colormap": "viridis",
             "gui:raw_analysis:vis_range_min": 0.0,
-            "gui:raw_analysis:vis_range_max": 10000.0,
+            "gui:raw_analysis:vis_range_max": 20.0,
             "gui:raw_analysis:filter_gaussian_sigma": 1.5,
             "gui:raw_analysis:clustering_threshold": 4.0,
             # Window Geometry

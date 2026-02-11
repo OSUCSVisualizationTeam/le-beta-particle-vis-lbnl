@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 from superqt import QRangeSlider
-from typing import Tuple, Optional
+from typing import Tuple
 from le_beta_vis.frontend.fitsconverters.colormaps import generate_gradient_pixmap
 
 # QSS Stylesheet for the transparent range slider
@@ -18,14 +18,17 @@ SLIDER_STYLE = """
     }
     QRangeSlider::groove:vertical {
         background: transparent;
-        width: 20px; /* Wider hit area for better interaction */
+        width: 80px;
     }
     QRangeSlider::handle:vertical {
-        background: #ffffff;
-        border: 1px solid #5c5c5c;
-        border-radius: 2px;
-        height: 10px;
-        margin: 0 -4px; /* Expand handle slightly beyond the groove */
+        background: rgba(255, 255, 255, 150);
+        border: 1px solid #ffffff;
+        border-radius: 0px;
+        height: 4px;
+        width: 80px;
+    }
+    QRangeSlider::sub-page:vertical {
+        background: transparent;
     }
 """
 

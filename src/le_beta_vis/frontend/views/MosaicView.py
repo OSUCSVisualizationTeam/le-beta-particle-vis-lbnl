@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QScrollArea, QToolButton, QStyle
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QImage, QPixmap
 from ..viewmodels.MosaicViewModel import MosaicViewModel
 
 
@@ -49,8 +49,6 @@ class MosaicView(QWidget):
         scrollbar_h = self.style().pixelMetric(QStyle.PM_ScrollBarExtent)
 
         # Padding (Margins + extra buffer)
-        # Layout margins are 5 top + 5 bottom = 10
-        # Button padding (border) ~ 10 (from refreshThumbnails logic)
         padding = 20
 
         total_h = thumb_h + scrollbar_h + padding
@@ -76,13 +74,20 @@ class MosaicView(QWidget):
         btn_padding = 10  # Extra width for button borders/padding
 
         # Add new
-        for i, pixmap in enumerate(self.viewModel.thumbnails):
+        for i, buffer in enumerate(self.viewModel.thumbnails):
+            # Convert NumPy Buffer -> QImage -> QPixmap
+            height, width = buffer.shape
+            q_img = QImage(buffer.data, width, height, width, QImage.Format_Grayscale8)
+            pixmap = QPixmap.fromImage(q_img.copy())
+
             btn = QToolButton()
             btn.setIcon(QIcon(pixmap))
+            btn.setText(f"HDU {i}")
+            btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
 
             # Calculate aspect ratio
-            if pixmap.height() > 0:
-                aspect = pixmap.width() / pixmap.height()
+            if height > 0:
+                aspect = width / height
             else:
                 aspect = 1.0
 
@@ -91,8 +96,9 @@ class MosaicView(QWidget):
             # Set Icon Size (Actual Image)
             btn.setIconSize(QSize(target_w, target_h))
 
-            # Set Button Size (Image + Padding)
-            btn.setFixedSize(target_w + btn_padding, target_h + btn_padding)
+            # Set Button Size (Image + Text/Padding)
+            # TextUnderIcon adds height, we adjust button size
+            btn.setFixedSize(target_w + btn_padding, target_h + btn_padding + 20)
 
             btn.setCheckable(True)
             btn.setAutoExclusive(True)  # Only one can be checked
@@ -100,8 +106,10 @@ class MosaicView(QWidget):
                 """
                 QToolButton {
                     background-color: #333;
+                    color: #ccc;
                     border: 1px solid #555;
                     border-radius: 4px;
+                    font-size: 10px;
                 }
                 QToolButton:checked {
                     background-color: #444;

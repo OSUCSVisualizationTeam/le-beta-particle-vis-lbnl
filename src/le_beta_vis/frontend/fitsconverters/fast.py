@@ -1,13 +1,12 @@
 import numpy as np
-from PySide6 import QtGui
 from typing import Tuple, Any
 from .interface import Fits2QPixmapConverter, ScalingFunction, Colormap
 
 
 class FastPixmapConverter(Fits2QPixmapConverter):
     """
-    Converts a FITS matrix into an 8-bit grayscale image.
-    Optimized for thumbnail generation using auto-scaling (Auto-Levels).
+    Converts a FITS matrix into an 8-bit grayscale buffer.
+    Optimized for thumbnail generation.
     """
 
     def convert(
@@ -16,11 +15,10 @@ class FastPixmapConverter(Fits2QPixmapConverter):
         colormap: Colormap,
         vrange: Tuple[float, float],
         scaling: ScalingFunction = ScalingFunction.LINEAR,
-    ) -> QtGui.QPixmap:
+    ) -> np.ndarray:
         if matrix is None:
-            return QtGui.QPixmap()
+            return np.array([], dtype=np.uint8)
 
-        height, width = matrix.shape
         vmin, _ = vrange  # Ignore vmax for thumbnails (auto-levels)
 
         # 1. Clip
@@ -41,8 +39,8 @@ class FastPixmapConverter(Fits2QPixmapConverter):
         # 4. Colorize (Grayscale Identity)
         colorized = self._colorize(normalized, colormap)
 
-        # 5. Pixmap
-        return self._to_qpixmap(colorized, width, height)
+        # 5. Buffer
+        return self._to_buffer(colorized)
 
     def _clip(self, matrix: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
         if vmin > 0:
@@ -63,15 +61,9 @@ class FastPixmapConverter(Fits2QPixmapConverter):
     def _normalize(self, matrix: np.ndarray, max_val: float) -> np.ndarray:
         return np.clip(matrix * 255, 0, 255).astype(np.uint8)
 
-    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> Any:
-        return np.ascontiguousarray(matrix)
+    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> np.ndarray:
+        return matrix
 
-    def _to_qpixmap(self, image_data: Any, width: int, height: int) -> QtGui.QPixmap:
-        q_image = QtGui.QImage(
-            image_data.data,
-            width,
-            height,
-            width,
-            QtGui.QImage.Format_Grayscale8,
-        )
-        return QtGui.QPixmap.fromImage(q_image.copy())
+    def _to_buffer(self, image_data: Any) -> np.ndarray:
+        # Return contiguous array for QImage consumption in the View
+        return np.ascontiguousarray(image_data)

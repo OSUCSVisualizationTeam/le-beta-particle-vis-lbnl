@@ -1,5 +1,5 @@
 from typing import List, Callable
-from PySide6.QtGui import QPixmap
+import numpy as np
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.frontend.fitsconverters import (
@@ -13,7 +13,7 @@ class MosaicViewModel:
     """
     ViewModel for the Mosaic View (HDU Thumbnail Strip).
     Manages generation and selection of thumbnails.
-    Pure Python class - No Qt Signals.
+    Pure Python class - No Qt dependencies.
     """
 
     def __init__(self, configService: ConfigurationService):
@@ -21,7 +21,7 @@ class MosaicViewModel:
         self._converter = FastPixmapConverter()
 
         self._captures: List[CCDCaptureModel] = []
-        self._thumbnails: List[QPixmap] = []
+        self._thumbnails: List[np.ndarray] = []  # Stores raw uint8 grayscale buffers
         self._selectedIndex: int = -1
 
         # Callbacks
@@ -56,12 +56,12 @@ class MosaicViewModel:
             # Convert to keV
             data_kev = capture.rawData() * kev_factor
 
-            # Generate Thumbnail
-            pixmap = self._converter.convert(
+            # Generate Thumbnail Buffer
+            buffer = self._converter.convert(
                 data_kev, Colormap.VIRIDIS, (vmin, vmax), scaling=scaling
             )
 
-            self._thumbnails.append(pixmap)
+            self._thumbnails.append(buffer)
 
         # Reset selection
         self._selectedIndex = 0 if self._thumbnails else -1
@@ -77,7 +77,7 @@ class MosaicViewModel:
             self._notify_selection_changed()
 
     @property
-    def thumbnails(self) -> List[QPixmap]:
+    def thumbnails(self) -> List[np.ndarray]:
         return self._thumbnails
 
     @property

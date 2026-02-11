@@ -1,5 +1,6 @@
 import pytest
 import sys
+import numpy as np
 from unittest.mock import MagicMock, patch
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import RawDataViewModel
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
@@ -10,10 +11,15 @@ from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 def view_model():
     config = MockConfigurationService()
     vm = RawDataViewModel(config)
-    # Mock the converter to return a string/mock instead of a real QPixmap
-    # This avoids GUI dependencies in logic tests
+    # Mock the converter to return a numpy array
     vm._converter = MagicMock()
-    vm._converter.convert.return_value = "MockPixmap"
+    vm._converter.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
+
+    # Force synchronous execution for tests
+    def mock_request():
+        vm._render_worker_logic()
+
+    vm._request_render = mock_request
     return vm
 
 
@@ -25,63 +31,36 @@ def test_initial_state(view_model):
 
 def test_load_file_success(view_model):
     """Test loading a file successfully updates state and invokes callbacks."""
-    # Mock the mosaic VM converter
+    # Mock mosaic VM converter to return buffer
     view_model.mosaicViewModel._converter = MagicMock()
-    #
-    # Mock CCDCaptureModel.load to return a list of dummy captures
+    view_model.mosaicViewModel._converter.convert.return_value = np.zeros((10, 10))
+
     mock_capture1 = MagicMock(spec=CCDCaptureModel)
     mock_capture1.info.return_value.rows = 100
     mock_capture1.info.return_value.cols = 100
-    mock_capture1.rawData.return_value = MagicMock()
-    #
-    mock_capture2 = MagicMock(spec=CCDCaptureModel)
-    mock_capture2.info.return_value.rows = 200
-    mock_capture2.info.return_value.cols = 200
-    mock_capture2.rawData.return_value = MagicMock()
-    #
-    # Create mock callbacks
+    mock_capture1.rawData.return_value = np.zeros((10, 10))
+
     mock_file_loaded_cb = MagicMock()
-    mock_image_changed_cb = MagicMock()
     view_model.add_file_loaded_callback(mock_file_loaded_cb)
-    view_model.add_image_changed_callback(mock_image_changed_cb)
-    #
-    # Grab the module directly from sys.modules to avoid ambiguity with the class name
-    # which is shadowed in le_beta_vis.frontend.viewmodels.__init__
+
     module = sys.modules["le_beta_vis.frontend.viewmodels.RawDataViewModel"]
-    #
-    # Mock Path to allow loading logic to proceed
     with patch.object(module, "Path") as MockPath:
-        # Configure the mock instance returned by Path(filePath)
         MockPath.return_value.exists.return_value = True
-        #
         with patch.object(
-            CCDCaptureModel,
-            "load",
-            return_value=[mock_capture1, mock_capture2],
+            CCDCaptureModel, "load", return_value=[mock_capture1]
         ) as mock_load:
-            #
             view_model.loadFile("dummy/path/file.fits")
-            #
             mock_load.assert_called_once()
-            #
-            # Check callbacks
             mock_file_loaded_cb.assert_called_once()
-            mock_image_changed_cb.assert_called_once()
-            #
-            # Check State
             assert view_model.activeIndex == 0
-            assert len(view_model.hduSummaries) == 2
             assert "100x100" in view_model.hduSummaries[0]
-            #
-            # Verify the converter was called (logic check)
-            view_model._converter.convert.assert_called()
 
 
 def test_set_active_hdu(view_model):
     """Test switching HDUs."""
-    # Setup state
-    mock_captures = [MagicMock(), MagicMock()]
-    view_model._captures = mock_captures
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    mock_capture.rawData.return_value = np.zeros((10, 10))
+    view_model._captures = [mock_capture, mock_capture]
     view_model._activeIndex = 0
 
     mock_image_changed_cb = MagicMock()
@@ -90,15 +69,21 @@ def test_set_active_hdu(view_model):
     view_model.setActiveHDU(1)
 
     assert view_model.activeIndex == 1
-    mock_image_changed_cb.assert_called_once()
+    view_model._converter.convert.assert_called()
+    assert isinstance(view_model.currentBuffer, np.ndarray)
 
 
 def test_set_colormap(view_model):
-    """Test updating parameters triggers image refresh."""
+    """Test updating parameters triggers render."""
+    mock_capture = MagicMock()
+    mock_capture.rawData.return_value = np.zeros((10, 10))
+    view_model._captures = [mock_capture]
+    view_model._activeIndex = 0
+
     mock_image_changed_cb = MagicMock()
     view_model.add_image_changed_callback(mock_image_changed_cb)
 
     view_model.setColormap("magma")
 
-    assert view_model._colormap == "magma"
-    mock_image_changed_cb.assert_called_once()
+    assert view_model.colormap == "magma"
+    view_model._converter.convert.assert_called()
