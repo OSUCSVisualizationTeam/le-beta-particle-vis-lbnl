@@ -114,12 +114,12 @@ class VerticalRangeControl(QWidget):
 
     def _setupLabels(self):
         """Initializes the absolute range labels."""
-        self.lblAbsMax = QLabel(f"Max: {self._formatLabel(self._abs_max)}")
+        self.lblAbsMax = QLabel(f"{self.tr('Max:')} {self._formatLabel(self._abs_max)}")
         self.lblAbsMax.setAlignment(Qt.AlignCenter)
         self.lblAbsMax.setStyleSheet(_Style.LABEL)
         self.lblAbsMax.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        self.lblAbsMin = QLabel(f"Min: {self._formatLabel(self._abs_min)}")
+        self.lblAbsMin = QLabel(f"{self.tr('Min:')} {self._formatLabel(self._abs_min)}")
         self.lblAbsMin.setAlignment(Qt.AlignCenter)
         self.lblAbsMin.setStyleSheet(_Style.LABEL)
         self.lblAbsMin.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -191,8 +191,8 @@ class VerticalRangeControl(QWidget):
         self._abs_max = abs_max
 
         # Update Labels
-        self.lblAbsMax.setText(f"Max: {self._formatLabel(abs_max)}")
-        self.lblAbsMin.setText(f"Min: {self._formatLabel(abs_min)}")
+        self.lblAbsMax.setText(f"{self.tr('Max:')} {self._formatLabel(abs_max)}")
+        self.lblAbsMin.setText(f"{self.tr('Min:')} {self._formatLabel(abs_min)}")
 
         self.spinMin.setRange(abs_min, abs_max)
         self.spinMax.setRange(abs_min, abs_max)
@@ -204,8 +204,8 @@ class VerticalRangeControl(QWidget):
     def _formatLabel(self, value: float) -> str:
         """Formats the value for display (compact, with units)."""
         if abs(value) >= 1000 or (abs(value) < 0.01 and value != 0):
-            return f"{value:.1e} keV"
-        return f"{value:.1f} keV"
+            return f"{value:.1e} {self.tr('keV')}"
+        return f"{value:.1f} {self.tr('keV')}"
 
     def setValues(self, vmin: float, vmax: float):
         """Sets the current active threshold range."""
