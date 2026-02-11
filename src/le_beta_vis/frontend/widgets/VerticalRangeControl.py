@@ -85,6 +85,14 @@ class VerticalRangeControl(QWidget):
     rangeChanged = Signal(float, float)
 
     def __init__(self, abs_min: float, abs_max: float, steps: int = 1000, parent=None):
+        """
+        Initializes the unified vertical range control.
+
+        :param abs_min: The absolute minimum value of the data range.
+        :param abs_max: The absolute maximum value of the data range.
+        :param steps: The number of discrete steps in the internal slider (integer).
+        :param parent: Optional parent QWidget.
+        """
         super().__init__(parent)
 
         self._abs_min = abs_min
@@ -94,9 +102,9 @@ class VerticalRangeControl(QWidget):
         if self._abs_max <= self._abs_min:
             raise ValueError("abs_max must be greater than abs_min")
 
-        self.initUI()
+        self._initUI()
 
-    def initUI(self):
+    def _initUI(self):
         """Initializes the UI layout and components."""
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(2, 2, 2, 2)
@@ -186,7 +194,12 @@ class VerticalRangeControl(QWidget):
         return f"<span style='{_Style.TOOLTIP}'>{self._formatLabel(value)}</span>"
 
     def setAbsoluteRange(self, abs_min: float, abs_max: float):
-        """Sets the absolute limits of the control."""
+        """
+        Sets the absolute limits of the control and updates the labels.
+
+        :param abs_min: The new absolute minimum value.
+        :param abs_max: The new absolute maximum value.
+        """
         self._abs_min = abs_min
         self._abs_max = abs_max
 
@@ -208,7 +221,12 @@ class VerticalRangeControl(QWidget):
         return f"{value:.1f} {self.tr('keV')}"
 
     def setValues(self, vmin: float, vmax: float):
-        """Sets the current active threshold range."""
+        """
+        Sets the current active threshold range and updates the UI components.
+
+        :param vmin: The active minimum threshold.
+        :param vmax: The active maximum threshold.
+        """
         self.blockSignals(True)
 
         self.spinMin.blockSignals(True)
@@ -228,6 +246,11 @@ class VerticalRangeControl(QWidget):
         self.blockSignals(False)
 
     def setColormap(self, name: str):
+        """
+        Updates the colormap gradient legend.
+
+        :param name: The name of the colormap to display (e.g., 'viridis').
+        """
         self.gradient.setColormap(name)
 
     def _onSliderChanged(self, values: Tuple[int, int]):
