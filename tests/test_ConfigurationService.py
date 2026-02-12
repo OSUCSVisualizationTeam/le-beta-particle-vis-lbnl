@@ -14,6 +14,7 @@ def test_mock_configuration_service_defaults():
     # Test GUI defaults
     assert service.get("gui:raw_analysis:default_colormap") == "viridis"
     assert service.get("gui:raw_analysis:vis_range_min") == 0.0
+    assert service.get("gui:raw_analysis:zoom_step_factor") == 1.2
 
 
 def test_mock_configuration_service_set_get():

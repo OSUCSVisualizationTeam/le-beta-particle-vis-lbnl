@@ -41,6 +41,7 @@ class MockConfigurationService(ConfigurationService):
             "gui:raw_analysis:vis_range_max": 20.0,
             "gui:raw_analysis:filter_gaussian_sigma": 1.5,
             "gui:raw_analysis:clustering_threshold": 4.0,
+            "gui:raw_analysis:zoom_step_factor": 1.2,
             # Window Geometry
             "gui:window:default_width": 1024,
             "gui:window:default_height": 700,

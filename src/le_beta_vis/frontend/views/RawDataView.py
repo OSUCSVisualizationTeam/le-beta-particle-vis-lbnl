@@ -1,19 +1,23 @@
+from PySide6.QtCore import QMetaObject, QSize, Qt, Slot
+from PySide6.QtGui import QImage, QPixmap, QTransform
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QApplication,
+    QComboBox,
+    QFrame,
+    QGraphicsPixmapItem,
+    QGraphicsScene,
+    QGraphicsView,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QComboBox,
-    QScrollArea,
-    QGroupBox,
-    QFrame,
     QSizePolicy,
     QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QMetaObject, Slot
-from PySide6.QtGui import QImage, QPixmap
-from ..viewmodels.RawDataViewModel import RawDataViewModel
+
 from ..fitsconverters import Colormap
+from ..viewmodels.RawDataViewModel import RawDataViewModel
 from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .MosaicView import MosaicView
 
@@ -59,34 +63,79 @@ class RawDataView(QWidget):
         layout = QVBoxLayout(self.leftToolbar)
         layout.setContentsMargins(5, 10, 5, 10)
         layout.setSpacing(10)
-        layout.setAlignment(Qt.AlignTop)
+        layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
-        tools = [self.tr("Ptr"), self.tr("Mag"), self.tr("Box"), self.tr("Zoom")]
+        # Common size for squared buttons
+        btn_size = QSize(40, 40)
+
+        tools = [self.tr("Ptr"), self.tr("Mag"), self.tr("Box")]
         for tool in tools:
             btn = QToolButton()
             btn.setText(tool)
-            btn.setFixedSize(90, 40)
-            layout.addWidget(btn)
+            btn.setFixedSize(btn_size)
+            layout.addWidget(btn, 0, Qt.AlignHCenter)
 
-        layout.addSpacing(20)
+        layout.addWidget(self._createDivider(), 0, Qt.AlignHCenter)
+
+        # Zoom In
+        self.btnZoomIn = QToolButton()
+        self.btnZoomIn.setText("+")
+        self.btnZoomIn.setToolTip(self.tr("Zoom In"))
+        self.btnZoomIn.setFixedSize(btn_size)
+        self.btnZoomIn.setStyleSheet(
+            "font-size: 20px; font-weight: bold; color: #ffffff;"
+        )
+        self.btnZoomIn.clicked.connect(self.viewModel.zoomIn)
+        layout.addWidget(self.btnZoomIn, 0, Qt.AlignHCenter)
+
+        # Reset Zoom
+        self.btnZoomReset = QToolButton()
+        self.btnZoomReset.setText("1x")
+        self.btnZoomReset.setToolTip(self.tr("Reset Zoom (1:1)"))
+        self.btnZoomReset.setFixedSize(btn_size)
+        self.btnZoomReset.setStyleSheet("font-weight: bold; color: #ffffff;")
+        self.btnZoomReset.clicked.connect(self.viewModel.resetZoom)
+        layout.addWidget(self.btnZoomReset, 0, Qt.AlignHCenter)
+
+        # Zoom Out
+        self.btnZoomOut = QToolButton()
+        self.btnZoomOut.setText("-")
+        self.btnZoomOut.setToolTip(self.tr("Zoom Out"))
+        self.btnZoomOut.setFixedSize(btn_size)
+        self.btnZoomOut.setStyleSheet(
+            "font-size: 20px; font-weight: bold; color: #ffffff;"
+        )
+        self.btnZoomOut.clicked.connect(self.viewModel.zoomOut)
+        layout.addWidget(self.btnZoomOut, 0, Qt.AlignHCenter)
+
+        layout.addWidget(self._createDivider(), 0, Qt.AlignHCenter)
+        layout.addSpacing(10)
 
         self.rangeControl = VerticalRangeControl(abs_min=0.0, abs_max=1.0)
         self.rangeControl.setVisible(False)
         self.rangeControl.rangeChanged.connect(self.onRangeChanged)
-        layout.addWidget(self.rangeControl)
+        layout.addWidget(self.rangeControl, 0, Qt.AlignHCenter)
 
         self.bodyLayout.addWidget(self.leftToolbar)
 
-    def _setupCenterImageArea(self):
-        self.scrollArea = QScrollArea()
-        self.scrollArea.setWidgetResizable(True)
-        self.scrollArea.setAlignment(Qt.AlignCenter)
-        self.scrollArea.setStyleSheet("background-color: #000; border: none;")
+    def _createDivider(self) -> QFrame:
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        line.setStyleSheet("background-color: #555555;")
+        line.setFixedWidth(80)
+        return line
 
-        self.imageLabel = QLabel()
-        self.imageLabel.setAlignment(Qt.AlignCenter)
-        self.scrollArea.setWidget(self.imageLabel)
-        self.bodyLayout.addWidget(self.scrollArea)
+    def _setupCenterImageArea(self):
+        self.scene = QGraphicsScene()
+        self.graphicsView = QGraphicsView(self.scene)
+        self.graphicsView.setStyleSheet("background-color: #000; border: none;")
+        self.graphicsView.setAlignment(Qt.AlignCenter)
+
+        self.pixmapItem = QGraphicsPixmapItem()
+        self.scene.addItem(self.pixmapItem)
+
+        self.bodyLayout.addWidget(self.graphicsView)
 
     def _setupRightSidebar(self):
         self.rightSidebar = QFrame()
@@ -141,10 +190,14 @@ class RawDataView(QWidget):
         def on_image_changed():
             QMetaObject.invokeMethod(self, "updateImage", Qt.QueuedConnection)
 
+        def on_scale_changed():
+            QMetaObject.invokeMethod(self, "updateZoom", Qt.QueuedConnection)
+
         self.viewModel.add_image_changed_callback(on_image_changed)
         self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
             self.updateMosaicVisibility
         )
+        self.viewModel.add_scale_changed_callback(on_scale_changed)
         self.updateMosaicVisibility()
 
         vmin, vmax = self.viewModel.visualizationRange
@@ -168,7 +221,13 @@ class RawDataView(QWidget):
             q_img = QImage(
                 buffer.data, width, height, bytes_per_line, QImage.Format_RGB888
             )
-            self.imageLabel.setPixmap(QPixmap.fromImage(q_img.copy()))
+            pixmap = QPixmap.fromImage(q_img)
+
+            self.pixmapItem.setPixmap(pixmap)
+            self.scene.setSceneRect(0, 0, width, height)
+
+            # Ensure zoom is correct for new image
+            self.updateZoom()
 
             # Update Range Control Limits (Sync with ViewModel data range)
             dmin, dmax = self.viewModel.dataRange
@@ -178,7 +237,28 @@ class RawDataView(QWidget):
             self.rangeControl.setValues(vmin, vmax)
             self.rangeControl.setColormap(self.viewModel.colormap)
         else:
-            self.imageLabel.clear()
+            self.pixmapItem.setPixmap(QPixmap())
+
+    @Slot()
+    def updateZoom(self):
+        """Updates the graphics view transform based on scale."""
+        # UX Feedback: Busy Cursor & Disable Buttons
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self.btnZoomIn.setEnabled(False)
+        self.btnZoomOut.setEnabled(False)
+        self.btnZoomReset.setEnabled(False)
+
+        try:
+            scale = self.viewModel.scale
+            transform = QTransform()
+            transform.scale(scale, scale)
+            self.graphicsView.setTransform(transform)
+        finally:
+            # Restore UX
+            self.btnZoomIn.setEnabled(True)
+            self.btnZoomOut.setEnabled(True)
+            self.btnZoomReset.setEnabled(True)
+            QApplication.restoreOverrideCursor()
 
     def onColormapChanged(self, text):
         self.viewModel.setColormap(text)

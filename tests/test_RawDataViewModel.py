@@ -1,10 +1,12 @@
-import pytest
 import sys
-import numpy as np
 from unittest.mock import MagicMock, patch
-from le_beta_vis.frontend.viewmodels.RawDataViewModel import RawDataViewModel
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+
+import numpy as np
+import pytest
+
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
+from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from le_beta_vis.frontend.viewmodels.RawDataViewModel import RawDataViewModel
 
 
 @pytest.fixture
@@ -112,3 +114,33 @@ def test_set_colormap(view_model):
 
     assert view_model.colormap == "magma"
     view_model._converter.convert.assert_called()
+
+
+def test_zoom_logic(view_model):
+    """Test zoom in and out logic."""
+    # Default is 1.0
+    assert view_model.scale == 1.0
+
+    mock_cb = MagicMock()
+    view_model.add_scale_changed_callback(mock_cb)
+
+    # Zoom In
+    # Default zoom factor is 1.2
+    view_model.zoomIn()
+    assert view_model.scale == 1.2
+    mock_cb.assert_called_once()
+    mock_cb.reset_mock()
+
+    # Zoom Out
+    view_model.zoomOut()
+    assert abs(view_model.scale - 1.0) < 0.0001
+    mock_cb.assert_called_once()
+
+    # Reset Zoom
+    view_model.zoomIn()
+    view_model.zoomIn()
+    assert view_model.scale > 1.0
+    mock_cb.reset_mock()
+    view_model.resetZoom()
+    assert view_model.scale == 1.0
+    mock_cb.assert_called_once()
