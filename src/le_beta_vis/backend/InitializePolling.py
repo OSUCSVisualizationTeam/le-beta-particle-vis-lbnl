@@ -10,7 +10,7 @@ import threading
 # Needed for local imports, can be removed later when called by main program
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from le_beta_vis.common.ConfigurationService import ConfigurationService, MockConfigurationService
+from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.backend.FileProcessing import ProcessFile
 
 class PollingThread():

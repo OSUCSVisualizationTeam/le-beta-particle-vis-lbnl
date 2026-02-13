@@ -108,7 +108,9 @@ class ProcessFile():
                 cluster_sigma_y = sigma_y
                 cluster_energy = np.sum(pixels_around_cluster_wo_noise)
                 cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
-                self.clusters.append(Cluster(cluster_sigma_x, cluster_sigma_y, cluster_energy, cluster_pixels))
+                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, cluster_sigma_x, 
+                                             cluster_sigma_y, cluster_energy, cluster_pixels, 
+                                             self.fits_id))
 
     def calc_sigmas(self, dtrack):
         """
@@ -127,17 +129,22 @@ class Cluster():
     Cluster class with methods for classification and storage
     """
     def __init__(self,
+                 data: np.ndarray,
                  sigmaX: float,
                  sigmaY: float,
                  energy: float,
-                 pixels: int
+                 pixels: int,
+                 fits_id: int
                  ):
+        self.data = data
         self.sigmaX = sigmaX
         self.sigmaY = sigmaY
         self.total_energy = energy
         self.total_pixels = pixels
+        self.fits_id = fits_id
+        self.cluster_id = None
         # debug
-        print(f"Sigma x: {self.sigmaX}\nSigma Y: {self.sigmaY}\nEnergy: {self.total_energy}\n Pixels: {self.total_pixels}")
+        # print(f"Sigma x: {self.sigmaX}\nSigma Y: {self.sigmaY}\nEnergy: {self.total_energy}\n Pixels: {self.total_pixels}")
 
     def classify_clusters(self):
         """
@@ -145,11 +152,40 @@ class Cluster():
         """
         raise NotImplementedError
 
-    def store_clusters(self, fitsID: int):
+    def store_clusters(self):
         """
         Stores ingested clusters into the clusters table in the database.
         """
-        raise NotImplementedError
+        # This will most likely need to be reworked with the configuration service to pull accurate values
+        # Pending decision on storing db logins and 
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="root",
+                database="lbnlfits"
+            )
+            cursor = conn.cursor()
+            proc_args = (self.fits_id, self.data, self.total_energy, 
+                         self.sigmaX, self.sigmaY, 
+                         0., 0., 0., # Placeholder zeroes for ML classifications
+                         self.total_pixels ,(0, 'INT'))
+            cursor.callproc("insert_cluster", proc_args)
+
+            for result in cursor.stored_results():
+                id = result.fetchone()
+                if id > 0:
+                    self.cluster_id = id
+                else:
+                    raise FailedProcException
+            
+            # Commit results and close connection
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+        except mysql.connector.Error as err:
+            print(f"Could not connect: {err}")
 
 class FailedProcException(Exception):
     """
