@@ -51,13 +51,16 @@ class RawDataViewModel:
         )
         self._scale: float = 1.0
 
-        # Magnifier Tool State
+        # Tool State
         self._activeTool: ActiveTool = ActiveTool.POINTER
         self._magnificationFactor: float = self._config.get(
             "gui:raw_analysis:magnifier_default_factor", 3.0
         )
         self._magnifier_pos: Tuple[int, int] = (0, 0)
         self._image_bounds: Tuple[int, int] = (0, 0)
+
+        # Pointer Hover State
+        self._pointer_hover_pos: Optional[Tuple[int, int]] = None
 
         # Async Rendering State
         self._current_buffer: Optional[np.ndarray] = None
@@ -74,6 +77,7 @@ class RawDataViewModel:
         self._on_active_tool_changed_callbacks: List[Callable] = []
         self._on_magnifier_state_changed_callbacks: List[Callable] = []
         self._on_magnifier_position_changed_callbacks: List[Callable] = []
+        self._on_pointer_hover_changed_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -210,6 +214,31 @@ class RawDataViewModel:
             row + drow * step, col + dcol * step
         )
 
+    # --- Pointer Tool ---
+
+    def setPointerHoverPosition(self, row: int, col: int) -> None:
+        """
+        Sets the pointer hover pixel position, clamped to image bounds.
+        Notifies listeners if the position changed.
+        """
+        rows, cols = self._image_bounds
+        if rows > 0 and cols > 0:
+            row = max(0, min(row, rows - 1))
+            col = max(0, min(col, cols - 1))
+        new_pos = (row, col)
+        if new_pos != self._pointer_hover_pos:
+            self._pointer_hover_pos = new_pos
+            self._notify_pointer_hover_changed()
+
+    def clearPointerHover(self) -> None:
+        """
+        Clears the pointer hover position.
+        Notifies listeners if it was previously set.
+        """
+        if self._pointer_hover_pos is not None:
+            self._pointer_hover_pos = None
+            self._notify_pointer_hover_changed()
+
     def _request_render(self):
         """Queues a render request."""
         try:
@@ -293,6 +322,10 @@ class RawDataViewModel:
         return self._activeTool
 
     @property
+    def isPointerActive(self) -> bool:
+        return self._activeTool == ActiveTool.POINTER
+
+    @property
     def isMagnifierActive(self) -> bool:
         return self._activeTool == ActiveTool.MAGNIFIER
 
@@ -309,6 +342,20 @@ class RawDataViewModel:
         if self._activeIndex == -1 or not self._captures:
             return None
         return self._captures[self._activeIndex].rawData()
+
+    @property
+    def pointerHoverInfo(
+        self,
+    ) -> Optional[Tuple[int, int, float]]:
+        """Returns (row, col, keV_value) or None if not hovering."""
+        if self._pointer_hover_pos is None:
+            return None
+        row, col = self._pointer_hover_pos
+        raw = self.activeRawData
+        if raw is None:
+            return None
+        value = float(raw[row, col]) * self.kevConversionFactor
+        return (row, col, value)
 
     @property
     def magnifierPosition(self) -> Tuple[int, int]:
@@ -370,4 +417,13 @@ class RawDataViewModel:
 
     def _notify_magnifier_position_changed(self):
         for callback in self._on_magnifier_position_changed_callbacks:
+            callback()
+
+    def add_pointer_hover_changed_callback(
+        self, callback: Callable
+    ):
+        self._on_pointer_hover_changed_callbacks.append(callback)
+
+    def _notify_pointer_hover_changed(self):
+        for callback in self._on_pointer_hover_changed_callbacks:
             callback()
