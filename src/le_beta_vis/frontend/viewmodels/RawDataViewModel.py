@@ -1,11 +1,13 @@
-from typing import List, Optional, Callable, Tuple
-import threading
 import queue
-import numpy as np
+import threading
 from pathlib import Path
+from typing import Callable, List, Optional, Tuple
+
+import numpy as np
+
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
-from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter, Colormap
+from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
 
 
 class RawDataViewModel:
@@ -38,6 +40,7 @@ class RawDataViewModel:
             self._config.get("gui:raw_analysis:vis_range_min", 0.0),
             self._config.get("gui:raw_analysis:vis_range_max", 20.0),
         )
+        self._scale: float = 1.0
 
         # Async Rendering State
         self._current_buffer: Optional[np.ndarray] = None
@@ -48,6 +51,7 @@ class RawDataViewModel:
         # Callbacks
         self._on_image_changed_callbacks: List[Callable] = []
         self._on_file_loaded_callbacks: List[Callable] = []
+        self._on_scale_changed_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -79,6 +83,39 @@ class RawDataViewModel:
     def setVisualizationRange(self, vmin: float, vmax: float):
         self._vrange = (vmin, vmax)
         self._request_render()
+
+    def zoomIn(self):
+        """
+        Increases the zoom scale by the configured factor.
+        Clamped at a maximum scale of 1000.0 (1000%).
+        Notifies scale changed listeners.
+        """
+        factor = self._config.get("gui:raw_analysis:zoom_step_factor", 1.2)
+        new_scale = self._scale * factor
+        if new_scale <= 1000.0:
+            self._scale = new_scale
+            self._notify_scale_changed()
+
+    def zoomOut(self):
+        """
+        Decreases the zoom scale by the configured factor.
+        Clamped at a minimum scale of 0.1 (10%).
+        Notifies scale changed listeners.
+        """
+        factor = self._config.get("gui:raw_analysis:zoom_step_factor", 1.2)
+        new_scale = self._scale / factor
+        if new_scale >= 0.1:
+            self._scale = new_scale
+            self._notify_scale_changed()
+
+    def resetZoom(self):
+        """
+        Resets the zoom scale to 1.0 (100%).
+        Notifies scale changed listeners if a change occurred.
+        """
+        if self._scale != 1.0:
+            self._scale = 1.0
+            self._notify_scale_changed()
 
     def _request_render(self):
         """Queues a render request."""
@@ -148,6 +185,10 @@ class RawDataViewModel:
     def activeIndex(self) -> int:
         return self._activeIndex
 
+    @property
+    def scale(self) -> float:
+        return self._scale
+
     # --- Observer Pattern Helpers ---
 
     def add_image_changed_callback(self, callback: Callable):
@@ -156,10 +197,17 @@ class RawDataViewModel:
     def add_file_loaded_callback(self, callback: Callable):
         self._on_file_loaded_callbacks.append(callback)
 
+    def add_scale_changed_callback(self, callback: Callable):
+        self._on_scale_changed_callbacks.append(callback)
+
     def _notify_image_changed(self):
         for callback in self._on_image_changed_callbacks:
             callback()
 
     def _notify_file_loaded(self):
         for callback in self._on_file_loaded_callbacks:
+            callback()
+
+    def _notify_scale_changed(self):
+        for callback in self._on_scale_changed_callbacks:
             callback()
