@@ -19,12 +19,14 @@ class ProcessFile():
         self.capture = CCDCaptureModel.load(file)
         self.clusters = []
         self.cluster_fits()
+        self.fits_id = None
 
     def store_fits(self):
         """
         Stores ingested fits file into the fits_file table in the database.
         """
         # This will most likely need to be reworked with the configuration service to pull accurate values
+        # Pending decision on storing db logins
         try:
             conn = mysql.connector.connect(
                 host="localhost",
@@ -33,14 +35,27 @@ class ProcessFile():
                 database="lbnlfits"
             )
             cursor = conn.cursor()
-            date = self.capture[0].__info.__captureDate
-            data = None
-            exposure_time = self.capture[0].__info.__captureEnd - self.capture[0].__info.__captureStart
+            date = self.capture[0].captureDate()
+            minimum = min(self.capture[0].info.min, self.capture[1].info.min, self.capture[2].info.min, self.capture[3].info.min)
+            maximum = max(self.capture[0].info.max, self.capture[1].info.max, self.capture[2].info.max, self.capture[3].info.max) 
+            exposure_time = self.capture[0].exposureDuration()
+            proc_args = (date, minimum, maximum, exposure_time, (0, 'INT'))
+            cursor.callproc("insert_fits", proc_args)
+
+            for result in cursor.stored_results():
+                id = result.fetchone()
+                if id > 0:
+                    self.fits_id = id
+                else:
+                    raise FailedProcException
+            
+            # Commit results and close connection
+            conn.commit()
+            cursor.close()
+            conn.close()
 
         except mysql.connector.Error as err:
             print(f"Could not connect: {err}")
-
-        raise NotImplementedError
 
     def cluster_fits(self):
         """
@@ -130,8 +145,16 @@ class Cluster():
         """
         raise NotImplementedError
 
-    def store_clusters(self):
+    def store_clusters(self, fitsID: int):
         """
         Stores ingested clusters into the clusters table in the database.
         """
         raise NotImplementedError
+
+class FailedProcException(Exception):
+    """
+    Subclassed exception to handle failed procedure calls in the database
+    """
+    def __init__(self, message="There was an issue running the stored procedure."):
+        super().__init__(message)
+        self.message = message
