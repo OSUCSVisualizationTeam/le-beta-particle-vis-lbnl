@@ -1,5 +1,6 @@
 import queue
 import threading
+from enum import Enum
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -8,6 +9,14 @@ import numpy as np
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
+
+
+class ActiveTool(str, Enum):
+    """Enumeration of interactive tools available in the Raw Data View."""
+
+    POINTER = "pointer"
+    MAGNIFIER = "magnifier"
+    BOX_SELECT = "box_select"
 
 
 class RawDataViewModel:
@@ -42,16 +51,29 @@ class RawDataViewModel:
         )
         self._scale: float = 1.0
 
+        # Magnifier Tool State
+        self._activeTool: ActiveTool = ActiveTool.POINTER
+        self._magnificationFactor: float = self._config.get(
+            "gui:raw_analysis:magnifier_default_factor", 3.0
+        )
+        self._magnifier_pos: Tuple[int, int] = (0, 0)
+        self._image_bounds: Tuple[int, int] = (0, 0)
+
         # Async Rendering State
         self._current_buffer: Optional[np.ndarray] = None
         self._render_queue = queue.Queue(maxsize=1)
-        self._render_thread = threading.Thread(target=self._render_worker, daemon=True)
+        self._render_thread = threading.Thread(
+            target=self._render_worker, daemon=True
+        )
         self._render_thread.start()
 
         # Callbacks
         self._on_image_changed_callbacks: List[Callable] = []
         self._on_file_loaded_callbacks: List[Callable] = []
         self._on_scale_changed_callbacks: List[Callable] = []
+        self._on_active_tool_changed_callbacks: List[Callable] = []
+        self._on_magnifier_state_changed_callbacks: List[Callable] = []
+        self._on_magnifier_position_changed_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -117,6 +139,77 @@ class RawDataViewModel:
             self._scale = 1.0
             self._notify_scale_changed()
 
+    # --- Magnifier Tool ---
+
+    def setActiveTool(self, tool: ActiveTool) -> None:
+        """
+        Sets the currently active interactive tool.
+        Notifies listeners only if the tool actually changed.
+        """
+        if self._activeTool == tool:
+            return
+        self._activeTool = tool
+        self._notify_active_tool_changed()
+
+    def toggleMagnifier(self) -> None:
+        """
+        Toggles between the Magnifier tool and the Pointer tool.
+        If the magnifier is active, switches to Pointer; otherwise
+        switches to Magnifier.
+        """
+        if self._activeTool == ActiveTool.MAGNIFIER:
+            self.setActiveTool(ActiveTool.POINTER)
+        else:
+            self.setActiveTool(ActiveTool.MAGNIFIER)
+
+    def adjustMagnification(self, delta: int) -> None:
+        """
+        Adjusts the magnification factor by delta * step.
+        The result is clamped between the configured minimum and maximum.
+        Notifies magnifier state listeners on change.
+        """
+        step = self._config.get(
+            "gui:raw_analysis:magnifier_factor_step", 0.5
+        )
+        min_factor = self._config.get(
+            "gui:raw_analysis:magnifier_min_factor", 1.0
+        )
+        max_factor = self._config.get(
+            "gui:raw_analysis:magnifier_max_factor", 100.0
+        )
+        new_factor = self._magnificationFactor + delta * step
+        new_factor = max(min_factor, min(new_factor, max_factor))
+        if new_factor != self._magnificationFactor:
+            self._magnificationFactor = new_factor
+            self._notify_magnifier_state_changed()
+
+    def setMagnifierPosition(self, row: int, col: int) -> None:
+        """
+        Sets the magnifier's pixel position, clamped to image bounds.
+        Notifies position listeners if the position changed.
+        """
+        rows, cols = self._image_bounds
+        if rows > 0 and cols > 0:
+            row = max(0, min(row, rows - 1))
+            col = max(0, min(col, cols - 1))
+        new_pos = (row, col)
+        if new_pos != self._magnifier_pos:
+            self._magnifier_pos = new_pos
+            self._notify_magnifier_position_changed()
+
+    def moveMagnifier(self, drow: int, dcol: int) -> None:
+        """
+        Moves the magnifier by delta * configured step size.
+        Delegates to setMagnifierPosition for clamping.
+        """
+        step = self._config.get(
+            "gui:raw_analysis:magnifier_move_step", 1
+        )
+        row, col = self._magnifier_pos
+        self.setMagnifierPosition(
+            row + drow * step, col + dcol * step
+        )
+
     def _request_render(self):
         """Queues a render request."""
         try:
@@ -139,6 +232,7 @@ class RawDataViewModel:
             try:
                 current_capture = self._captures[self._activeIndex]
                 raw_data = current_capture.rawData()
+                self._image_bounds = raw_data.shape[:2]
                 kev_factor = self._config.get(
                     "global:physics:kev_conversion", 1.02857e-5
                 )
@@ -163,8 +257,13 @@ class RawDataViewModel:
         if self._activeIndex == -1 or not self._captures:
             return 0.0, 1000.0
         info = self._captures[self._activeIndex].info()
-        kev_factor = self._config.get("global:physics:kev_conversion", 1.02857e-5)
-        return (float(info.min * kev_factor), float(info.max * kev_factor))
+        kev_factor = self._config.get(
+            "global:physics:kev_conversion", 1.02857e-5
+        )
+        return (
+            float(info.min * kev_factor),
+            float(info.max * kev_factor),
+        )
 
     @property
     def visualizationRange(self) -> Tuple[float, float]:
@@ -189,6 +288,44 @@ class RawDataViewModel:
     def scale(self) -> float:
         return self._scale
 
+    @property
+    def activeTool(self) -> ActiveTool:
+        return self._activeTool
+
+    @property
+    def isMagnifierActive(self) -> bool:
+        return self._activeTool == ActiveTool.MAGNIFIER
+
+    @property
+    def magnificationFactor(self) -> float:
+        return self._magnificationFactor
+
+    @property
+    def kevConversionFactor(self) -> float:
+        return self._config.get("global:physics:kev_conversion", 1.02857e-5)
+
+    @property
+    def activeRawData(self) -> Optional[np.ndarray]:
+        if self._activeIndex == -1 or not self._captures:
+            return None
+        return self._captures[self._activeIndex].rawData()
+
+    @property
+    def magnifierPosition(self) -> Tuple[int, int]:
+        return self._magnifier_pos
+
+    @property
+    def magnifierMoveStep(self) -> int:
+        return self._config.get(
+            "gui:raw_analysis:magnifier_move_step", 1
+        )
+
+    @property
+    def showToolHints(self) -> bool:
+        return self._config.get(
+            "gui:raw_analysis:show_tool_hints", True
+        )
+
     # --- Observer Pattern Helpers ---
 
     def add_image_changed_callback(self, callback: Callable):
@@ -210,4 +347,27 @@ class RawDataViewModel:
 
     def _notify_scale_changed(self):
         for callback in self._on_scale_changed_callbacks:
+            callback()
+
+    def add_active_tool_changed_callback(self, callback: Callable):
+        self._on_active_tool_changed_callbacks.append(callback)
+
+    def add_magnifier_state_changed_callback(self, callback: Callable):
+        self._on_magnifier_state_changed_callbacks.append(callback)
+
+    def _notify_active_tool_changed(self):
+        for callback in self._on_active_tool_changed_callbacks:
+            callback()
+
+    def _notify_magnifier_state_changed(self):
+        for callback in self._on_magnifier_state_changed_callbacks:
+            callback()
+
+    def add_magnifier_position_changed_callback(
+        self, callback: Callable
+    ):
+        self._on_magnifier_position_changed_callbacks.append(callback)
+
+    def _notify_magnifier_position_changed(self):
+        for callback in self._on_magnifier_position_changed_callbacks:
             callback()
