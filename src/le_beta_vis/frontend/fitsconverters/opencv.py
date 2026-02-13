@@ -1,16 +1,14 @@
 import numpy as np
-from PySide6 import QtGui
-from typing import Tuple, Any, Dict, Optional
+from typing import Tuple, Any
 from .interface import Fits2QPixmapConverter, ScalingFunction, Colormap
+from .colormaps import get_cv2_colormap_id
 
 
 class OpenCVBasedConverter(Fits2QPixmapConverter):
     """
-    High-performance converter using OpenCV to generate false-color bitmaps.
+    High-performance converter using OpenCV to generate false-color buffers.
     Uses lazy import for cv2 to avoid CI dependency issues.
     """
-
-    _COLORMAP_MAPPING: Optional[Dict[Colormap, int]] = None
 
     def convert(
         self,
@@ -18,11 +16,10 @@ class OpenCVBasedConverter(Fits2QPixmapConverter):
         colormap: Colormap,
         vrange: Tuple[float, float],
         scaling: ScalingFunction = ScalingFunction.LINEAR,
-    ) -> QtGui.QPixmap:
+    ) -> np.ndarray:
         if matrix is None:
-            return QtGui.QPixmap()
+            return np.array([], dtype=np.uint8)
 
-        height, width = matrix.shape
         vmin, vmax = vrange
 
         # 1. Clip
@@ -42,8 +39,8 @@ class OpenCVBasedConverter(Fits2QPixmapConverter):
         # 4. Colorize
         colorized = self._colorize(normalized, colormap)
 
-        # 5. Pixmap
-        return self._to_qpixmap(colorized, width, height)
+        # 5. Buffer
+        return self._to_buffer(colorized)
 
     def _clip(self, matrix: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
         if vmin > 0:
@@ -65,42 +62,16 @@ class OpenCVBasedConverter(Fits2QPixmapConverter):
     def _normalize(self, matrix: np.ndarray, max_val: float) -> np.ndarray:
         return np.clip(matrix * 255, 0, 255).astype(np.uint8)
 
-    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> Any:
+    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> np.ndarray:
         import cv2
 
-        cmap_id = self._get_cv2_colormap_id(colormap)
+        cmap_id = get_cv2_colormap_id(colormap)
         color_img = cv2.applyColorMap(matrix, cmap_id)
 
         # Convert BGR (OpenCV) to RGB (Qt)
         color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
 
-        return np.ascontiguousarray(color_img)
+        return color_img
 
-    def _get_cv2_colormap_id(self, colormap: Colormap) -> int:
-        """Lazily initializes and returns the OpenCV colormap ID mapping."""
-        import cv2
-
-        if OpenCVBasedConverter._COLORMAP_MAPPING is None:
-            # Map Colormap Enum to OpenCV constant
-            OpenCVBasedConverter._COLORMAP_MAPPING = {
-                Colormap.VIRIDIS: cv2.COLORMAP_VIRIDIS,
-                Colormap.PLASMA: cv2.COLORMAP_PLASMA,
-                Colormap.INFERNO: cv2.COLORMAP_INFERNO,
-                Colormap.MAGMA: cv2.COLORMAP_MAGMA,
-                Colormap.JET: cv2.COLORMAP_JET,
-                Colormap.BONE: cv2.COLORMAP_BONE,
-                Colormap.HOT: cv2.COLORMAP_HOT,
-                Colormap.COOL: cv2.COLORMAP_COOL,
-            }
-
-        return OpenCVBasedConverter._COLORMAP_MAPPING.get(
-            colormap, cv2.COLORMAP_VIRIDIS
-        )
-
-    def _to_qpixmap(self, image_data: Any, width: int, height: int) -> QtGui.QPixmap:
-        # Format_RGB888 expects 3 bytes per pixel
-        bytes_per_line = 3 * width
-        q_image = QtGui.QImage(
-            image_data.data, width, height, bytes_per_line, QtGui.QImage.Format_RGB888
-        )
-        return QtGui.QPixmap.fromImage(q_image.copy())
+    def _to_buffer(self, image_data: Any) -> np.ndarray:
+        return np.ascontiguousarray(image_data)

@@ -10,9 +10,11 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QToolButton,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QMetaObject, Slot
+from PySide6.QtGui import QImage, QPixmap
 from ..viewmodels.RawDataViewModel import RawDataViewModel
 from ..fitsconverters import Colormap
+from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .MosaicView import MosaicView
 
 
@@ -25,7 +27,6 @@ class RawDataView(QWidget):
 
     def initUI(self):
         """Initializes the UI components and layout."""
-        # Main Layout (Top Strip + Body)
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.setSpacing(0)
@@ -34,15 +35,11 @@ class RawDataView(QWidget):
         self._setupMainBody()
 
     def _setupMosaicView(self):
-        """Creates the top HDU Mosaic View."""
-        # Use the specialized MosaicView widget
         self.mosaicView = MosaicView(self.viewModel.mosaicViewModel)
         self.mainLayout.addWidget(self.mosaicView)
-        # Initially hidden until loaded
         self.mosaicView.setVisible(False)
 
     def _setupMainBody(self):
-        """Creates the main content area with toolbar, image, and sidebar."""
         self.bodyWidget = QWidget()
         self.bodyLayout = QHBoxLayout(self.bodyWidget)
         self.bodyLayout.setContentsMargins(0, 0, 0, 0)
@@ -54,9 +51,8 @@ class RawDataView(QWidget):
         self._setupRightSidebar()
 
     def _setupLeftToolbar(self):
-        """Creates the tool selection bar on the left."""
         self.leftToolbar = QFrame()
-        self.leftToolbar.setFixedWidth(50)
+        self.leftToolbar.setFixedWidth(100)
         self.leftToolbar.setStyleSheet(
             "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
         )
@@ -65,17 +61,23 @@ class RawDataView(QWidget):
         layout.setSpacing(10)
         layout.setAlignment(Qt.AlignTop)
 
-        tools = [self.tr("Ptr"), self.tr("Mag"), self.tr("Box"), self.tr("Roi")]
+        tools = [self.tr("Ptr"), self.tr("Mag"), self.tr("Box"), self.tr("Zoom")]
         for tool in tools:
             btn = QToolButton()
             btn.setText(tool)
-            btn.setFixedSize(40, 40)
+            btn.setFixedSize(90, 40)
             layout.addWidget(btn)
+
+        layout.addSpacing(20)
+
+        self.rangeControl = VerticalRangeControl(abs_min=0.0, abs_max=1.0)
+        self.rangeControl.setVisible(False)
+        self.rangeControl.rangeChanged.connect(self.onRangeChanged)
+        layout.addWidget(self.rangeControl)
 
         self.bodyLayout.addWidget(self.leftToolbar)
 
     def _setupCenterImageArea(self):
-        """Creates the scrollable central area for data visualization."""
         self.scrollArea = QScrollArea()
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setAlignment(Qt.AlignCenter)
@@ -87,7 +89,6 @@ class RawDataView(QWidget):
         self.bodyLayout.addWidget(self.scrollArea)
 
     def _setupRightSidebar(self):
-        """Creates and populates the control sidebar on the right."""
         self.rightSidebar = QFrame()
         self.rightSidebar.setFixedWidth(300)
         self.rightSidebar.setStyleSheet(
@@ -106,50 +107,29 @@ class RawDataView(QWidget):
         self.bodyLayout.addWidget(self.rightSidebar)
 
     def _addVisualizationSection(self):
-        """Adds visualization controls to the sidebar."""
         group = QGroupBox(self.tr("Visualization"))
         layout = QVBoxLayout(group)
-
         layout.addWidget(QLabel(self.tr("Colormap")))
         self.cmapSelector = QComboBox()
-        # Use Enum values to ensure consistency
         self.cmapSelector.addItems([c.value for c in Colormap])
         self.cmapSelector.currentTextChanged.connect(self.onColormapChanged)
         layout.addWidget(self.cmapSelector)
-
-        layout.addWidget(QLabel(self.tr("Range (keV)")))
-        rangePlaceholder = QFrame()
-        rangePlaceholder.setFixedHeight(30)
-        rangePlaceholder.setStyleSheet("background-color: #ddd; border-radius: 4px;")
-        layout.addWidget(rangePlaceholder)
-
         self.rightLayout.addWidget(group)
 
     def _addFilteringSection(self):
-        """Adds the filtering pipeline section to the sidebar."""
         group = QGroupBox(self.tr("Filtering Pipeline"))
         layout = QVBoxLayout(group)
-
-        placeholder = QLabel(self.tr("(Not implemented yet)"))
-        placeholder.setStyleSheet("color: #666; font-style: italic;")
-        layout.addWidget(placeholder)
-
-        layout.addWidget(QLabel(self.tr("1. Pedestal Subtraction")))
-        layout.addWidget(QLabel(self.tr("2. Gaussian Blur")))
+        layout.addWidget(QLabel(self.tr("(Not implemented yet)")))
         self.rightLayout.addWidget(group)
 
     def _addExtractionSection(self):
-        """Adds the cluster extraction section to the sidebar."""
         group = QGroupBox(self.tr("Cluster Extraction"))
         layout = QVBoxLayout(group)
-        placeholder = QLabel(self.tr("(Not implemented yet)"))
-        placeholder.setStyleSheet("color: #666; font-style: italic;")
-        layout.addWidget(placeholder)
+        layout.addWidget(QLabel(self.tr("(Not implemented yet)")))
         group.setFixedHeight(100)
         self.rightLayout.addWidget(group)
 
     def _addInspectorSection(self):
-        """Adds the selection inspector section to the sidebar."""
         group = QGroupBox(self.tr("Inspector: Selection"))
         layout = QVBoxLayout(group)
         layout.addWidget(QLabel(self.tr("No selection")))
@@ -157,27 +137,51 @@ class RawDataView(QWidget):
         self.rightLayout.addWidget(group)
 
     def bindViewModel(self):
-        """Register callbacks with the ViewModel."""
-        self.viewModel.add_image_changed_callback(self.updateImage)
-        # Subscribe to mosaic changes to toggle visibility
+        # Image changed callback from background thread
+        def on_image_changed():
+            QMetaObject.invokeMethod(self, "updateImage", Qt.QueuedConnection)
+
+        self.viewModel.add_image_changed_callback(on_image_changed)
         self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
             self.updateMosaicVisibility
         )
-        # Initial check
         self.updateMosaicVisibility()
 
+        vmin, vmax = self.viewModel.visualizationRange
+        self.rangeControl.setValues(vmin, vmax)
+        self.rangeControl.setColormap(self.viewModel.colormap)
+
     def updateMosaicVisibility(self):
-        """Hides the mosaic view if there are 0 or 1 HDUs."""
         count = len(self.viewModel.mosaicViewModel.thumbnails)
         self.mosaicView.setVisible(count > 1)
 
+    @Slot()
     def updateImage(self):
-        """Update the displayed pixmap from the ViewModel."""
-        pixmap = self.viewModel.currentPixmap
-        if pixmap is not None:
-            self.imageLabel.setPixmap(pixmap)
+        """Thread-safe update of the displayed pixmap."""
+        buffer = self.viewModel.currentBuffer
+        self.rangeControl.setVisible(buffer is not None)
+
+        if buffer is not None:
+            # Convert NumPy Buffer (RGB) -> QImage -> QPixmap
+            height, width, channels = buffer.shape
+            bytes_per_line = channels * width
+            q_img = QImage(
+                buffer.data, width, height, bytes_per_line, QImage.Format_RGB888
+            )
+            self.imageLabel.setPixmap(QPixmap.fromImage(q_img.copy()))
+
+            # Update Range Control Limits (Sync with ViewModel data range)
+            dmin, dmax = self.viewModel.dataRange
+            self.rangeControl.setAbsoluteRange(dmin, dmax)
+
+            vmin, vmax = self.viewModel.visualizationRange
+            self.rangeControl.setValues(vmin, vmax)
+            self.rangeControl.setColormap(self.viewModel.colormap)
         else:
             self.imageLabel.clear()
 
     def onColormapChanged(self, text):
         self.viewModel.setColormap(text)
+
+    def onRangeChanged(self, vmin, vmax):
+        self.viewModel.setVisualizationRange(vmin, vmax)
