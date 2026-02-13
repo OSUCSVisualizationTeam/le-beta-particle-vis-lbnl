@@ -90,5 +90,5 @@ def file_uploaded(queue: queue.Queue, config: ConfigurationService):
         ProcessFile(config_service=config, file=path)
 
 if __name__ == "__main__":
-    polling = PollingThread(MockConfigurationService())
+    polling = PollingThread(ConfigurationService())
     polling.begin()
