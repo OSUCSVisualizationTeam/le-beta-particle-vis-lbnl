@@ -3,3 +3,5 @@
 # pyright: reportUnusedImport=false
 from .ConfigurationService import ConfigurationService, MockConfigurationService
 from .CCDCaptureModel import CCDCaptureModel
+from .RegionOfInterest import RegionOfInterest
+from .RoiRect import RoiRect

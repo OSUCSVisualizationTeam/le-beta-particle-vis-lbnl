@@ -22,6 +22,8 @@ This document serves as the authoritative registry for all configuration keys us
 | **gui:raw_analysis** | `magnifier_factor_step` | Float | `0.5` | Increment/decrement step when adjusting magnification via scroll wheel or keyboard. |
 | **gui:raw_analysis** | `magnifier_move_step` | Integer | `1` | Pixel step size when moving the magnifier with arrow keys. |
 | **gui:raw_analysis** | `show_tool_hints` | Boolean | `true` | Show inline usage hints on interactive tools (e.g., magnifier keyboard shortcuts). |
+| **gui:raw_analysis** | `box_select_color` | String | `#00BFFF` | CSS color for the box selection ROI rectangle border and fill. |
+| **gui:raw_analysis** | `box_select_border_width` | Integer | `2` | Border width (in pixels) for the box selection ROI rectangle. |
 | **gui:window** | `default_width` | Integer | `1024` | Default initial width of the application window. |
 | **gui:window** | `default_height` | Integer | `700` | Default initial height of the application window. |
 | **gui:mosaic** | `height` | Integer | `130` | Fixed height (in pixels) of the Mosaic View container strip. |
