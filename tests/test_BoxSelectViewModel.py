@@ -166,3 +166,23 @@ def test_box_select_color(view_model):
 def test_box_select_border_width(view_model):
     """Test boxSelectBorderWidth returns config value."""
     assert view_model.boxSelectBorderWidth == 2
+
+
+# --- clear + re-add cycle ---
+
+
+def test_clear_then_readd_roi(view_model):
+    """Test that clearing ROIs then adding a new one works correctly."""
+    view_model.addRoi(0, 0, 10, 10)
+    assert len(view_model.rois) == 1
+
+    view_model.clearRois()
+    assert len(view_model.rois) == 0
+
+    roi = view_model.addRoi(20, 30, 40, 50)
+    assert len(view_model.rois) == 1
+    bbox = roi.geometry()
+    assert bbox.top == 20
+    assert bbox.left == 30
+    assert bbox.bottom == 40
+    assert bbox.right == 50

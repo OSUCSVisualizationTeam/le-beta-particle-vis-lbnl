@@ -435,6 +435,9 @@ class RawDataView(QWidget):
         self.graphicsView.boxSelectionCompleted.connect(
             self._onBoxSelectionCompleted
         )
+        self.graphicsView.boxSelectClicked.connect(
+            self._onBoxSelectClicked
+        )
 
         def on_roi_changed():
             QMetaObject.invokeMethod(
@@ -607,6 +610,21 @@ class RawDataView(QWidget):
         """Handles a completed box selection from the graphics view."""
         self.viewModel.clearRois()
         self.viewModel.addRoi(top, left, bottom, right)
+
+    @Slot(int, int)
+    def _onBoxSelectClicked(self, row: int, col: int) -> None:
+        """Dismisses the ROI if the click is outside the selection."""
+        rois = self.viewModel.rois
+        if not rois:
+            return
+        bbox = rois[-1].geometry()
+        if (
+            row < bbox.top
+            or row >= bbox.bottom
+            or col < bbox.left
+            or col >= bbox.right
+        ):
+            self.viewModel.clearRois()
 
     @Slot()
     def _updateBoxSelection(self):

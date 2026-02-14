@@ -24,6 +24,7 @@ class CaptureGraphicsView(QGraphicsView):
     magnificationDeltaRequested = Signal(int)
     mouseLeft = Signal()
     boxSelectionCompleted = Signal(int, int, int, int)
+    boxSelectClicked = Signal(int, int)
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
@@ -138,6 +139,8 @@ class CaptureGraphicsView(QGraphicsView):
                     self.boxSelectionCompleted.emit(
                         top, left, bottom, right
                     )
+                else:
+                    self.boxSelectClicked.emit(top, left)
             event.accept()
             return
         if self._pointerActive and event.button() == Qt.LeftButton:
@@ -199,8 +202,7 @@ class CaptureGraphicsView(QGraphicsView):
             pen.setStyle(Qt.DashLine)
             pen.setCosmetic(True)
             painter.setPen(pen)
-            fill = QColor("#00BFFF")
-            fill.setAlpha(30)
+            fill = QColor(255, 255, 255, 26)  # white, ~0.1 alpha
             painter.setBrush(fill)
             painter.drawRect(r)
 
