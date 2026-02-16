@@ -18,8 +18,12 @@ class TestCCDCaptureViewModelTest(unittest.TestCase):
         def _mockClusterEventInfo(self) -> ClusteredEventInfo:
             return ClusteredEventInfo(BoundingBox(0, 0, 1, 1), np.ones((10, 10)), 0, 0)
 
-        def extract(self, callback, energyMinimum=None, energyMaximum=None):
+        def extract(self, data=None, bounding_box=None, callback=None,
+                    energyMinimum=None, energyMaximum=None):
             callback([self._mockClusterEventInfo()])
+
+        def cancel(self):
+            pass
 
     def _mockMatrix(self, min: float, max: float) -> np.matrix:
         assert min < max

@@ -5,3 +5,4 @@ from .BoxSelectionGraphicsItem import BoxSelectionGraphicsItem
 from .CaptureGraphicsView import CaptureGraphicsView
 from .MagnifierGraphicsItem import MagnifierGraphicsItem
 from .VerticalRangeControl import VerticalRangeControl
+from .ClusteringProgressOverlay import ClusteringProgressOverlay
