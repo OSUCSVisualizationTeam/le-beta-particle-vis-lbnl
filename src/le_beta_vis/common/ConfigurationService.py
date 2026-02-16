@@ -10,7 +10,7 @@ class ConfigurationService(ABC):
 
     @abstractmethod
     def get(self, key: str, default: Any = None) -> Any:
-        """Retrieve a configuration value by key (e.g., 'global:db:connection_string')."""
+        """Retrieve a configuration value by key."""
         raise NotImplementedError
 
     @abstractmethod
@@ -43,6 +43,14 @@ class MockConfigurationService(ConfigurationService):
             "gui:raw_analysis:filter_gaussian_sigma": 1.5,
             "gui:raw_analysis:clustering_threshold": 4.0,
             "gui:raw_analysis:zoom_step_factor": 1.2,
+            # Magnifier Tool
+            "gui:raw_analysis:magnifier_display_size": 127,
+            "gui:raw_analysis:magnifier_default_factor": 3.0,
+            "gui:raw_analysis:magnifier_min_factor": 1.0,
+            "gui:raw_analysis:magnifier_max_factor": 100.0,
+            "gui:raw_analysis:magnifier_factor_step": 0.5,
+            "gui:raw_analysis:magnifier_move_step": 1,
+            "gui:raw_analysis:show_tool_hints": True,
             # Window Geometry
             "gui:window:default_width": 1024,
             "gui:window:default_height": 700,
