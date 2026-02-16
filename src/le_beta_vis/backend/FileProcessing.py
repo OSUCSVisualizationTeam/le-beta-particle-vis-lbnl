@@ -7,6 +7,10 @@ from scipy.ndimage import label, maximum_position
 import numpy as np
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+import requests
+
+load_dotenv()
 
 class ProcessFile():
     """
@@ -30,8 +34,8 @@ class ProcessFile():
         try:
             conn = mysql.connector.connect(
                 host="localhost",
-                user="root",
-                password="root",
+                user=os.environ.get("DB_USER"),
+                password=os.environ.get("DB_PASS"),
                 database="lbnlfits"
             )
             cursor = conn.cursor()
@@ -143,14 +147,30 @@ class Cluster():
         self.total_pixels = pixels
         self.fits_id = fits_id
         self.cluster_id = None
+        self.cnn_classification = 0
+        self.nrg_classificaiton = 0
+        self.bdt_classificaiton = 0
         # debug
         # print(f"Sigma x: {self.sigmaX}\nSigma Y: {self.sigmaY}\nEnergy: {self.total_energy}\n Pixels: {self.total_pixels}")
 
-    def classify_clusters(self):
+    def classify_cluster(self):
         """
         Run clusters through classification models to save in database.
         """
-        raise NotImplementedError
+        classification_request = {
+            "id": self.cluster_id,
+            "data": self.data
+        }
+        try:    # sample endpoint for localhost, will most likely be changed from config
+            response = requests.post("localhost:8081/classifyall", json=classification_request)
+            # Placeholders for all classifications that the /classifyall end point would return
+            classifications = response.json()
+            self.cnn_classification = classifications["CNN"]
+            self.nrg_classification = classifications["NRG"]
+            self.bdt_classification = classifications["BDT"]
+
+        except requests.exceptions.RequestException as e:
+            print(f"Could not request classifications: {e}")
 
     def store_clusters(self):
         """
@@ -161,8 +181,8 @@ class Cluster():
         try:
             conn = mysql.connector.connect(
                 host="localhost",
-                user="root",
-                password="root",
+                user=os.environ.get("DB_USER"),
+                password=os.environ.get("DB_PASS"),
                 database="lbnlfits"
             )
             cursor = conn.cursor()
@@ -180,6 +200,31 @@ class Cluster():
                     raise FailedProcException
             
             # Commit results and close connection
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+        except mysql.connector.Error as err:
+            print(f"Could not connect: {err}")
+
+    def store_classifications(self):
+        """
+        Stores classifications of cluster into the database with the cluster ID. 
+        """
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user=os.environ.get("DB_USER"),
+                password=os.environ.get("DB_PASS"),
+                database="lbnlfits"
+            )
+            cursor = conn.cursor()
+            proc_args = (self.cnn_classification, self.nrg_classification, self.bdt_classification, 
+                         self.cluster_id)
+            cursor.callproc("insert_classification", proc_args)
+            
+            # Commit results and close connection, DB will catch if it fails in the procedure and rollback changes
+            # Can expand on reporting with FailedProcException
             conn.commit()
             cursor.close()
             conn.close()

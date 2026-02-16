@@ -93,6 +93,30 @@ BEGIN
     COMMIT;
 END //
 
+
+DROP PROCEDURE IF EXISTS insert_classifications;
+DELIMITER //
+
+CREATE PROCEDURE insert_classifications(
+    IN classificationCNN FLOAT,
+    IN classificationNRG FLOAT,
+    IN classificationBDT FLOAT,
+    IN clusterID INT
+)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+    END;
+    START TRANSACTION;
+    UPDATE clusters
+    SET classificationCNN = classificationCNN
+    SET classificationNRG = classificationNRG
+    SET classificationBDT = classificationBDT
+    WHERE clusterID = clusterID
+    COMMIT;
+END //
+
 DELIMITER ;
 
 DROP VIEW IF EXISTS v_tritium_candidates;
