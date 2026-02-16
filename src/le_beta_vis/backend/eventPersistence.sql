@@ -101,7 +101,7 @@ CREATE PROCEDURE insert_classifications(
     IN classificationCNN FLOAT,
     IN classificationNRG FLOAT,
     IN classificationBDT FLOAT,
-    IN clusterID INT
+    IN in_clusterID INT
 )
 BEGIN
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
@@ -110,14 +110,10 @@ BEGIN
     END;
     START TRANSACTION;
     UPDATE clusters
-    SET classificationCNN = classificationCNN
-    SET classificationNRG = classificationNRG
-    SET classificationBDT = classificationBDT
-    WHERE clusterID = clusterID
+    SET classificationCNN = classificationCNN, classificationNRG = classificationNRG, classificationBDT = classificationBDT
+    WHERE clusterID = in_clusterID;
     COMMIT;
 END //
-
-DELIMITER ;
 
 DROP VIEW IF EXISTS v_tritium_candidates;
 
