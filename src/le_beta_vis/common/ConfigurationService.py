@@ -51,6 +51,9 @@ class MockConfigurationService(ConfigurationService):
             "gui:raw_analysis:magnifier_factor_step": 0.5,
             "gui:raw_analysis:magnifier_move_step": 1,
             "gui:raw_analysis:show_tool_hints": True,
+            # Box Selection Tool
+            "gui:raw_analysis:box_select_color": "#00BFFF",
+            "gui:raw_analysis:box_select_border_width": 2,
             # Window Geometry
             "gui:window:default_width": 1024,
             "gui:window:default_height": 700,

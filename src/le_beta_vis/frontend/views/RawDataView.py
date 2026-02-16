@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from ..fitsconverters import Colormap
 from ..viewmodels.RawDataViewModel import ActiveTool, RawDataViewModel
+from ..widgets.BoxSelectionGraphicsItem import BoxSelectionGraphicsItem
 from ..widgets.CaptureGraphicsView import CaptureGraphicsView
 from ..widgets.MagnifierGraphicsItem import MagnifierGraphicsItem
 from ..widgets.VerticalRangeControl import VerticalRangeControl
@@ -135,8 +136,8 @@ class RawDataView(QWidget):
 
         # Box Select
         self.btnBoxSelect = QToolButton()
-        self.btnBoxSelect.setText(self.tr("Box"))
-        self.btnBoxSelect.setToolTip(self.tr("Box Select"))
+        self.btnBoxSelect.setIcon(self._createBoxSelectIcon())
+        self.btnBoxSelect.setToolTip(self.tr("Region Of Interest"))
         self.btnBoxSelect.setCheckable(True)
         self.btnBoxSelect.setFixedSize(btn_size)
         self.btnBoxSelect.setStyleSheet(style)
@@ -185,6 +186,36 @@ class RawDataView(QWidget):
         font.setPixelSize(24)
         painter.setFont(font)
         painter.drawText(pixmap.rect(), Qt.AlignCenter, "\U0001F50D")
+        painter.end()
+        return QIcon(pixmap)
+
+    def _createBoxSelectIcon(self) -> QIcon:
+        """Creates a dashed rectangle icon for the Box Select tool."""
+        size = 40
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor("#ffffff"))
+        pen.setWidth(2)
+        pen.setStyle(Qt.DashLine)
+        painter.setPen(pen)
+        margin = 8
+        painter.drawRect(margin, margin, size - 2 * margin, size - 2 * margin)
+        # Corner handles
+        handle = 4
+        corners = [
+            (margin, margin),
+            (size - margin, margin),
+            (margin, size - margin),
+            (size - margin, size - margin),
+        ]
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#ffffff"))
+        for cx, cy in corners:
+            painter.drawRect(
+                cx - handle // 2, cy - handle // 2, handle, handle
+            )
         painter.end()
         return QIcon(pixmap)
 
@@ -259,6 +290,15 @@ class RawDataView(QWidget):
                 self.tr("Scroll wheel: zoom in/out"),
             ])
         self.scene.addItem(self._magnifierItem)
+
+        # Box selection overlay (starts hidden)
+        self._boxSelectionItem = BoxSelectionGraphicsItem()
+        self._boxSelectionItem.setColor(self.viewModel.boxSelectColor)
+        self._boxSelectionItem.setBorderWidth(
+            self.viewModel.boxSelectBorderWidth
+        )
+        self._boxSelectionItem.setVisible(False)
+        self.scene.addItem(self._boxSelectionItem)
 
         centerLayout.addWidget(self.graphicsView)
 
@@ -392,6 +432,19 @@ class RawDataView(QWidget):
         self.graphicsView.mouseLeft.connect(
             self.viewModel.clearPointerHover
         )
+        self.graphicsView.boxSelectionCompleted.connect(
+            self._onBoxSelectionCompleted
+        )
+        self.graphicsView.boxSelectClicked.connect(
+            self._onBoxSelectClicked
+        )
+
+        def on_roi_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateBoxSelection", Qt.QueuedConnection
+            )
+
+        self.viewModel.add_roi_changed_callback(on_roi_changed)
 
     def updateMosaicVisibility(self):
         count = len(self.viewModel.mosaicViewModel.thumbnails)
@@ -472,9 +525,11 @@ class RawDataView(QWidget):
 
         pointerActive = self.viewModel.isPointerActive
         magnifierActive = self.viewModel.isMagnifierActive
+        boxSelectActive = self.viewModel.isBoxSelectActive
 
         self.graphicsView.setPointerActive(pointerActive)
         self.graphicsView.setMagnifierActive(magnifierActive)
+        self.graphicsView.setBoxSelectActive(boxSelectActive)
         self._magnifierItem.setVisible(magnifierActive)
 
         if not pointerActive:
@@ -547,6 +602,41 @@ class RawDataView(QWidget):
             clampedY = imageRect.top()
 
         self._magnifierItem.setPos(clampedX, clampedY)
+
+    @Slot(int, int, int, int)
+    def _onBoxSelectionCompleted(
+        self, top: int, left: int, bottom: int, right: int
+    ):
+        """Handles a completed box selection from the graphics view."""
+        self.viewModel.clearRois()
+        self.viewModel.addRoi(top, left, bottom, right)
+
+    @Slot(int, int)
+    def _onBoxSelectClicked(self, row: int, col: int) -> None:
+        """Dismisses the ROI if the click is outside the selection."""
+        rois = self.viewModel.rois
+        if not rois:
+            return
+        bbox = rois[-1].geometry()
+        if (
+            row < bbox.top
+            or row >= bbox.bottom
+            or col < bbox.left
+            or col >= bbox.right
+        ):
+            self.viewModel.clearRois()
+
+    @Slot()
+    def _updateBoxSelection(self):
+        """Syncs the BoxSelectionGraphicsItem from ViewModel ROI state."""
+        rois = self.viewModel.rois
+        if rois:
+            bbox = rois[-1].geometry()
+            self._boxSelectionItem.setRect(
+                bbox.top, bbox.left, bbox.bottom, bbox.right
+            )
+        else:
+            self._boxSelectionItem.clear()
 
     def onColormapChanged(self, text):
         self.viewModel.setColormap(text)

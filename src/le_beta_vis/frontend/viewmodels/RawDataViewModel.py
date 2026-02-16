@@ -8,6 +8,7 @@ import numpy as np
 
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
+from le_beta_vis.common.RoiRect import RoiRect
 from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
 
 
@@ -62,6 +63,9 @@ class RawDataViewModel:
         # Pointer Hover State
         self._pointer_hover_pos: Optional[Tuple[int, int]] = None
 
+        # ROI State
+        self._rois: List[RoiRect] = []
+
         # Async Rendering State
         self._current_buffer: Optional[np.ndarray] = None
         self._render_queue = queue.Queue(maxsize=1)
@@ -78,6 +82,8 @@ class RawDataViewModel:
         self._on_magnifier_state_changed_callbacks: List[Callable] = []
         self._on_magnifier_position_changed_callbacks: List[Callable] = []
         self._on_pointer_hover_changed_callbacks: List[Callable] = []
+        self._on_roi_changed_callbacks: List[Callable] = []
+        self._on_box_selection_completed_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -238,6 +244,62 @@ class RawDataViewModel:
         if self._pointer_hover_pos is not None:
             self._pointer_hover_pos = None
             self._notify_pointer_hover_changed()
+
+    # --- Box Selection / ROI ---
+
+    @property
+    def isBoxSelectActive(self) -> bool:
+        """Returns True if the box selection tool is active."""
+        return self._activeTool == ActiveTool.BOX_SELECT
+
+    @property
+    def rois(self) -> List[RoiRect]:
+        """Returns a shallow copy of the ROI list."""
+        return list(self._rois)
+
+    @property
+    def boxSelectColor(self) -> str:
+        """Returns the configured box selection color."""
+        return self._config.get(
+            "gui:raw_analysis:box_select_color", "#00BFFF"
+        )
+
+    @property
+    def boxSelectBorderWidth(self) -> int:
+        """Returns the configured box selection border width."""
+        return self._config.get(
+            "gui:raw_analysis:box_select_border_width", 2
+        )
+
+    def addRoi(
+        self, top: int, left: int, bottom: int, right: int
+    ) -> RoiRect:
+        """
+        Creates and appends a new rectangular ROI.
+        Coordinates are normalized so top <= bottom and left <= right.
+        Notifies both roi_changed and box_selection_completed callbacks.
+        """
+        norm_top = min(top, bottom)
+        norm_left = min(left, right)
+        norm_bottom = max(top, bottom)
+        norm_right = max(left, right)
+        roi = RoiRect(norm_top, norm_left, norm_bottom, norm_right)
+        self._rois.append(roi)
+        self._notify_roi_changed()
+        self._notify_box_selection_completed()
+        return roi
+
+    def clearRois(self) -> None:
+        """Clears all ROIs. Notifies listeners if the list was non-empty."""
+        if self._rois:
+            self._rois.clear()
+            self._notify_roi_changed()
+
+    def removeRoi(self, index: int) -> None:
+        """Removes an ROI by index. Notifies listeners on success."""
+        if 0 <= index < len(self._rois):
+            self._rois.pop(index)
+            self._notify_roi_changed()
 
     def _request_render(self):
         """Queues a render request."""
@@ -426,4 +488,18 @@ class RawDataViewModel:
 
     def _notify_pointer_hover_changed(self):
         for callback in self._on_pointer_hover_changed_callbacks:
+            callback()
+
+    def add_roi_changed_callback(self, callback: Callable):
+        self._on_roi_changed_callbacks.append(callback)
+
+    def add_box_selection_completed_callback(self, callback: Callable):
+        self._on_box_selection_completed_callbacks.append(callback)
+
+    def _notify_roi_changed(self):
+        for callback in self._on_roi_changed_callbacks:
+            callback()
+
+    def _notify_box_selection_completed(self):
+        for callback in self._on_box_selection_completed_callbacks:
             callback()

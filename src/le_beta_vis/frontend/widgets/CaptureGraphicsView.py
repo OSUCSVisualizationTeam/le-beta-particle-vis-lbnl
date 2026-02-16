@@ -1,7 +1,14 @@
 from typing import Optional
 
-from PySide6.QtCore import QEvent, QPointF, Qt, Signal
-from PySide6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import (
+    QColor,
+    QKeyEvent,
+    QMouseEvent,
+    QPainter,
+    QPen,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import QGraphicsView, QWidget
 
 
@@ -16,12 +23,17 @@ class CaptureGraphicsView(QGraphicsView):
     pixelNudgeRequested = Signal(int, int)
     magnificationDeltaRequested = Signal(int)
     mouseLeft = Signal()
+    boxSelectionCompleted = Signal(int, int, int, int)
+    boxSelectClicked = Signal(int, int)
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
         self._magnifierActive: bool = False
         self._pointerActive: bool = False
+        self._boxSelectActive: bool = False
         self._panStart: Optional[QPointF] = None
+        self._boxSelectStart: Optional[QPointF] = None
+        self._boxSelectCurrent: Optional[QPointF] = None
         self.setFocusPolicy(Qt.StrongFocus)
 
     def setMagnifierActive(self, active: bool) -> None:
@@ -51,8 +63,29 @@ class CaptureGraphicsView(QGraphicsView):
         else:
             self.viewport().unsetCursor()
 
+    def setBoxSelectActive(self, active: bool) -> None:
+        """
+        Enables or disables box selection interaction mode.
+        Sets CrossCursor and resets any in-progress drag state.
+
+        Args:
+            active: True to enable box selection drawing.
+        """
+        self._boxSelectActive = active
+        self._boxSelectStart = None
+        self._boxSelectCurrent = None
+        if active:
+            self.viewport().setCursor(Qt.CrossCursor)
+        elif not self._pointerActive:
+            self.viewport().unsetCursor()
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        """Starts manual pan on left-click when pointer is active."""
+        """Starts box selection drag or manual pan on left-click."""
+        if self._boxSelectActive and event.button() == Qt.LeftButton:
+            self._boxSelectStart = self.mapToScene(event.pos())
+            self._boxSelectCurrent = self._boxSelectStart
+            event.accept()
+            return
         if self._pointerActive and event.button() == Qt.LeftButton:
             self._panStart = event.position()
             self.viewport().setCursor(Qt.ClosedHandCursor)
@@ -61,7 +94,12 @@ class CaptureGraphicsView(QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        """Emits pixelHovered or handles panning depending on state."""
+        """Emits pixelHovered, handles panning, or rubber-band drag."""
+        if self._boxSelectActive and self._boxSelectStart is not None:
+            self._boxSelectCurrent = self.mapToScene(event.pos())
+            self.viewport().update()
+            event.accept()
+            return
         if self._magnifierActive:
             scene_pos = self.mapToScene(event.pos())
             self.pixelHovered.emit(
@@ -85,7 +123,26 @@ class CaptureGraphicsView(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        """Ends manual pan and restores CrossCursor."""
+        """Ends box selection drag or manual pan."""
+        if self._boxSelectActive and event.button() == Qt.LeftButton:
+            if self._boxSelectStart is not None:
+                end = self.mapToScene(event.pos())
+                start = self._boxSelectStart
+                top = int(min(start.y(), end.y()))
+                left = int(min(start.x(), end.x()))
+                bottom = int(max(start.y(), end.y()))
+                right = int(max(start.x(), end.x()))
+                self._boxSelectStart = None
+                self._boxSelectCurrent = None
+                self.viewport().update()
+                if bottom > top and right > left:
+                    self.boxSelectionCompleted.emit(
+                        top, left, bottom, right
+                    )
+                else:
+                    self.boxSelectClicked.emit(top, left)
+            event.accept()
+            return
         if self._pointerActive and event.button() == Qt.LeftButton:
             self._panStart = None
             self.viewport().setCursor(Qt.CrossCursor)
@@ -127,6 +184,27 @@ class CaptureGraphicsView(QGraphicsView):
             event.accept()
             return
         super().wheelEvent(event)
+
+    def drawForeground(
+        self, painter: QPainter, rect: QRectF
+    ) -> None:
+        """Draws a dashed rubber-band rectangle during box select drag."""
+        super().drawForeground(painter, rect)
+        if (
+            self._boxSelectActive
+            and self._boxSelectStart is not None
+            and self._boxSelectCurrent is not None
+        ):
+            r = QRectF(
+                self._boxSelectStart, self._boxSelectCurrent
+            ).normalized()
+            pen = QPen(QColor("#00BFFF"), 1.5)
+            pen.setStyle(Qt.DashLine)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
+            fill = QColor(255, 255, 255, 26)  # white, ~0.1 alpha
+            painter.setBrush(fill)
+            painter.drawRect(r)
 
     @staticmethod
     def _arrowToNudge(key: int):
