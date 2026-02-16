@@ -5,6 +5,7 @@ from PySide6.QtGui import (
     QIcon,
     QImage,
     QPainter,
+    QPen,
     QPixmap,
     QTransform,
 )
@@ -103,8 +104,10 @@ class RawDataView(QWidget):
 
         # Pointer
         self.btnPointer = QToolButton()
-        self.btnPointer.setText(self.tr("Ptr"))
-        self.btnPointer.setToolTip(self.tr("Pointer"))
+        self.btnPointer.setIcon(self._createPointerIcon())
+        self.btnPointer.setToolTip(
+            self.tr("Pointer: Select and Pan")
+        )
         self.btnPointer.setCheckable(True)
         self.btnPointer.setChecked(True)
         self.btnPointer.setFixedSize(btn_size)
@@ -142,6 +145,31 @@ class RawDataView(QWidget):
         )
         self._toolButtonGroup.addButton(self.btnBoxSelect)
         layout.addWidget(self.btnBoxSelect, 0, Qt.AlignHCenter)
+
+    def _createPointerIcon(self) -> QIcon:
+        """Creates a crosshair/target icon for the Pointer tool."""
+        icon = QIcon.fromTheme("crosshairs")
+        if not icon.isNull():
+            return icon
+
+        size = 40
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor("#ffffff"))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        cx, cy = size // 2, size // 2
+        r = 10
+        painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+        arm = 6
+        painter.drawLine(cx, cy - r - arm, cx, cy - r)
+        painter.drawLine(cx, cy + r, cx, cy + r + arm)
+        painter.drawLine(cx - r - arm, cy, cx - r, cy)
+        painter.drawLine(cx + r, cy, cx + r + arm, cy)
+        painter.end()
+        return QIcon(pixmap)
 
     def _createMagnifierIcon(self) -> QIcon:
         """Creates a magnifier icon from theme or painted fallback."""
@@ -202,6 +230,11 @@ class RawDataView(QWidget):
         return line
 
     def _setupCenterImageArea(self):
+        centerContainer = QWidget()
+        centerLayout = QVBoxLayout(centerContainer)
+        centerLayout.setContentsMargins(0, 0, 0, 0)
+        centerLayout.setSpacing(0)
+
         self.scene = QGraphicsScene()
         self.graphicsView = CaptureGraphicsView()
         self.graphicsView.setScene(self.scene)
@@ -227,7 +260,21 @@ class RawDataView(QWidget):
             ])
         self.scene.addItem(self._magnifierItem)
 
-        self.bodyLayout.addWidget(self.graphicsView)
+        centerLayout.addWidget(self.graphicsView)
+
+        # Status bar for pointer pixel inspection
+        self._statusLabel = QLabel()
+        self._statusLabel.setFixedHeight(24)
+        self._statusLabel.setStyleSheet(
+            "background-color: #1e1e1e; color: #cccccc;"
+            " font-size: 12px; padding-left: 8px;"
+        )
+        centerLayout.addWidget(self._statusLabel)
+
+        # Activate pointer mode by default
+        self.graphicsView.setPointerActive(True)
+
+        self.bodyLayout.addWidget(centerContainer)
 
     def _setupRightSidebar(self):
         self.rightSidebar = QFrame()
@@ -305,6 +352,12 @@ class RawDataView(QWidget):
                 Qt.QueuedConnection,
             )
 
+        def on_pointer_hover_changed():
+            QMetaObject.invokeMethod(
+                self, "_updatePointerStatus",
+                Qt.QueuedConnection,
+            )
+
         self.viewModel.add_image_changed_callback(on_image_changed)
         self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
             self.updateMosaicVisibility
@@ -319,6 +372,9 @@ class RawDataView(QWidget):
         self.viewModel.add_magnifier_position_changed_callback(
             on_magnifier_position_changed
         )
+        self.viewModel.add_pointer_hover_changed_callback(
+            on_pointer_hover_changed
+        )
         self.updateMosaicVisibility()
 
         vmin, vmax = self.viewModel.visualizationRange
@@ -332,6 +388,9 @@ class RawDataView(QWidget):
         )
         self.graphicsView.magnificationDeltaRequested.connect(
             self.viewModel.adjustMagnification
+        )
+        self.graphicsView.mouseLeft.connect(
+            self.viewModel.clearPointerHover
         )
 
     def updateMosaicVisibility(self):
@@ -405,15 +464,21 @@ class RawDataView(QWidget):
 
     @Slot()
     def _updateActiveTool(self):
-        """Syncs toolbar button states and magnifier visibility."""
+        """Syncs toolbar button states, cursor modes, and overlays."""
         tool = self.viewModel.activeTool
         self.btnPointer.setChecked(tool == ActiveTool.POINTER)
         self.btnMagnifier.setChecked(tool == ActiveTool.MAGNIFIER)
         self.btnBoxSelect.setChecked(tool == ActiveTool.BOX_SELECT)
 
+        pointerActive = self.viewModel.isPointerActive
         magnifierActive = self.viewModel.isMagnifierActive
+
+        self.graphicsView.setPointerActive(pointerActive)
         self.graphicsView.setMagnifierActive(magnifierActive)
         self._magnifierItem.setVisible(magnifierActive)
+
+        if not pointerActive:
+            self.viewModel.clearPointerHover()
 
         if magnifierActive:
             self.graphicsView.setFocus()
@@ -427,10 +492,11 @@ class RawDataView(QWidget):
 
     @Slot(int, int)
     def _onPixelHovered(self, row: int, col: int):
-        """Routes mouse hover to the ViewModel."""
-        if not self.viewModel.isMagnifierActive:
-            return
-        self.viewModel.setMagnifierPosition(row, col)
+        """Routes mouse hover to the active tool in the ViewModel."""
+        if self.viewModel.isMagnifierActive:
+            self.viewModel.setMagnifierPosition(row, col)
+        elif self.viewModel.isPointerActive:
+            self.viewModel.setPointerHoverPosition(row, col)
 
     @Slot(int, int)
     def _onPixelNudged(self, drow: int, dcol: int):
@@ -443,6 +509,20 @@ class RawDataView(QWidget):
         row, col = self.viewModel.magnifierPosition
         self._magnifierItem.setPixelPos(row, col)
         self._positionMagnifierItem(row, col)
+
+    @Slot()
+    def _updatePointerStatus(self):
+        """Updates the status label with pointer hover info."""
+        info = self.viewModel.pointerHoverInfo
+        if info is None:
+            self._statusLabel.setText("")
+        else:
+            row, col, kev = info
+            self._statusLabel.setText(
+                self.tr("X: {col}  Y: {row}  Value: {kev} keV").format(
+                    col=col, row=row, kev=f"{kev:.5f}"
+                )
+            )
 
     def _positionMagnifierItem(self, row: int, col: int) -> None:
         """Positions the magnifier near the cursor, clamped to image."""
