@@ -93,6 +93,7 @@ BEGIN
     COMMIT;
 END //
 
+DELIMITER ;
 
 DROP PROCEDURE IF EXISTS insert_classifications;
 DELIMITER //
