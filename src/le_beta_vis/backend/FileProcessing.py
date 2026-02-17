@@ -47,7 +47,7 @@ class ProcessFile():
             cursor.callproc("insert_fits", proc_args)
 
             for result in cursor.stored_results():
-                id = result.fetchone()
+                id = result.fetchone()[0]
                 if id > 0:
                     self.fits_id = id
                 else:
@@ -193,7 +193,7 @@ class Cluster():
             cursor.callproc("insert_cluster", proc_args)
 
             for result in cursor.stored_results():
-                id = result.fetchone()
+                id = result.fetchone()[0]
                 if id > 0:
                     self.cluster_id = id
                 else:
