@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 5
+    env:
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME: lbnlfits
     steps:
       - uses: actions/checkout@v4
 
@@ -37,11 +41,13 @@ jobs:
 
       - name: Create database
         run: |
-          mysql -u root --password=root --port=3306 --host=127.0.0.1 -e "CREATE DATABASE mlccd_viz;"
+          echo "Creating database ${DB_NAME}"
+          echo " User: ${DB_USER}"
+          mysql -u $DB_USER --password=$DB_PASS --port=3306 --host=127.0.0.1 -e "CREATE DATABASE ${DB_NAME};"
       
       - name: Create schema
         run: |
-          mysql -u root --password=root --port=3306 --host=127.0.0.1 --database=mlccd_viz < src/le_beta_vis/backend/eventPersistence.sql
+          mysql -u $DB_USER --password=$DB_PASS --port=3306 --host=127.0.0.1 --database=$DB_NAME < src/le_beta_vis/backend/eventPersistence.sql
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
