@@ -1,5 +1,7 @@
 import pytest
 import queue
+import mysql.connector
+from mysql.connector import Error
 from unittest.mock import MagicMock, patch, ANY
 import os
 import numpy as np
