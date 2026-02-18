@@ -27,7 +27,7 @@ def test_fits_save():
         result.fetchone.return_value = (100,)
         mock_cursor.stored_results.return_value = [result]
 
-        fits_processor = ProcessFile(MockConfigurationService(), "testing")
+        fits_processor = ProcessFile(MockConfigurationService(), "/tmp")
         # Initialize capture values with mocked ones and preset values
         fits_processor.capture = [MagicMock() for x in range(4)]
         for capture in fits_processor.capture:
@@ -61,7 +61,7 @@ def test_cluster_save():
         result.fetchone.return_value = (100,)
         mock_cursor.stored_results.return_value = [result]
 
-        cluster_data = np.random.randint(0, 10, size=(20, 20), dtype=np.float32)
+        cluster_data = np.random.randint(0, 10, size=(20, 20), dtype=np.int32)
 
         cluster = Cluster(
                 data=cluster_data,
@@ -93,7 +93,7 @@ def test_connection_failed():
     with patch("mysql.connector.connect") as mock_sql:
         # Set side effect to failure and call commands, checking assertions
         mock_sql.side_effect = mysql.connector.Error("FAILED")
-        file_processor = ProcessFile(MockConfigurationService(), "testing")
+        file_processor = ProcessFile(MockConfigurationService(), "/tmp")
         file_processor.store_fits()
         
         mock_sql.assert_called_once()
