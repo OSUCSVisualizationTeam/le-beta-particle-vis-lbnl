@@ -1,68 +1,43 @@
-# A one-time initialzation step to populate the nsamespace in the ConfigurationService module
-from config.ConfigurationService import ConfigurationService
+import yaml
+from pathlib import Path
+from le_beta_vis.common.RedisBackedConfigurationService import RedisBackedConfigurationService
 
-DEFAULT_CONFIG = {
-    # Global / Infrastructure
-    "global:db:connection_string" : "mysql://localhost/mlccd_vis",
-    "global:db:username" : "root",
-    "global:db:password" : "root",
+_DEFAULTS_PATH = Path(__file__).parent.parent.parent / "src" / "le_beta_vis" / "config" / "defaults.yaml"
 
-    "global:redis:host" : "localhost",
-    "global:redis:port" : 6379,
-    "global:redis:channel_events" : "events/new_class",
 
-    "global:physics:kev_conversion" : 1.02857e-5,
-    "global:physics:ped_width" : 1400,
+def seed_defaults(service: RedisBackedConfigurationService | None = None, force: bool = False) -> None:
+    """
+    Seed Redis with the authoritative default configuration values.
 
-    # GUI
-    "gui:raw_analysis:default_colormap" : "viridis",
-    "gui:raw_analysis:vis_range_min" : 0.0,
-    "gui:raw_analysis:vis_range_max" : 20.0,
-    "gui:raw_analysis:filter_gaussian_sigma" : 1.5,
-    "gui:raw_analysis:clustering_threshold" : 4.0,
-
-    "gui:window:default_width" : 1024,
-    "gui:window:default_height" : 700,
-
-    "gui:mosaic:height" : 130,
-    "gui:mosaic:thumbnail_height" : 100,
-    "gui:mosaic:scaling_function" : "log",
-
-    "gui:historical:default_query_hours" : 24,
-    "gui:historical:live_update_rate_ms" : 1000,
-    "gui:historical:mode" : "historical",
-
-    "gui:inspector:histogram_bins" : 50, 
-
-    "gui:export:default_path" : "~/Data",
-    "gui:export:image_format" : "png",
-
-    # Pipeline
-    "pipeline:ingress:polling_location" : "~/Google Drive/My Drive/FITS"
-}
-
-# Since Redis only takes string forms, bools need to be converted as it does not serialize well automatically
-def serialize_value(value):
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
-
-def seed_defaults():
-    service = ConfigurationService()
+    Args:
+        service: Optional pre-configured service instance for testing.
+                 If None, a new RedisBackedConfigurationService is instantiated.
+        force:   If True, overwrites existing keys. If False (default),
+                 skips keys that already exist to prevent accidental data loss.
+    """
+    if service is None:
+        service = RedisBackedConfigurationService()
 
     print("Connecting to Redis...")
     if not service.ping():
         raise RuntimeError("Could not connect to Redis")
 
-    print("Seeding default configuration values...")
+    with open(_DEFAULTS_PATH, "r") as f:
+        defaults = yaml.safe_load(f)
 
-    for key, value in DEFAULT_CONFIG.items():
-        serialized = serialize_value(value)
+    print(f"Seeding default configuration values (force={force})...")
+    set_count, skipped_count = 0, 0
 
-        service.set(key, serialized)
-        print(f"SET {key} = {serialized}")
+    for key, value in defaults.items():
+        if not force and service.get(key) is not None:
+            print(f"  SKIP {key} (already set)")
+            skipped_count += 1
+        else:
+            service.set(key, value)
+            print(f"  SET  {key} = {value!r}")
+            set_count += 1
 
-    print("Configuration seeding complete.")
+    print(f"Done. {set_count} keys set, {skipped_count} skipped.")
 
 
 if __name__ == "__main__":
