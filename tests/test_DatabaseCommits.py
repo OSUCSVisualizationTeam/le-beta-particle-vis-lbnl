@@ -8,6 +8,7 @@ import numpy as np
 
 from le_beta_vis.backend.FileProcessing import ProcessFile
 from le_beta_vis.backend.FileProcessing import Cluster
+from le_beta_vis.common.ConfigurationService import MockConfigurationService
 
 
 def test_fits_save():
@@ -26,7 +27,7 @@ def test_fits_save():
         result.fetchone.return_value = (100,)
         mock_cursor.stored_results.return_value = [result]
 
-        fits_processor = ProcessFile()
+        fits_processor = ProcessFile(MockConfigurationService(), "testing")
         # Initialize capture values with mocked ones and preset values
         fits_processor.capture = [MagicMock() for x in range(4)]
         for capture in fits_processor.capture:
@@ -60,15 +61,16 @@ def test_cluster_save():
         result.fetchone.return_value = (100,)
         mock_cursor.stored_results.return_value = [result]
 
-        cluster = Cluster()
+        cluster_data = np.random.randint(0, 10, size=(20, 20), dtype=np.float32)
+
+        cluster = Cluster(
+                data=cluster_data,
+                sigmaX=1.2,
+                sigmaY=2.1,
+                energy=np.sum(cluster_data),
+                pixels=np.count_nonzero(cluster_data),
+                fits_id=100)
         # Initialize capture values with mocked ones and preset values
-        cluster.data = np.random.randint(0, 10, size=(20, 20), dtype=np.float32)
-        cluster.sigmaX = 1.2
-        cluster.sigmaY = 2.1
-        cluster.total_energy = np.sum(cluster.data)
-        cluster.total_pixels = np.count_nonzero(cluster.data)
-        cluster.fits_id = 100
-        cluster.cluster_id = None
         cluster.cnn_classification = 0.0
         cluster.nrg_classificaiton = 0.0
         cluster.bdt_classificaiton = 0.0
@@ -91,7 +93,7 @@ def test_connection_failed():
     with patch("mysql.connector.connect") as mock_sql:
         # Set side effect to failure and call commands, checking assertions
         mock_sql.side_effect = mysql.connector.Error("FAILED")
-        file_processor = ProcessFile()
+        file_processor = ProcessFile(MockConfigurationService(), "testing")
         file_processor.store_fits()
         
         mock_sql.assert_called_once()
