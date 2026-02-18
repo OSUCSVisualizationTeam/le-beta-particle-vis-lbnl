@@ -1,18 +1,36 @@
+from PySide6.QtCore import QMetaObject, QSize, Qt, Slot
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QIcon,
+    QImage,
+    QPainter,
+    QPen,
+    QPixmap,
+    QTransform,
+)
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QApplication,
+    QButtonGroup,
+    QComboBox,
+    QFrame,
+    QGraphicsPixmapItem,
+    QGraphicsScene,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QComboBox,
-    QScrollArea,
-    QGroupBox,
-    QFrame,
     QSizePolicy,
     QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
-from ..viewmodels.RawDataViewModel import RawDataViewModel
+
 from ..fitsconverters import Colormap
+from ..viewmodels.RawDataViewModel import ActiveTool, RawDataViewModel
+from ..widgets.BoxSelectionGraphicsItem import BoxSelectionGraphicsItem
+from ..widgets.CaptureGraphicsView import CaptureGraphicsView
+from ..widgets.MagnifierGraphicsItem import MagnifierGraphicsItem
+from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .MosaicView import MosaicView
 
 
@@ -25,7 +43,6 @@ class RawDataView(QWidget):
 
     def initUI(self):
         """Initializes the UI components and layout."""
-        # Main Layout (Top Strip + Body)
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.setSpacing(0)
@@ -34,15 +51,11 @@ class RawDataView(QWidget):
         self._setupMainBody()
 
     def _setupMosaicView(self):
-        """Creates the top HDU Mosaic View."""
-        # Use the specialized MosaicView widget
         self.mosaicView = MosaicView(self.viewModel.mosaicViewModel)
         self.mainLayout.addWidget(self.mosaicView)
-        # Initially hidden until loaded
         self.mosaicView.setVisible(False)
 
     def _setupMainBody(self):
-        """Creates the main content area with toolbar, image, and sidebar."""
         self.bodyWidget = QWidget()
         self.bodyLayout = QHBoxLayout(self.bodyWidget)
         self.bodyLayout.setContentsMargins(0, 0, 0, 0)
@@ -54,40 +67,256 @@ class RawDataView(QWidget):
         self._setupRightSidebar()
 
     def _setupLeftToolbar(self):
-        """Creates the tool selection bar on the left."""
         self.leftToolbar = QFrame()
-        self.leftToolbar.setFixedWidth(50)
+        self.leftToolbar.setFixedWidth(100)
         self.leftToolbar.setStyleSheet(
             "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
         )
         layout = QVBoxLayout(self.leftToolbar)
         layout.setContentsMargins(5, 10, 5, 10)
         layout.setSpacing(10)
-        layout.setAlignment(Qt.AlignTop)
+        layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
-        tools = [self.tr("Ptr"), self.tr("Mag"), self.tr("Box"), self.tr("Roi")]
-        for tool in tools:
-            btn = QToolButton()
-            btn.setText(tool)
-            btn.setFixedSize(40, 40)
-            layout.addWidget(btn)
+        btn_size = QSize(40, 40)
+        tool_btn_style = "font-weight: bold; color: #ffffff;"
+
+        self._setupToolButtons(layout, btn_size, tool_btn_style)
+
+        layout.addWidget(self._createDivider(), 0, Qt.AlignHCenter)
+
+        self._setupZoomButtons(layout, btn_size)
+
+        layout.addWidget(self._createDivider(), 0, Qt.AlignHCenter)
+        layout.addSpacing(10)
+
+        self.rangeControl = VerticalRangeControl(abs_min=0.0, abs_max=1.0)
+        self.rangeControl.setVisible(False)
+        self.rangeControl.rangeChanged.connect(self.onRangeChanged)
+        layout.addWidget(self.rangeControl, 0, Qt.AlignHCenter)
 
         self.bodyLayout.addWidget(self.leftToolbar)
 
-    def _setupCenterImageArea(self):
-        """Creates the scrollable central area for data visualization."""
-        self.scrollArea = QScrollArea()
-        self.scrollArea.setWidgetResizable(True)
-        self.scrollArea.setAlignment(Qt.AlignCenter)
-        self.scrollArea.setStyleSheet("background-color: #000; border: none;")
+    def _setupToolButtons(
+        self, layout: QVBoxLayout, btn_size: QSize, style: str
+    ):
+        """Creates the Pointer, Magnifier, and Box Select tool buttons."""
+        self._toolButtonGroup = QButtonGroup(self)
+        self._toolButtonGroup.setExclusive(True)
 
-        self.imageLabel = QLabel()
-        self.imageLabel.setAlignment(Qt.AlignCenter)
-        self.scrollArea.setWidget(self.imageLabel)
-        self.bodyLayout.addWidget(self.scrollArea)
+        # Pointer
+        self.btnPointer = QToolButton()
+        self.btnPointer.setIcon(self._createPointerIcon())
+        self.btnPointer.setToolTip(
+            self.tr("Pointer: Select and Pan")
+        )
+        self.btnPointer.setCheckable(True)
+        self.btnPointer.setChecked(True)
+        self.btnPointer.setFixedSize(btn_size)
+        self.btnPointer.setStyleSheet(style)
+        self.btnPointer.clicked.connect(
+            lambda: self.viewModel.setActiveTool(ActiveTool.POINTER)
+        )
+        self._toolButtonGroup.addButton(self.btnPointer)
+        layout.addWidget(self.btnPointer, 0, Qt.AlignHCenter)
+
+        # Magnifier
+        self.btnMagnifier = QToolButton()
+        self.btnMagnifier.setIcon(self._createMagnifierIcon())
+        self.btnMagnifier.setToolTip(
+            self.tr("Magnifier: Inspect pixels in detail")
+        )
+        self.btnMagnifier.setCheckable(True)
+        self.btnMagnifier.setFixedSize(btn_size)
+        self.btnMagnifier.setStyleSheet(style)
+        self.btnMagnifier.clicked.connect(
+            lambda: self.viewModel.setActiveTool(ActiveTool.MAGNIFIER)
+        )
+        self._toolButtonGroup.addButton(self.btnMagnifier)
+        layout.addWidget(self.btnMagnifier, 0, Qt.AlignHCenter)
+
+        # Box Select
+        self.btnBoxSelect = QToolButton()
+        self.btnBoxSelect.setIcon(self._createBoxSelectIcon())
+        self.btnBoxSelect.setToolTip(self.tr("Region Of Interest"))
+        self.btnBoxSelect.setCheckable(True)
+        self.btnBoxSelect.setFixedSize(btn_size)
+        self.btnBoxSelect.setStyleSheet(style)
+        self.btnBoxSelect.clicked.connect(
+            lambda: self.viewModel.setActiveTool(ActiveTool.BOX_SELECT)
+        )
+        self._toolButtonGroup.addButton(self.btnBoxSelect)
+        layout.addWidget(self.btnBoxSelect, 0, Qt.AlignHCenter)
+
+    def _createPointerIcon(self) -> QIcon:
+        """Creates a crosshair/target icon for the Pointer tool."""
+        icon = QIcon.fromTheme("crosshairs")
+        if not icon.isNull():
+            return icon
+
+        size = 40
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor("#ffffff"))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        cx, cy = size // 2, size // 2
+        r = 10
+        painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+        arm = 6
+        painter.drawLine(cx, cy - r - arm, cx, cy - r)
+        painter.drawLine(cx, cy + r, cx, cy + r + arm)
+        painter.drawLine(cx - r - arm, cy, cx - r, cy)
+        painter.drawLine(cx + r, cy, cx + r + arm, cy)
+        painter.end()
+        return QIcon(pixmap)
+
+    def _createMagnifierIcon(self) -> QIcon:
+        """Creates a magnifier icon from theme or painted fallback."""
+        icon = QIcon.fromTheme("edit-find")
+        if not icon.isNull():
+            return icon
+
+        pixmap = QPixmap(40, 40)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setPen(QColor("#ffffff"))
+        font = QFont()
+        font.setPixelSize(24)
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, "\U0001F50D")
+        painter.end()
+        return QIcon(pixmap)
+
+    def _createBoxSelectIcon(self) -> QIcon:
+        """Creates a dashed rectangle icon for the Box Select tool."""
+        size = 40
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor("#ffffff"))
+        pen.setWidth(2)
+        pen.setStyle(Qt.DashLine)
+        painter.setPen(pen)
+        margin = 8
+        painter.drawRect(margin, margin, size - 2 * margin, size - 2 * margin)
+        # Corner handles
+        handle = 4
+        corners = [
+            (margin, margin),
+            (size - margin, margin),
+            (margin, size - margin),
+            (size - margin, size - margin),
+        ]
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#ffffff"))
+        for cx, cy in corners:
+            painter.drawRect(
+                cx - handle // 2, cy - handle // 2, handle, handle
+            )
+        painter.end()
+        return QIcon(pixmap)
+
+    def _setupZoomButtons(self, layout: QVBoxLayout, btn_size: QSize):
+        """Creates the Zoom In, Reset, and Zoom Out buttons."""
+        # Zoom In
+        self.btnZoomIn = QToolButton()
+        self.btnZoomIn.setText("+")
+        self.btnZoomIn.setToolTip(self.tr("Zoom In"))
+        self.btnZoomIn.setFixedSize(btn_size)
+        self.btnZoomIn.setStyleSheet(
+            "font-size: 20px; font-weight: bold; color: #ffffff;"
+        )
+        self.btnZoomIn.clicked.connect(self.viewModel.zoomIn)
+        layout.addWidget(self.btnZoomIn, 0, Qt.AlignHCenter)
+
+        # Reset Zoom
+        self.btnZoomReset = QToolButton()
+        self.btnZoomReset.setText("1x")
+        self.btnZoomReset.setToolTip(self.tr("Reset Zoom (1:1)"))
+        self.btnZoomReset.setFixedSize(btn_size)
+        self.btnZoomReset.setStyleSheet("font-weight: bold; color: #ffffff;")
+        self.btnZoomReset.clicked.connect(self.viewModel.resetZoom)
+        layout.addWidget(self.btnZoomReset, 0, Qt.AlignHCenter)
+
+        # Zoom Out
+        self.btnZoomOut = QToolButton()
+        self.btnZoomOut.setText("-")
+        self.btnZoomOut.setToolTip(self.tr("Zoom Out"))
+        self.btnZoomOut.setFixedSize(btn_size)
+        self.btnZoomOut.setStyleSheet(
+            "font-size: 20px; font-weight: bold; color: #ffffff;"
+        )
+        self.btnZoomOut.clicked.connect(self.viewModel.zoomOut)
+        layout.addWidget(self.btnZoomOut, 0, Qt.AlignHCenter)
+
+    def _createDivider(self) -> QFrame:
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        line.setStyleSheet("background-color: #555555;")
+        line.setFixedWidth(80)
+        return line
+
+    def _setupCenterImageArea(self):
+        centerContainer = QWidget()
+        centerLayout = QVBoxLayout(centerContainer)
+        centerLayout.setContentsMargins(0, 0, 0, 0)
+        centerLayout.setSpacing(0)
+
+        self.scene = QGraphicsScene()
+        self.graphicsView = CaptureGraphicsView()
+        self.graphicsView.setScene(self.scene)
+        self.graphicsView.setStyleSheet(
+            "background-color: #000; border: none;"
+        )
+        self.graphicsView.setAlignment(Qt.AlignCenter)
+
+        self.pixmapItem = QGraphicsPixmapItem()
+        self.scene.addItem(self.pixmapItem)
+
+        # Magnifier overlay (starts hidden)
+        self._magnifierItem = MagnifierGraphicsItem(
+            fixedDisplaySize=127,
+            initialMagnificationFactor=3.0,
+        )
+        self._magnifierItem.setUnitLabel(self.tr("keV"))
+        self._magnifierItem.setVisible(False)
+        if self.viewModel.showToolHints:
+            self._magnifierItem.setHintLines([
+                self.tr("Arrow keys: fine movement"),
+                self.tr("Scroll wheel: zoom in/out"),
+            ])
+        self.scene.addItem(self._magnifierItem)
+
+        # Box selection overlay (starts hidden)
+        self._boxSelectionItem = BoxSelectionGraphicsItem()
+        self._boxSelectionItem.setColor(self.viewModel.boxSelectColor)
+        self._boxSelectionItem.setBorderWidth(
+            self.viewModel.boxSelectBorderWidth
+        )
+        self._boxSelectionItem.setVisible(False)
+        self.scene.addItem(self._boxSelectionItem)
+
+        centerLayout.addWidget(self.graphicsView)
+
+        # Status bar for pointer pixel inspection
+        self._statusLabel = QLabel()
+        self._statusLabel.setFixedHeight(24)
+        self._statusLabel.setStyleSheet(
+            "background-color: #1e1e1e; color: #cccccc;"
+            " font-size: 12px; padding-left: 8px;"
+        )
+        centerLayout.addWidget(self._statusLabel)
+
+        # Activate pointer mode by default
+        self.graphicsView.setPointerActive(True)
+
+        self.bodyLayout.addWidget(centerContainer)
 
     def _setupRightSidebar(self):
-        """Creates and populates the control sidebar on the right."""
         self.rightSidebar = QFrame()
         self.rightSidebar.setFixedWidth(300)
         self.rightSidebar.setStyleSheet(
@@ -106,50 +335,29 @@ class RawDataView(QWidget):
         self.bodyLayout.addWidget(self.rightSidebar)
 
     def _addVisualizationSection(self):
-        """Adds visualization controls to the sidebar."""
         group = QGroupBox(self.tr("Visualization"))
         layout = QVBoxLayout(group)
-
         layout.addWidget(QLabel(self.tr("Colormap")))
         self.cmapSelector = QComboBox()
-        # Use Enum values to ensure consistency
         self.cmapSelector.addItems([c.value for c in Colormap])
         self.cmapSelector.currentTextChanged.connect(self.onColormapChanged)
         layout.addWidget(self.cmapSelector)
-
-        layout.addWidget(QLabel(self.tr("Range (keV)")))
-        rangePlaceholder = QFrame()
-        rangePlaceholder.setFixedHeight(30)
-        rangePlaceholder.setStyleSheet("background-color: #ddd; border-radius: 4px;")
-        layout.addWidget(rangePlaceholder)
-
         self.rightLayout.addWidget(group)
 
     def _addFilteringSection(self):
-        """Adds the filtering pipeline section to the sidebar."""
         group = QGroupBox(self.tr("Filtering Pipeline"))
         layout = QVBoxLayout(group)
-
-        placeholder = QLabel(self.tr("(Not implemented yet)"))
-        placeholder.setStyleSheet("color: #666; font-style: italic;")
-        layout.addWidget(placeholder)
-
-        layout.addWidget(QLabel(self.tr("1. Pedestal Subtraction")))
-        layout.addWidget(QLabel(self.tr("2. Gaussian Blur")))
+        layout.addWidget(QLabel(self.tr("(Not implemented yet)")))
         self.rightLayout.addWidget(group)
 
     def _addExtractionSection(self):
-        """Adds the cluster extraction section to the sidebar."""
         group = QGroupBox(self.tr("Cluster Extraction"))
         layout = QVBoxLayout(group)
-        placeholder = QLabel(self.tr("(Not implemented yet)"))
-        placeholder.setStyleSheet("color: #666; font-style: italic;")
-        layout.addWidget(placeholder)
+        layout.addWidget(QLabel(self.tr("(Not implemented yet)")))
         group.setFixedHeight(100)
         self.rightLayout.addWidget(group)
 
     def _addInspectorSection(self):
-        """Adds the selection inspector section to the sidebar."""
         group = QGroupBox(self.tr("Inspector: Selection"))
         layout = QVBoxLayout(group)
         layout.addWidget(QLabel(self.tr("No selection")))
@@ -157,27 +365,281 @@ class RawDataView(QWidget):
         self.rightLayout.addWidget(group)
 
     def bindViewModel(self):
-        """Register callbacks with the ViewModel."""
-        self.viewModel.add_image_changed_callback(self.updateImage)
-        # Subscribe to mosaic changes to toggle visibility
+        # Image changed callback from background thread
+        def on_image_changed():
+            QMetaObject.invokeMethod(
+                self, "updateImage", Qt.QueuedConnection
+            )
+
+        def on_scale_changed():
+            QMetaObject.invokeMethod(
+                self, "updateZoom", Qt.QueuedConnection
+            )
+
+        def on_active_tool_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateActiveTool", Qt.QueuedConnection
+            )
+
+        def on_magnifier_state_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateMagnifierState", Qt.QueuedConnection
+            )
+
+        def on_magnifier_position_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateMagnifierPosition",
+                Qt.QueuedConnection,
+            )
+
+        def on_pointer_hover_changed():
+            QMetaObject.invokeMethod(
+                self, "_updatePointerStatus",
+                Qt.QueuedConnection,
+            )
+
+        self.viewModel.add_image_changed_callback(on_image_changed)
         self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
             self.updateMosaicVisibility
         )
-        # Initial check
+        self.viewModel.add_scale_changed_callback(on_scale_changed)
+        self.viewModel.add_active_tool_changed_callback(
+            on_active_tool_changed
+        )
+        self.viewModel.add_magnifier_state_changed_callback(
+            on_magnifier_state_changed
+        )
+        self.viewModel.add_magnifier_position_changed_callback(
+            on_magnifier_position_changed
+        )
+        self.viewModel.add_pointer_hover_changed_callback(
+            on_pointer_hover_changed
+        )
         self.updateMosaicVisibility()
 
+        vmin, vmax = self.viewModel.visualizationRange
+        self.rangeControl.setValues(vmin, vmax)
+        self.rangeControl.setColormap(self.viewModel.colormap)
+
+        # CaptureGraphicsView signals
+        self.graphicsView.pixelHovered.connect(self._onPixelHovered)
+        self.graphicsView.pixelNudgeRequested.connect(
+            self._onPixelNudged
+        )
+        self.graphicsView.magnificationDeltaRequested.connect(
+            self.viewModel.adjustMagnification
+        )
+        self.graphicsView.mouseLeft.connect(
+            self.viewModel.clearPointerHover
+        )
+        self.graphicsView.boxSelectionCompleted.connect(
+            self._onBoxSelectionCompleted
+        )
+        self.graphicsView.boxSelectClicked.connect(
+            self._onBoxSelectClicked
+        )
+
+        def on_roi_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateBoxSelection", Qt.QueuedConnection
+            )
+
+        self.viewModel.add_roi_changed_callback(on_roi_changed)
+
     def updateMosaicVisibility(self):
-        """Hides the mosaic view if there are 0 or 1 HDUs."""
         count = len(self.viewModel.mosaicViewModel.thumbnails)
         self.mosaicView.setVisible(count > 1)
 
+    @Slot()
     def updateImage(self):
-        """Update the displayed pixmap from the ViewModel."""
-        pixmap = self.viewModel.currentPixmap
-        if pixmap is not None:
-            self.imageLabel.setPixmap(pixmap)
+        """Thread-safe update of the displayed pixmap."""
+        buffer = self.viewModel.currentBuffer
+        self.rangeControl.setVisible(buffer is not None)
+
+        if buffer is not None:
+            # Convert NumPy Buffer (RGB) -> QImage -> QPixmap
+            height, width, channels = buffer.shape
+            bytes_per_line = channels * width
+            q_img = QImage(
+                buffer.data, width, height, bytes_per_line,
+                QImage.Format_RGB888,
+            )
+            pixmap = QPixmap.fromImage(q_img)
+
+            self.pixmapItem.setPixmap(pixmap)
+            self.scene.setSceneRect(0, 0, width, height)
+
+            # Ensure zoom is correct for new image
+            self.updateZoom()
+
+            # Update Range Control Limits (Sync with ViewModel data range)
+            dmin, dmax = self.viewModel.dataRange
+            self.rangeControl.setAbsoluteRange(dmin, dmax)
+
+            vmin, vmax = self.viewModel.visualizationRange
+            self.rangeControl.setValues(vmin, vmax)
+            self.rangeControl.setColormap(self.viewModel.colormap)
+
+            # Update magnifier source data
+            self._updateMagnifierSourceData(pixmap)
         else:
-            self.imageLabel.clear()
+            self.pixmapItem.setPixmap(QPixmap())
+
+    def _updateMagnifierSourceData(self, pixmap: QPixmap) -> None:
+        """Feeds the magnifier item with the current pixmap and raw data."""
+        rawData = self.viewModel.activeRawData
+        if rawData is not None:
+            kevFactor = self.viewModel.kevConversionFactor
+            self._magnifierItem.setSourceData(
+                pixmap, rawData, lambda val: val * kevFactor
+            )
+
+    @Slot()
+    def updateZoom(self):
+        """Updates the graphics view transform based on scale."""
+        # UX Feedback: Busy Cursor & Disable Buttons
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self.btnZoomIn.setEnabled(False)
+        self.btnZoomOut.setEnabled(False)
+        self.btnZoomReset.setEnabled(False)
+
+        try:
+            scale = self.viewModel.scale
+            transform = QTransform()
+            transform.scale(scale, scale)
+            self.graphicsView.setTransform(transform)
+        finally:
+            # Restore UX
+            self.btnZoomIn.setEnabled(True)
+            self.btnZoomOut.setEnabled(True)
+            self.btnZoomReset.setEnabled(True)
+            QApplication.restoreOverrideCursor()
+
+    @Slot()
+    def _updateActiveTool(self):
+        """Syncs toolbar button states, cursor modes, and overlays."""
+        tool = self.viewModel.activeTool
+        self.btnPointer.setChecked(tool == ActiveTool.POINTER)
+        self.btnMagnifier.setChecked(tool == ActiveTool.MAGNIFIER)
+        self.btnBoxSelect.setChecked(tool == ActiveTool.BOX_SELECT)
+
+        pointerActive = self.viewModel.isPointerActive
+        magnifierActive = self.viewModel.isMagnifierActive
+        boxSelectActive = self.viewModel.isBoxSelectActive
+
+        self.graphicsView.setPointerActive(pointerActive)
+        self.graphicsView.setMagnifierActive(magnifierActive)
+        self.graphicsView.setBoxSelectActive(boxSelectActive)
+        self._magnifierItem.setVisible(magnifierActive)
+
+        if not pointerActive:
+            self.viewModel.clearPointerHover()
+
+        if magnifierActive:
+            self.graphicsView.setFocus()
+
+    @Slot()
+    def _updateMagnifierState(self):
+        """Updates the magnifier graphics item's magnification factor."""
+        self._magnifierItem.setMagnificationFactor(
+            self.viewModel.magnificationFactor
+        )
+
+    @Slot(int, int)
+    def _onPixelHovered(self, row: int, col: int):
+        """Routes mouse hover to the active tool in the ViewModel."""
+        if self.viewModel.isMagnifierActive:
+            self.viewModel.setMagnifierPosition(row, col)
+        elif self.viewModel.isPointerActive:
+            self.viewModel.setPointerHoverPosition(row, col)
+
+    @Slot(int, int)
+    def _onPixelNudged(self, drow: int, dcol: int):
+        """Routes arrow key nudge to the ViewModel."""
+        self.viewModel.moveMagnifier(drow, dcol)
+
+    @Slot()
+    def _updateMagnifierPosition(self):
+        """Syncs magnifier item position from ViewModel state."""
+        row, col = self.viewModel.magnifierPosition
+        self._magnifierItem.setPixelPos(row, col)
+        self._positionMagnifierItem(row, col)
+
+    @Slot()
+    def _updatePointerStatus(self):
+        """Updates the status label with pointer hover info."""
+        info = self.viewModel.pointerHoverInfo
+        if info is None:
+            self._statusLabel.setText("")
+        else:
+            row, col, kev = info
+            self._statusLabel.setText(
+                self.tr("X: {col}  Y: {row}  Value: {kev} keV").format(
+                    col=col, row=row, kev=f"{kev:.5f}"
+                )
+            )
+
+    def _positionMagnifierItem(self, row: int, col: int) -> None:
+        """Positions the magnifier near the cursor, clamped to image."""
+        imageRect = self.pixmapItem.boundingRect()
+        magRect = self._magnifierItem.boundingRect()
+        magWidth = magRect.width()
+        magHeight = magRect.height()
+
+        desiredX = col - (self._magnifierItem.displaySize / 2)
+        desiredY = row - (magHeight / 2)
+
+        clampedX = max(
+            imageRect.left(), min(desiredX, imageRect.right() - magWidth)
+        )
+        clampedY = max(
+            imageRect.top(), min(desiredY, imageRect.bottom() - magHeight)
+        )
+
+        if magWidth > imageRect.width():
+            clampedX = imageRect.left()
+        if magHeight > imageRect.height():
+            clampedY = imageRect.top()
+
+        self._magnifierItem.setPos(clampedX, clampedY)
+
+    @Slot(int, int, int, int)
+    def _onBoxSelectionCompleted(
+        self, top: int, left: int, bottom: int, right: int
+    ):
+        """Handles a completed box selection from the graphics view."""
+        self.viewModel.clearRois()
+        self.viewModel.addRoi(top, left, bottom, right)
+
+    @Slot(int, int)
+    def _onBoxSelectClicked(self, row: int, col: int) -> None:
+        """Dismisses the ROI if the click is outside the selection."""
+        rois = self.viewModel.rois
+        if not rois:
+            return
+        bbox = rois[-1].geometry()
+        if (
+            row < bbox.top
+            or row >= bbox.bottom
+            or col < bbox.left
+            or col >= bbox.right
+        ):
+            self.viewModel.clearRois()
+
+    @Slot()
+    def _updateBoxSelection(self):
+        """Syncs the BoxSelectionGraphicsItem from ViewModel ROI state."""
+        rois = self.viewModel.rois
+        if rois:
+            bbox = rois[-1].geometry()
+            self._boxSelectionItem.setRect(
+                bbox.top, bbox.left, bbox.bottom, bbox.right
+            )
+        else:
+            self._boxSelectionItem.clear()
 
     def onColormapChanged(self, text):
         self.viewModel.setColormap(text)
+
+    def onRangeChanged(self, vmin, vmax):
+        self.viewModel.setVisualizationRange(vmin, vmax)
