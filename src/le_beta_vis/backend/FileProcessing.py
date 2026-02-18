@@ -36,7 +36,7 @@ class ProcessFile():
                 host="localhost",
                 user=os.environ.get("DB_USER"),
                 password=os.environ.get("DB_PASS"),
-                database="lbnlfits"
+                database=os.environ.get("DB_NAME")
             )
             cursor = conn.cursor()
             date = self.capture[0].captureDate()
@@ -183,7 +183,7 @@ class Cluster():
                 host="localhost",
                 user=os.environ.get("DB_USER"),
                 password=os.environ.get("DB_PASS"),
-                database="lbnlfits"
+                database=os.environ.get("DB_NAME")
             )
             cursor = conn.cursor()
             proc_args = (self.fits_id, self.data, self.total_energy, 
@@ -216,7 +216,7 @@ class Cluster():
                 host="localhost",
                 user=os.environ.get("DB_USER"),
                 password=os.environ.get("DB_PASS"),
-                database="lbnlfits"
+                database=os.environ.get("DB_NAME")
             )
             cursor = conn.cursor()
             proc_args = (self.cnn_classification, self.nrg_classification, self.bdt_classification, 

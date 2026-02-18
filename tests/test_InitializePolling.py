@@ -1,5 +1,6 @@
 import pytest
 import queue
+from pathlib import Path
 from unittest.mock import MagicMock, patch, ANY
 
 from le_beta_vis.backend.InitializePolling import PollingThread
@@ -45,6 +46,6 @@ def test_polling_thread_begins(mock_config):
     with patch('le_beta_vis.backend.InitializePolling.FileWatcher') as MockWatcher, patch('threading.Thread') as MockThread:
         polling = PollingThread(mock_config)
         polling.begin()
-        MockWatcher.assert_called_once_with(polling.handler, "/tmp")
+        MockWatcher.assert_called_once_with(polling.handler, Path("/tmp"))
         MockThread.assert_called_once()
         assert MockThread.return_value.start.called
