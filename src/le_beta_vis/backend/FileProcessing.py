@@ -22,7 +22,6 @@ class ProcessFile():
         self.db = config_service.get(key = "global:db:connection_string")
         self.capture = CCDCaptureModel.load(file)
         self.clusters = []
-        self.cluster_fits()
         self.fits_id = None
 
     def store_fits(self):

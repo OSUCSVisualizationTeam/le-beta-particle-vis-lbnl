@@ -10,7 +10,6 @@ from le_beta_vis.backend.FileProcessing import ProcessFile
 from le_beta_vis.backend.FileProcessing import Cluster
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
 
-
 def test_fits_save():
     """
     Tests the insert_fits procedure call from the store_fits FileProcessing function
@@ -27,24 +26,28 @@ def test_fits_save():
         result.fetchone.return_value = (100,)
         mock_cursor.stored_results.return_value = [result]
 
-        fits_processor = ProcessFile(MockConfigurationService(), "/tmp")
-        # Initialize capture values with mocked ones and preset values
-        fits_processor.capture = [MagicMock() for x in range(4)]
-        for capture in fits_processor.capture:
-            capture.info.min = 1
-            capture.info.max = 9999
-            capture.captureDate.return_value = "2026-01-01"
-            capture.exposureDuration.return_value = 10.0
+        # Mocked CCDCaptureModel data
+        with patch("le_beta_vis.common.CCDCaptureModel.CCDCaptureModel.load") as ccd_capture:
+            ccd_capture.return_value = None
 
-        # Call procedure function
-        fits_processor.store_fits()
+            fits_processor = ProcessFile(MockConfigurationService(), "testing.fits")
+            # Initialize capture values with mocked ones and preset values
+            fits_processor.capture = [MagicMock() for x in range(4)]
+            for capture in fits_processor.capture:
+                capture.info.min = 1
+                capture.info.max = 9999
+                capture.captureDate.return_value = "2026-01-01"
+                capture.exposureDuration.return_value = 10.0
 
-        # Assert fits_id matches and each function was called once from cursor and connection
-        assert fits_processor.fits_id == 100
-        mock_cursor.callproc.assert_called_once()
-        mock_connection.commit.assert_called_once()
-        mock_cursor.close.assert_called_once()
-        mock_connection.close.assert_called_once() 
+            # Call procedure function
+            fits_processor.store_fits()
+
+            # Assert fits_id matches and each function was called once from cursor and connection
+            assert fits_processor.fits_id == 100
+            mock_cursor.callproc.assert_called_once()
+            mock_connection.commit.assert_called_once()
+            mock_cursor.close.assert_called_once()
+            mock_connection.close.assert_called_once() 
 
 def test_cluster_save():
     """
@@ -92,9 +95,12 @@ def test_connection_failed():
     """
     with patch("mysql.connector.connect") as mock_sql:
         # Set side effect to failure and call commands, checking assertions
-        mock_sql.side_effect = mysql.connector.Error("FAILED")
-        file_processor = ProcessFile(MockConfigurationService(), "/tmp")
-        file_processor.store_fits()
         
-        mock_sql.assert_called_once()
-        mock_sql.return_value.commit.call_count == 0
+        mock_sql.side_effect = mysql.connector.Error("FAILED")
+        with patch("le_beta_vis.common.CCDCaptureModel.CCDCaptureModel.load") as ccd_capture:
+            ccd_capture.return_value = None
+            file_processor = ProcessFile(MockConfigurationService(), "/tmp")
+            file_processor.store_fits()
+            
+            mock_sql.assert_called_once()
+            mock_sql.return_value.commit.call_count == 0
