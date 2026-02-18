@@ -1,12 +1,11 @@
 import numpy as np
-from PySide6 import QtGui
 from typing import Tuple, Any
 from .interface import Fits2QPixmapConverter, ScalingFunction, Colormap
 
 
 class NoOpConverter(Fits2QPixmapConverter):
     """
-    Placeholder converter that returns an empty QPixmap.
+    Placeholder converter that returns an empty buffer.
     """
 
     def convert(
@@ -15,8 +14,8 @@ class NoOpConverter(Fits2QPixmapConverter):
         colormap: Colormap,
         vrange: Tuple[float, float],
         scaling: ScalingFunction = ScalingFunction.LINEAR,
-    ) -> QtGui.QPixmap:
-        return QtGui.QPixmap()
+    ) -> np.ndarray:
+        return np.array([], dtype=np.uint8)
 
     def _clip(self, matrix: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
         return matrix
@@ -29,8 +28,8 @@ class NoOpConverter(Fits2QPixmapConverter):
     def _normalize(self, matrix: np.ndarray, max_val: float) -> np.ndarray:
         return matrix
 
-    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> Any:
+    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> np.ndarray:
         return matrix
 
-    def _to_qpixmap(self, image_data: Any, width: int, height: int) -> QtGui.QPixmap:
-        return QtGui.QPixmap()
+    def _to_buffer(self, image_data: Any) -> np.ndarray:
+        return np.array([], dtype=np.uint8)

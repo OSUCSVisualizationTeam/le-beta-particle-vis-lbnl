@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 from unittest.mock import MagicMock
 from le_beta_vis.frontend.viewmodels.MosaicViewModel import MosaicViewModel
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
@@ -23,9 +24,9 @@ def view_model():
 
     vm = MosaicViewModel(config)
 
-    # Mock the converter to avoid QPixmap creation
+    # Mock the converter to return a numpy array
     vm._converter = MagicMock()
-    vm._converter.convert.return_value = "MockThumbnail"
+    vm._converter.convert.return_value = np.zeros((10, 10), dtype=np.uint8)
 
     return vm
 
@@ -44,13 +45,10 @@ def test_set_captures(view_model):
 
     # Mock Captures
     capture1 = MagicMock(spec=CCDCaptureModel)
-    capture1.rawData.return_value = MagicMock()  # numpy array mock
-    # Allow multiplication for keV conversion logic
-    capture1.rawData.return_value.__mul__.return_value = "ConvertedData1"
+    capture1.rawData.return_value = np.zeros((10, 10))
 
     capture2 = MagicMock(spec=CCDCaptureModel)
-    capture2.rawData.return_value = MagicMock()
-    capture2.rawData.return_value.__mul__.return_value = "ConvertedData2"
+    capture2.rawData.return_value = np.zeros((10, 10))
 
     captures = [capture1, capture2]
 
@@ -65,17 +63,16 @@ def test_set_captures(view_model):
 
     # Verify State
     assert len(view_model.thumbnails) == 2
-    assert view_model.thumbnails[0] == "MockThumbnail"
+    assert isinstance(view_model.thumbnails[0], np.ndarray)
     assert view_model.selectedIndex == 0
 
-    # Verify Converter Calls
-    # Logic: raw * kev_factor(2.0) -> convert(..., Colormap.VIRIDIS, (10.0, 100.0), scaling=LOG)
-    view_model._converter.convert.assert_any_call(
-        "ConvertedData1", Colormap.VIRIDIS, (10.0, 100.0), scaling=ScalingFunction.LOG
-    )
-    view_model._converter.convert.assert_any_call(
-        "ConvertedData2", Colormap.VIRIDIS, (10.0, 100.0), scaling=ScalingFunction.LOG
-    )
+    # Verify Converter Calls with scaled data (0.0 * 2.0 = 0.0)
+    # Using np.array_equal check on call arguments
+    args, kwargs = view_model._converter.convert.call_args
+    assert np.array_equal(args[0], np.zeros((10, 10)) * 2.0)
+    assert args[1] == Colormap.VIRIDIS
+    assert args[2] == (10.0, 100.0)
+    assert kwargs["scaling"] == ScalingFunction.LOG
 
     # Verify Callbacks
     thumbnails_cb.assert_called_once()

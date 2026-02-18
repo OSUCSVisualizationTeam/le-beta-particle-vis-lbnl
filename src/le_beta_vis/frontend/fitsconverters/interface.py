@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from PySide6 import QtGui
 from typing import Tuple, Any
 from enum import Enum
+from .colormaps import Colormap
 
 
 class ScalingFunction(str, Enum):
@@ -13,23 +13,11 @@ class ScalingFunction(str, Enum):
     SQRT = "sqrt"
 
 
-class Colormap(str, Enum):
-    """Available colormaps for false-color visualization."""
-
-    VIRIDIS = "viridis"
-    PLASMA = "plasma"
-    INFERNO = "inferno"
-    MAGMA = "magma"
-    JET = "jet"
-    BONE = "bone"
-    HOT = "hot"
-    COOL = "cool"
-
-
 class Fits2QPixmapConverter(ABC):
     """
-    Interface for converting raw FITS data (keV matrices) into Qt Pixmaps for display.
-    Enforces a consistent pipeline structure: Clip -> Scale -> Normalize -> Colorize -> Pixmap.
+    Interface for converting raw FITS data (keV matrices) into renderable buffers.
+    Enforces a consistent pipeline structure: Clip -> Scale -> Normalize -> Colorize -> Buffer.
+    The output is a NumPy array (uint8) suitable for QImage creation.
     """
 
     @abstractmethod
@@ -39,9 +27,9 @@ class Fits2QPixmapConverter(ABC):
         colormap: Colormap,
         vrange: Tuple[float, float],
         scaling: ScalingFunction = ScalingFunction.LINEAR,
-    ) -> QtGui.QPixmap:
+    ) -> np.ndarray:
         """
-        Orchestrates the conversion pipeline.
+        Orchestrates the conversion pipeline. Returns a NumPy RGB or Grayscale buffer.
         """
         raise NotImplementedError
 
@@ -63,14 +51,11 @@ class Fits2QPixmapConverter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> Any:
-        """
-        Step 4: Apply false color map (or keep grayscale). Returns image data compatible with
-        QImage.
-        """
+    def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> np.ndarray:
+        """Step 4: Apply false color map (or keep grayscale). Returns RGB or Grayscale buffer."""
         raise NotImplementedError
 
     @abstractmethod
-    def _to_qpixmap(self, image_data: Any, width: int, height: int) -> QtGui.QPixmap:
-        """Step 5: Convert processed image data into a Qt QPixmap."""
+    def _to_buffer(self, image_data: Any) -> np.ndarray:
+        """Step 5: Finalize the data as a contiguous NumPy uint8 array."""
         raise NotImplementedError
