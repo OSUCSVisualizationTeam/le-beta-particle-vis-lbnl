@@ -27,7 +27,7 @@ def test_fits_save():
         mock_cursor.stored_results.return_value = [result]
 
         # Mocked CCDCaptureModel data
-        with patch("le_beta_vis.common.CCDCaptureModel.CCDCaptureModel.load") as ccd_capture:
+        with patch("le_beta_vis.backend.FileProcessing.CCDCaptureModel.load") as ccd_capture:
             ccd_capture.return_value = None
 
             fits_processor = ProcessFile(MockConfigurationService(), "testing.fits")
@@ -97,7 +97,7 @@ def test_connection_failed():
         # Set side effect to failure and call commands, checking assertions
         
         mock_sql.side_effect = mysql.connector.Error("FAILED")
-        with patch("le_beta_vis.common.CCDCaptureModel.CCDCaptureModel.load") as ccd_capture:
+        with patch("le_beta_vis.backend.FileProcessing.CCDCaptureModel.load") as ccd_capture:
             ccd_capture.return_value = None
             file_processor = ProcessFile(MockConfigurationService(), "/tmp")
             file_processor.store_fits()
