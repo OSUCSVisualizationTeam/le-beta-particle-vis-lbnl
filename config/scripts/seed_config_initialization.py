@@ -1,11 +1,12 @@
 import yaml
 from pathlib import Path
+from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.RedisBackedConfigurationService import RedisBackedConfigurationService
 
 _DEFAULTS_PATH = Path(__file__).parent.parent.parent / "src" / "le_beta_vis" / "config" / "defaults.yaml"
 
 
-def seed_defaults(service: RedisBackedConfigurationService | None = None, force: bool = False) -> None:
+def seed_defaults(service: ConfigurationService | None = None, force: bool = False):
     """
     Seed Redis with the authoritative default configuration values.
 
