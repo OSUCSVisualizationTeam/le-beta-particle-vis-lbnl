@@ -23,8 +23,11 @@ class PollingThread():
         # Temporary polling location, will be taken from config_service.get("pipeline:ingress:polling_location")
         # Modify this path for testing
         self.config_service = config_service
-        self.polling_location = config_service.get("pipeline:ingress:polling_location")
+        self.polling_location = Path(config_service.get("pipeline:ingress:polling_location"))
 
+        # Early exit in polling operations if the path doesn't exist, can add logging here later
+        if not os.path.exists(self.polling_location):
+            return
         #Ensure temp and processed dirs are created and set
         # os.makedirs(os.path.join(self.polling_location, "/_temp"), exist_ok=True)
         # os.makedirs(os.path.join(self.polling_location, "/Processed"), exist_ok=True)
@@ -85,5 +88,11 @@ def file_uploaded(queue: queue.Queue, config: ConfigurationService):
         ProcessFile(config_service=config, file=path)
 
 if __name__ == "__main__":
-    polling = PollingThread(ConfigurationService())
+    from le_beta_vis.common.ConfigurationService import MockConfigurationService
+    polling = PollingThread(MockConfigurationService())
     polling.begin()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        polling.end()

@@ -8,7 +8,8 @@ DROP TABLE IF EXISTS `fits_files` ;
 CREATE TABLE IF NOT EXISTS `fits_files`(
   `fitsID` INT NOT NULL,
   `date` DATETIME NOT NULL,
-  `data` BLOB NOT NULL,
+  `min` FLOAT NOT NULL,
+  `max` FLOAT NOT NULL,
   `exposureTime` FLOAT NOT NULL,
   PRIMARY KEY (`fitsID`)
 );
@@ -38,7 +39,8 @@ DELIMITER //
 
 CREATE PROCEDURE insert_fits(
     IN date DATETIME,
-    IN data BLOB,
+    IN min FLOAT,
+    IN max FLOAT,
     IN exposureTime FLOAT,
     OUT fitsID INT
 )
@@ -49,8 +51,8 @@ BEGIN
         SET fitsID = -99;
     END;
     START TRANSACTION;
-    INSERT INTO fits_files(date, data, exposureTime)
-    VALUES (date, data, exposureTime);
+    INSERT INTO fits_files(date, min, max, exposureTime)
+    VALUES (date, min, max, exposureTime);
 
     SET fitsID = LAST_INSERT_ID();
 
@@ -92,6 +94,27 @@ BEGIN
 END //
 
 DELIMITER ;
+
+DROP PROCEDURE IF EXISTS insert_classifications;
+DELIMITER //
+
+CREATE PROCEDURE insert_classifications(
+    IN classificationCNN FLOAT,
+    IN classificationNRG FLOAT,
+    IN classificationBDT FLOAT,
+    IN in_clusterID INT
+)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+    END;
+    START TRANSACTION;
+    UPDATE clusters
+    SET classificationCNN = classificationCNN, classificationNRG = classificationNRG, classificationBDT = classificationBDT
+    WHERE clusterID = in_clusterID;
+    COMMIT;
+END //
 
 DROP VIEW IF EXISTS v_tritium_candidates;
 

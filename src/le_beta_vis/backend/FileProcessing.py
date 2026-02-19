@@ -7,6 +7,10 @@ from scipy.ndimage import label, maximum_position
 import numpy as np
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+import requests
+
+load_dotenv()
 
 class ProcessFile():
     """
@@ -18,29 +22,43 @@ class ProcessFile():
         self.db = config_service.get(key = "global:db:connection_string")
         self.capture = CCDCaptureModel.load(file)
         self.clusters = []
-        self.cluster_fits()
+        self.fits_id = None
 
     def store_fits(self):
         """
         Stores ingested fits file into the fits_file table in the database.
         """
         # This will most likely need to be reworked with the configuration service to pull accurate values
+        # Pending decision on storing db logins
         try:
             conn = mysql.connector.connect(
                 host="localhost",
-                user="root",
-                password="root",
-                database="lbnlfits"
+                user=os.environ.get("DB_USER"),
+                password=os.environ.get("DB_PASS"),
+                database=os.environ.get("DB_NAME")
             )
             cursor = conn.cursor()
-            date = self.capture[0].__info.__captureDate
-            data = None
-            exposure_time = self.capture[0].__info.__captureEnd - self.capture[0].__info.__captureStart
+            date = self.capture[0].captureDate()
+            minimum = min(self.capture[0].info.min, self.capture[1].info.min, self.capture[2].info.min, self.capture[3].info.min)
+            maximum = max(self.capture[0].info.max, self.capture[1].info.max, self.capture[2].info.max, self.capture[3].info.max) 
+            exposure_time = self.capture[0].exposureDuration()
+            proc_args = (date, minimum, maximum, exposure_time, (0, 'INT'))
+            cursor.callproc("insert_fits", proc_args)
+
+            for result in cursor.stored_results():
+                id = result.fetchone()[0]
+                if id > 0:
+                    self.fits_id = id
+                else:
+                    raise FailedProcException
+            
+            # Commit results and close connection
+            conn.commit()
+            cursor.close()
+            conn.close()
 
         except mysql.connector.Error as err:
             print(f"Could not connect: {err}")
-
-        raise NotImplementedError
 
     def cluster_fits(self):
         """
@@ -93,7 +111,9 @@ class ProcessFile():
                 cluster_sigma_y = sigma_y
                 cluster_energy = np.sum(pixels_around_cluster_wo_noise)
                 cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
-                self.clusters.append(Cluster(cluster_sigma_x, cluster_sigma_y, cluster_energy, cluster_pixels))
+                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, cluster_sigma_x, 
+                                             cluster_sigma_y, cluster_energy, cluster_pixels, 
+                                             self.fits_id))
 
     def calc_sigmas(self, dtrack):
         """
@@ -112,26 +132,109 @@ class Cluster():
     Cluster class with methods for classification and storage
     """
     def __init__(self,
+                 data: np.ndarray,
                  sigmaX: float,
                  sigmaY: float,
                  energy: float,
-                 pixels: int
+                 pixels: int,
+                 fits_id: int
                  ):
+        self.data = data
         self.sigmaX = sigmaX
         self.sigmaY = sigmaY
         self.total_energy = energy
         self.total_pixels = pixels
+        self.fits_id = fits_id
+        self.cluster_id = None
+        self.cnn_classification = 0
+        self.nrg_classificaiton = 0
+        self.bdt_classificaiton = 0
         # debug
-        print(f"Sigma x: {self.sigmaX}\nSigma Y: {self.sigmaY}\nEnergy: {self.total_energy}\n Pixels: {self.total_pixels}")
+        # print(f"Sigma x: {self.sigmaX}\nSigma Y: {self.sigmaY}\nEnergy: {self.total_energy}\n Pixels: {self.total_pixels}")
 
-    def classify_clusters(self):
+    def classify_cluster(self):
         """
         Run clusters through classification models to save in database.
         """
-        raise NotImplementedError
+        classification_request = {
+            "id": self.cluster_id,
+            "data": self.data
+        }
+        try:    # sample endpoint for localhost, will most likely be changed from config
+            response = requests.post("localhost:8081/classifyall", json=classification_request)
+            # Placeholders for all classifications that the /classifyall end point would return
+            classifications = response.json()
+            self.cnn_classification = classifications["CNN"]
+            self.nrg_classification = classifications["NRG"]
+            self.bdt_classification = classifications["BDT"]
+
+        except requests.exceptions.RequestException as e:
+            print(f"Could not request classifications: {e}")
 
     def store_clusters(self):
         """
         Stores ingested clusters into the clusters table in the database.
         """
-        raise NotImplementedError
+        # This will most likely need to be reworked with the configuration service to pull accurate values
+        # Pending decision on storing db logins and 
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user=os.environ.get("DB_USER"),
+                password=os.environ.get("DB_PASS"),
+                database=os.environ.get("DB_NAME")
+            )
+            cursor = conn.cursor()
+            proc_args = (self.fits_id, self.data, self.total_energy, 
+                         self.sigmaX, self.sigmaY, 
+                         0., 0., 0., # Placeholder zeroes for ML classifications
+                         self.total_pixels ,(0, 'INT'))
+            cursor.callproc("insert_cluster", proc_args)
+
+            for result in cursor.stored_results():
+                id = result.fetchone()[0]
+                if id > 0:
+                    self.cluster_id = id
+                else:
+                    raise FailedProcException
+            
+            # Commit results and close connection
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+        except mysql.connector.Error as err:
+            print(f"Could not connect: {err}")
+
+    def store_classifications(self):
+        """
+        Stores classifications of cluster into the database with the cluster ID. 
+        """
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user=os.environ.get("DB_USER"),
+                password=os.environ.get("DB_PASS"),
+                database=os.environ.get("DB_NAME")
+            )
+            cursor = conn.cursor()
+            proc_args = (self.cnn_classification, self.nrg_classification, self.bdt_classification, 
+                         self.cluster_id)
+            cursor.callproc("insert_classification", proc_args)
+            
+            # Commit results and close connection, DB will catch if it fails in the procedure and rollback changes
+            # Can expand on reporting with FailedProcException
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+        except mysql.connector.Error as err:
+            print(f"Could not connect: {err}")
+
+class FailedProcException(Exception):
+    """
+    Subclassed exception to handle failed procedure calls in the database
+    """
+    def __init__(self, message="There was an issue running the stored procedure."):
+        super().__init__(message)
+        self.message = message
