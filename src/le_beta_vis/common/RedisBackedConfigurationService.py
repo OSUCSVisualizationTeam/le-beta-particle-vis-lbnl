@@ -20,20 +20,54 @@ class RedisBackedConfigurationService(ConfigurationService):
     """
 
     _TYPE_REGISTRY: Dict[str, type] = {
+        # Global / Infrastructure
+        "global:db:connection_string": str,
+        "global:db:username": str,
+        "global:db:password": str,
+
+        "global:redis:host": str,
         "global:redis:port": int,
+        "global:redis:channel_events": str,
+        
         "global:physics:kev_conversion": float,
-        "global:physics:ped_width": int,
+
+        # GUI - Raw Analysis
+        "gui:raw_analysis:default_colormap": str,
         "gui:raw_analysis:vis_range_min": float,
         "gui:raw_analysis:vis_range_max": float,
         "gui:raw_analysis:filter_gaussian_sigma": float,
         "gui:raw_analysis:clustering_threshold": float,
+        "gui:raw_analysis:zoom_step_factor": float,
+        "gui:raw_analysis:magnifier_display_size": int,
+        "gui:raw_analysis:magnifier_default_factor": float,
+        "gui:raw_analysis:magnifier_min_factor": float,
+        "gui:raw_analysis:magnifier_max_factor": float,
+        "gui:raw_analysis:magnifier_factor_step": float,
+        "gui:raw_analysis:magnifier_move_step": int,
+        "gui:raw_analysis:show_tool_hints": bool,
+        "gui:raw_analysis:box_select_color": str,
+        "gui:raw_analysis:box_select_border_width": int,
+
+        # GUI - Window
         "gui:window:default_width": int,
         "gui:window:default_height": int,
+
+        # GUI - Mosaic
         "gui:mosaic:height": int,
         "gui:mosaic:thumbnail_height": int,
+        "gui:mosaic:scaling_function": str,
+
+        # GUI - Historical
         "gui:historical:default_query_hours": int,
         "gui:historical:live_update_rate_ms": int,
+        "gui:historical:mode": str,
+
+        # GUI - Inspector
         "gui:inspector:histogram_bins": int,
+
+        # GUI - Export
+        "gui:export:default_path": str,
+        "gui:export:image_format": str,
     }
 
     def __init__(self):
