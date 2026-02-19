@@ -3,8 +3,7 @@ from pathlib import Path
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.RedisBackedConfigurationService import RedisBackedConfigurationService
 
-_DEFAULTS_PATH = Path(__file__).parent.parent.parent / "src" / "le_beta_vis" / "config" / "defaults.yaml"
-
+_DEFAULTS_PATH = Path(__file__).parent / "defaults.yaml"
 
 def seed_defaults(service: ConfigurationService | None = None, force: bool = False):
     """
@@ -42,4 +41,4 @@ def seed_defaults(service: ConfigurationService | None = None, force: bool = Fal
 
 
 if __name__ == "__main__":
-    seed_defaults()
+    seed_defaults(force=True)
