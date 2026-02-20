@@ -7,6 +7,10 @@ from typing import Callable, List, Optional, Tuple
 import numpy as np
 
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
+from le_beta_vis.common.ClusterExtractor import (
+    ClusteredEventInfo,
+    ClusterExtractor,
+)
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.RoiRect import RoiRect
 from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
@@ -18,6 +22,13 @@ class ActiveTool(str, Enum):
     POINTER = "pointer"
     MAGNIFIER = "magnifier"
     BOX_SELECT = "box_select"
+
+
+class ClusteringState(str, Enum):
+    """State of the cluster extraction lifecycle."""
+
+    IDLE = "idle"
+    RUNNING = "running"
 
 
 class RawDataViewModel:
@@ -66,6 +77,11 @@ class RawDataViewModel:
         # ROI State
         self._rois: List[RoiRect] = []
 
+        # Clustering State
+        self._clusterExtractor: Optional[ClusterExtractor] = None
+        self._clusteringState: ClusteringState = ClusteringState.IDLE
+        self._clusteringResults: List[ClusteredEventInfo] = []
+
         # Async Rendering State
         self._current_buffer: Optional[np.ndarray] = None
         self._render_queue = queue.Queue(maxsize=1)
@@ -84,6 +100,8 @@ class RawDataViewModel:
         self._on_pointer_hover_changed_callbacks: List[Callable] = []
         self._on_roi_changed_callbacks: List[Callable] = []
         self._on_box_selection_completed_callbacks: List[Callable] = []
+        self._on_clustering_state_changed_callbacks: List[Callable] = []
+        self._on_clustering_completed_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -271,6 +289,13 @@ class RawDataViewModel:
             "gui:raw_analysis:box_select_border_width", 2
         )
 
+    @property
+    def clusteringThreshold(self) -> float:
+        """Returns the configured sigma threshold for clustering."""
+        return self._config.get(
+            "gui:raw_analysis:clustering_threshold", 4.0
+        )
+
     def addRoi(
         self, top: int, left: int, bottom: int, right: int
     ) -> RoiRect:
@@ -300,6 +325,79 @@ class RawDataViewModel:
         if 0 <= index < len(self._rois):
             self._rois.pop(index)
             self._notify_roi_changed()
+
+    # --- Cluster Extraction ---
+
+    def setClusterExtractor(
+        self, extractor: ClusterExtractor
+    ) -> None:
+        """Sets the cluster extractor implementation to use."""
+        self._clusterExtractor = extractor
+
+    @property
+    def isClusteringAvailable(self) -> bool:
+        """Returns True when extraction can be triggered.
+
+        Requires: extractor set, BOX_SELECT tool active, at least
+        one ROI, state IDLE, and raw data loaded.
+        """
+        return (
+            self._clusterExtractor is not None
+            and self._activeTool == ActiveTool.BOX_SELECT
+            and len(self._rois) > 0
+            and self._clusteringState == ClusteringState.IDLE
+            and self.activeRawData is not None
+        )
+
+    @property
+    def clusteringState(self) -> ClusteringState:
+        """Returns the current clustering lifecycle state."""
+        return self._clusteringState
+
+    @property
+    def clusteringResults(self) -> List[ClusteredEventInfo]:
+        """Returns the most recent extraction results."""
+        return list(self._clusteringResults)
+
+    def triggerClustering(self) -> None:
+        """Starts cluster extraction on the current ROI.
+
+        No-op when isClusteringAvailable is False.
+        """
+        if not self.isClusteringAvailable:
+            return
+
+        roi = self._rois[-1]
+        raw = self.activeRawData
+        data = roi.extract_raw_data(raw)
+        if data is None:
+            return
+
+        self._clusteringState = ClusteringState.RUNNING
+        self._notify_clustering_state_changed()
+
+        bbox = roi.geometry()
+        self._clusterExtractor.extract(
+            data, bbox, self._on_clustering_success
+        )
+
+    def cancelClustering(self) -> None:
+        """Cancels any in-progress cluster extraction."""
+        if self._clusterExtractor is not None:
+            self._clusterExtractor.cancel()
+        self._clusteringState = ClusteringState.IDLE
+        self._notify_clustering_state_changed()
+
+    def _on_clustering_success(
+        self, results: List[ClusteredEventInfo]
+    ) -> None:
+        """Callback from extractor thread on completion."""
+        if self._clusteringState != ClusteringState.RUNNING:
+            return
+        self._clusteringResults = results
+        self._clusteringState = ClusteringState.IDLE
+        self._notify_clustering_state_changed()
+        self._notify_clustering_completed()
 
     def _request_render(self):
         """Queues a render request."""
@@ -502,4 +600,22 @@ class RawDataViewModel:
 
     def _notify_box_selection_completed(self):
         for callback in self._on_box_selection_completed_callbacks:
+            callback()
+
+    def add_clustering_state_changed_callback(
+        self, callback: Callable
+    ):
+        self._on_clustering_state_changed_callbacks.append(callback)
+
+    def add_clustering_completed_callback(
+        self, callback: Callable
+    ):
+        self._on_clustering_completed_callbacks.append(callback)
+
+    def _notify_clustering_state_changed(self):
+        for callback in self._on_clustering_state_changed_callbacks:
+            callback()
+
+    def _notify_clustering_completed(self):
+        for callback in self._on_clustering_completed_callbacks:
             callback()

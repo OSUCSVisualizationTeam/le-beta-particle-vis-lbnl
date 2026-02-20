@@ -66,7 +66,7 @@ class CaptureGraphicsView(QGraphicsView):
     def setBoxSelectActive(self, active: bool) -> None:
         """
         Enables or disables box selection interaction mode.
-        Sets CrossCursor and resets any in-progress drag state.
+        Sets ArrowCursor and resets any in-progress drag state.
 
         Args:
             active: True to enable box selection drawing.
@@ -75,7 +75,7 @@ class CaptureGraphicsView(QGraphicsView):
         self._boxSelectStart = None
         self._boxSelectCurrent = None
         if active:
-            self.viewport().setCursor(Qt.CrossCursor)
+            self.viewport().setCursor(Qt.ArrowCursor)
         elif not self._pointerActive:
             self.viewport().unsetCursor()
 
@@ -84,6 +84,7 @@ class CaptureGraphicsView(QGraphicsView):
         if self._boxSelectActive and event.button() == Qt.LeftButton:
             self._boxSelectStart = self.mapToScene(event.pos())
             self._boxSelectCurrent = self._boxSelectStart
+            self.viewport().setCursor(Qt.SizeAllCursor)
             event.accept()
             return
         if self._pointerActive and event.button() == Qt.LeftButton:
@@ -135,6 +136,7 @@ class CaptureGraphicsView(QGraphicsView):
                 self._boxSelectStart = None
                 self._boxSelectCurrent = None
                 self.viewport().update()
+                self.viewport().setCursor(Qt.ArrowCursor)
                 if bottom > top and right > left:
                     self.boxSelectionCompleted.emit(
                         top, left, bottom, right

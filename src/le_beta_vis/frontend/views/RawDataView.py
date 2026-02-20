@@ -13,12 +13,14 @@ from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QComboBox,
+    QDoubleSpinBox,
     QFrame,
     QGraphicsPixmapItem,
     QGraphicsScene,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -26,10 +28,15 @@ from PySide6.QtWidgets import (
 )
 
 from ..fitsconverters import Colormap
-from ..viewmodels.RawDataViewModel import ActiveTool, RawDataViewModel
+from ..viewmodels.RawDataViewModel import (
+    ActiveTool,
+    ClusteringState,
+    RawDataViewModel,
+)
 from ..widgets.BoxSelectionGraphicsItem import BoxSelectionGraphicsItem
 from ..widgets.CaptureGraphicsView import CaptureGraphicsView
 from ..widgets.MagnifierGraphicsItem import MagnifierGraphicsItem
+from ..widgets.ClusteringProgressOverlay import ClusteringProgressOverlay
 from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .MosaicView import MosaicView
 
@@ -314,6 +321,11 @@ class RawDataView(QWidget):
         # Activate pointer mode by default
         self.graphicsView.setPointerActive(True)
 
+        # Clustering progress overlay (starts hidden)
+        self._clusteringOverlay = ClusteringProgressOverlay(
+            centerContainer
+        )
+
         self.bodyLayout.addWidget(centerContainer)
 
     def _setupRightSidebar(self):
@@ -353,8 +365,28 @@ class RawDataView(QWidget):
     def _addExtractionSection(self):
         group = QGroupBox(self.tr("Cluster Extraction"))
         layout = QVBoxLayout(group)
-        layout.addWidget(QLabel(self.tr("(Not implemented yet)")))
-        group.setFixedHeight(100)
+
+        # Sigma Threshold spinner
+        layout.addWidget(QLabel(self.tr("Sigma Threshold")))
+        self._thresholdSpinBox = QDoubleSpinBox()
+        self._thresholdSpinBox.setRange(0.1, 100.0)
+        self._thresholdSpinBox.setSingleStep(0.5)
+        self._thresholdSpinBox.setDecimals(1)
+        self._thresholdSpinBox.setValue(
+            self.viewModel.clusteringThreshold
+        )
+        layout.addWidget(self._thresholdSpinBox)
+
+        # Run Extraction button
+        self._btnRunExtraction = QPushButton(
+            self.tr("Run Extraction")
+        )
+        self._btnRunExtraction.setEnabled(False)
+        self._btnRunExtraction.clicked.connect(
+            self.viewModel.triggerClustering
+        )
+        layout.addWidget(self._btnRunExtraction)
+
         self.rightLayout.addWidget(group)
 
     def _addInspectorSection(self):
@@ -445,6 +477,33 @@ class RawDataView(QWidget):
             )
 
         self.viewModel.add_roi_changed_callback(on_roi_changed)
+
+        # Clustering callbacks
+        def on_clustering_state_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateClusteringState",
+                Qt.QueuedConnection,
+            )
+
+        self.viewModel.add_clustering_state_changed_callback(
+            on_clustering_state_changed
+        )
+        self.viewModel.add_active_tool_changed_callback(
+            lambda: QMetaObject.invokeMethod(
+                self, "_refreshExtractionButton",
+                Qt.QueuedConnection,
+            )
+        )
+        self.viewModel.add_roi_changed_callback(
+            lambda: QMetaObject.invokeMethod(
+                self, "_refreshExtractionButton",
+                Qt.QueuedConnection,
+            )
+        )
+
+        self._clusteringOverlay.cancelRequested.connect(
+            self.viewModel.cancelClustering
+        )
 
     def updateMosaicVisibility(self):
         count = len(self.viewModel.mosaicViewModel.thumbnails)
@@ -637,6 +696,30 @@ class RawDataView(QWidget):
             )
         else:
             self._boxSelectionItem.clear()
+
+    @Slot()
+    def _updateClusteringState(self):
+        """Shows/hides overlay and enables/disables UI for clustering."""
+        running = (
+            self.viewModel.clusteringState == ClusteringState.RUNNING
+        )
+        if running:
+            self._clusteringOverlay.showOverlay()
+        else:
+            self._clusteringOverlay.hideOverlay()
+        self._setInteractionEnabled(not running)
+
+    @Slot()
+    def _refreshExtractionButton(self):
+        """Enables Run Extraction when clustering is available."""
+        self._btnRunExtraction.setEnabled(
+            self.viewModel.isClusteringAvailable
+        )
+
+    def _setInteractionEnabled(self, enabled: bool) -> None:
+        """Enables or disables interactive controls."""
+        self.leftToolbar.setEnabled(enabled)
+        self.rightSidebar.setEnabled(enabled)
 
     def onColormapChanged(self, text):
         self.viewModel.setColormap(text)

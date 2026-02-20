@@ -170,7 +170,9 @@ class CCDCaptureViewModel(BaseCCDCaptureViewModel):
             energyMaximum (Optional[float], optional): The maximum energy value to consider for
                 cluster extraction. Pixels with values above this will be ignored. Defaults to None.
         """
-        self.__clusterExtractor.extract(callback, energyMinimum, energyMaximum)
+        self.__clusterExtractor.extract(
+            None, None, callback, energyMinimum, energyMaximum
+        )
 
     def setCurrentColormap(self, colormap_name: str):
         self.__currentColorMap = colormap_name
