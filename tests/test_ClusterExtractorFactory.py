@@ -2,7 +2,6 @@
 
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
 from le_beta_vis.common.ClusterExtractorFactory import (
-    ClusterExtractorMethod,
     create_cluster_extractor,
 )
 from le_beta_vis.common.LBNLClassicalClusterExtractor import (

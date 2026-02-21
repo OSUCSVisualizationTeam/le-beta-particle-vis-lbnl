@@ -10,7 +10,6 @@ import time
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 from scipy.ndimage import label
 
 from le_beta_vis.common.BoundingBox import BoundingBox

@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.RoiRect import RoiRect
