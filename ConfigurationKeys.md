@@ -9,11 +9,13 @@ This document serves as the authoritative registry for all configuration keys us
 | **global:redis** | `port` | Integer | `6379` | Port number of the Redis server. |
 | **global:redis** | `channel_events` | String | `events/new_class` | Redis channel name for broadcasting new classification events. |
 | **global:physics** | `kev_conversion` | Float | `1.02857e-5` | Constant factor to convert raw charge values (ADU) to energy (keV). Depends on sensor hardware. |
+| **global:physics** | `ped_width` | Integer | `1400` | Pedestal width (background noise level in ADU) used as the base for sigma-threshold clustering. |
 | **gui:raw_analysis** | `default_colormap` | String | `viridis` | Initial colormap applied when opening a new FITS file. Supported: `viridis`, `plasma`, `inferno`, `magma`, `jet`, `bone`, `hot`, `cool`. |
 | **gui:raw_analysis** | `vis_range_min` | Float | `0.0` | Lower bound (in keV) for visualization thresholding. Values below this are clipped. Shared by Main View and Mosaic View. |
 | **gui:raw_analysis** | `vis_range_max` | Float | `20.0` | Upper bound (in keV) for visualization thresholding. Values above this are clipped or normalized. Shared by Main View and Mosaic View. |
 | **gui:raw_analysis** | `filter_gaussian_sigma` | Float | `1.5` | Sigma (radius) value for the interactive Gaussian blur filter. |
 | **gui:raw_analysis** | `clustering_threshold` | Float | `4.0` | Signal-to-noise ratio (sigma multiplier) used for identifying event clusters. |
+| **gui:raw_analysis** | `cluster_extractor_method` | Enum (Str) | `lbnl_classical` | Backend algorithm for cluster extraction. Values: `mock`, `lbnl_classical`, `lbnl_optimized`, `optimal_classical`. |
 | **gui:raw_analysis** | `zoom_step_factor` | Float | `1.2` | Factor to multiply/divide scale by when zooming in or out. |
 | **gui:raw_analysis** | `magnifier_display_size` | Integer | `127` | Fixed side length (in pixels) of the square magnifier overlay. |
 | **gui:raw_analysis** | `magnifier_default_factor` | Float | `3.0` | Initial magnification factor when the magnifier tool is activated. |
@@ -24,6 +26,7 @@ This document serves as the authoritative registry for all configuration keys us
 | **gui:raw_analysis** | `show_tool_hints` | Boolean | `true` | Show inline usage hints on interactive tools (e.g., magnifier keyboard shortcuts). |
 | **gui:raw_analysis** | `box_select_color` | String | `#00BFFF` | CSS color for the box selection ROI rectangle border and fill. |
 | **gui:raw_analysis** | `box_select_border_width` | Integer | `2` | Border width (in pixels) for the box selection ROI rectangle. |
+| **gui:raw_analysis** | `clustering_timeout_seconds` | Integer | `300` | Maximum time (in seconds) before a running cluster extraction is aborted. A warning dialog is shown on timeout. |
 | **gui:window** | `default_width` | Integer | `1024` | Default initial width of the application window. |
 | **gui:window** | `default_height` | Integer | `700` | Default initial height of the application window. |
 | **gui:mosaic** | `height` | Integer | `130` | Fixed height (in pixels) of the Mosaic View container strip. |

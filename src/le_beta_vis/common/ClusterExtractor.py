@@ -19,6 +19,10 @@ class ClusteredEventInfo:
             the maximum energy in the cluster.
         centerY (int): The y-coordinate (row) of the pixel with
             the maximum energy in the cluster.
+        sigmaX (float): Gaussian spread along the x-axis.
+        sigmaY (float): Gaussian spread along the y-axis.
+        energy (float): Total energy of the cluster (ADU).
+        pixelCount (int): Number of pixels in the cluster.
     """
 
     def __init__(
@@ -27,11 +31,19 @@ class ClusteredEventInfo:
         data: np.ndarray,
         centerX: int,
         centerY: int,
+        sigmaX: float = 0.0,
+        sigmaY: float = 0.0,
+        energy: float = 0.0,
+        pixelCount: int = 0,
     ):
         self.boundingBox = boundingBox
         self.data = data
         self.centerX = centerX
         self.centerY = centerY
+        self.sigmaX = sigmaX
+        self.sigmaY = sigmaY
+        self.energy = energy
+        self.pixelCount = pixelCount
 
 
 class ClusterExtractor(ABC):

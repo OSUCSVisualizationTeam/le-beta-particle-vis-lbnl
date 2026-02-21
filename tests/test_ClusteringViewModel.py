@@ -171,3 +171,72 @@ def test_cancel_prevents_completed_callback(view_model):
     import time
     time.sleep(0.1)
     cb.assert_not_called()
+
+
+# --- Timeout ---
+
+
+def test_timeout_fires_error_callback(view_model):
+    """Error callback fires when extraction times out."""
+    # Use a slow extractor and a very short timeout
+    slow = MockClusterExtractor(delay_seconds=5.0)
+    _setup_for_clustering(view_model)
+    view_model.setClusterExtractor(slow)
+    view_model._config.set(
+        "gui:raw_analysis:clustering_timeout_seconds", 0.1
+    )
+
+    error_fired = threading.Event()
+    view_model.add_clustering_error_callback(lambda: error_fired.set())
+
+    view_model.triggerClustering()
+    assert error_fired.wait(timeout=2.0), "Error callback not fired"
+    assert view_model.clusteringState == ClusteringState.IDLE
+    assert view_model.clusteringError is not None
+    assert "timed out" in view_model.clusteringError.lower()
+
+
+def test_timeout_cancels_extractor(view_model):
+    """Timeout calls cancel() on the extractor."""
+    slow = MockClusterExtractor(delay_seconds=5.0)
+    _setup_for_clustering(view_model)
+    view_model.setClusterExtractor(slow)
+    view_model._config.set(
+        "gui:raw_analysis:clustering_timeout_seconds", 0.1
+    )
+
+    done = threading.Event()
+    view_model.add_clustering_error_callback(lambda: done.set())
+
+    view_model.triggerClustering()
+    done.wait(timeout=2.0)
+    # MockClusterExtractor sets _cancelled = True on cancel()
+    assert slow._cancelled is True
+
+
+def test_successful_completion_cancels_timer(view_model):
+    """Successful extraction cancels the timeout timer."""
+    _setup_for_clustering(view_model)
+    view_model._config.set(
+        "gui:raw_analysis:clustering_timeout_seconds", 60
+    )
+
+    done = threading.Event()
+    view_model.add_clustering_completed_callback(lambda: done.set())
+
+    view_model.triggerClustering()
+    assert done.wait(timeout=2.0), "Completion callback not fired"
+    assert view_model._clustering_timeout_timer is None
+    assert view_model.clusteringError is None
+
+
+def test_clustering_error_cleared_on_new_trigger(view_model):
+    """A new triggerClustering clears any previous error."""
+    _setup_for_clustering(view_model)
+    view_model._clusteringError = "previous error"
+
+    done = threading.Event()
+    view_model.add_clustering_completed_callback(lambda: done.set())
+    view_model.triggerClustering()
+    done.wait(timeout=2.0)
+    assert view_model.clusteringError is None

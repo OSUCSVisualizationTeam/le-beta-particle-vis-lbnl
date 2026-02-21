@@ -5,7 +5,7 @@ from .views.RawDataView import RawDataView
 from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
 from .viewmodels.HistoricalViewModel import HistoricalViewModel, HistoricalMode
-from le_beta_vis.common.MockClusterExtractor import MockClusterExtractor
+from le_beta_vis.common.ClusterExtractorFactory import create_cluster_extractor
 
 
 class MainWindow(QMainWindow):
@@ -34,7 +34,9 @@ class MainWindow(QMainWindow):
 
         # Initialize Child ViewModels with Configuration Service
         self.rawDataViewModel = RawDataViewModel(self.viewModel.configService)
-        self.rawDataViewModel.setClusterExtractor(MockClusterExtractor())
+        self.rawDataViewModel.setClusterExtractor(
+            create_cluster_extractor(self.viewModel.configService)
+        )
         self.historicalViewModel = HistoricalViewModel(self.viewModel.configService)
 
         # Initialize Child Views

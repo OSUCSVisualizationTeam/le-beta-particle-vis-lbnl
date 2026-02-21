@@ -1,3 +1,4 @@
+import logging
 import threading
 from typing import Callable, List, Optional
 
@@ -5,6 +6,8 @@ import numpy as np
 
 from .BoundingBox import BoundingBox
 from .ClusterExtractor import ClusteredEventInfo, ClusterExtractor
+
+logger = logging.getLogger(__name__)
 
 
 class MockClusterExtractor(ClusterExtractor):
@@ -51,18 +54,23 @@ class MockClusterExtractor(ClusterExtractor):
         callback: Callable[[List[ClusteredEventInfo]], None],
     ) -> None:
         """Timer callback — builds the result and fires the callback."""
-        if self._cancelled:
-            return
+        try:
+            if self._cancelled:
+                return
 
-        max_idx = int(np.argmax(data))
-        max_row, max_col = np.unravel_index(max_idx, data.shape)
-        center_y = bounding_box.top + int(max_row)
-        center_x = bounding_box.left + int(max_col)
+            max_idx = int(np.argmax(data))
+            max_row, max_col = np.unravel_index(max_idx, data.shape)
+            center_y = bounding_box.top + int(max_row)
+            center_x = bounding_box.left + int(max_col)
 
-        event = ClusteredEventInfo(
-            boundingBox=bounding_box,
-            data=data.copy(),
-            centerX=center_x,
-            centerY=center_y,
-        )
-        callback([event])
+            event = ClusteredEventInfo(
+                boundingBox=bounding_box,
+                data=data.copy(),
+                centerX=center_x,
+                centerY=center_y,
+            )
+            callback([event])
+        except Exception:
+            logger.exception("Mock cluster extraction failed")
+            if not self._cancelled:
+                callback([])

@@ -1,3 +1,4 @@
+import logging
 import queue
 import threading
 from enum import Enum
@@ -14,6 +15,8 @@ from le_beta_vis.common.ClusterExtractor import (
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.RoiRect import RoiRect
 from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
+
+logger = logging.getLogger(__name__)
 
 
 class ActiveTool(str, Enum):
@@ -81,6 +84,8 @@ class RawDataViewModel:
         self._clusterExtractor: Optional[ClusterExtractor] = None
         self._clusteringState: ClusteringState = ClusteringState.IDLE
         self._clusteringResults: List[ClusteredEventInfo] = []
+        self._clusteringError: Optional[str] = None
+        self._clustering_timeout_timer: Optional[threading.Timer] = None
 
         # Async Rendering State
         self._current_buffer: Optional[np.ndarray] = None
@@ -102,6 +107,7 @@ class RawDataViewModel:
         self._on_box_selection_completed_callbacks: List[Callable] = []
         self._on_clustering_state_changed_callbacks: List[Callable] = []
         self._on_clustering_completed_callbacks: List[Callable] = []
+        self._on_clustering_error_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -359,10 +365,24 @@ class RawDataViewModel:
         """Returns the most recent extraction results."""
         return list(self._clusteringResults)
 
+    @property
+    def clusteringTimeoutSeconds(self) -> int:
+        """Returns the configured clustering timeout in seconds."""
+        return self._config.get(
+            "gui:raw_analysis:clustering_timeout_seconds", 300
+        )
+
+    @property
+    def clusteringError(self) -> Optional[str]:
+        """Returns the most recent clustering error message, if any."""
+        return self._clusteringError
+
     def triggerClustering(self) -> None:
         """Starts cluster extraction on the current ROI.
 
         No-op when isClusteringAvailable is False.
+        Starts a timeout watchdog that aborts the extraction
+        if it does not complete within the configured limit.
         """
         if not self.isClusteringAvailable:
             return
@@ -373,8 +393,16 @@ class RawDataViewModel:
         if data is None:
             return
 
+        self._clusteringError = None
         self._clusteringState = ClusteringState.RUNNING
         self._notify_clustering_state_changed()
+
+        timeout = self.clusteringTimeoutSeconds
+        self._clustering_timeout_timer = threading.Timer(
+            timeout, self._on_clustering_timeout
+        )
+        self._clustering_timeout_timer.daemon = True
+        self._clustering_timeout_timer.start()
 
         bbox = roi.geometry()
         self._clusterExtractor.extract(
@@ -383,6 +411,7 @@ class RawDataViewModel:
 
     def cancelClustering(self) -> None:
         """Cancels any in-progress cluster extraction."""
+        self._cancel_timeout_timer()
         if self._clusterExtractor is not None:
             self._clusterExtractor.cancel()
         self._clusteringState = ClusteringState.IDLE
@@ -392,12 +421,34 @@ class RawDataViewModel:
         self, results: List[ClusteredEventInfo]
     ) -> None:
         """Callback from extractor thread on completion."""
+        self._cancel_timeout_timer()
         if self._clusteringState != ClusteringState.RUNNING:
             return
         self._clusteringResults = results
         self._clusteringState = ClusteringState.IDLE
         self._notify_clustering_state_changed()
         self._notify_clustering_completed()
+
+    def _on_clustering_timeout(self) -> None:
+        """Called by the watchdog timer when extraction takes too long."""
+        if self._clusteringState != ClusteringState.RUNNING:
+            return
+        logger.warning("Cluster extraction timed out")
+        if self._clusterExtractor is not None:
+            self._clusterExtractor.cancel()
+        self._clusteringError = (
+            "Cluster extraction timed out after "
+            f"{self.clusteringTimeoutSeconds} seconds."
+        )
+        self._clusteringState = ClusteringState.IDLE
+        self._notify_clustering_state_changed()
+        self._notify_clustering_error()
+
+    def _cancel_timeout_timer(self) -> None:
+        """Cancels the timeout watchdog if active."""
+        if self._clustering_timeout_timer is not None:
+            self._clustering_timeout_timer.cancel()
+            self._clustering_timeout_timer = None
 
     def _request_render(self):
         """Queues a render request."""
@@ -618,4 +669,13 @@ class RawDataViewModel:
 
     def _notify_clustering_completed(self):
         for callback in self._on_clustering_completed_callbacks:
+            callback()
+
+    def add_clustering_error_callback(
+        self, callback: Callable
+    ):
+        self._on_clustering_error_callbacks.append(callback)
+
+    def _notify_clustering_error(self):
+        for callback in self._on_clustering_error_callbacks:
             callback()
