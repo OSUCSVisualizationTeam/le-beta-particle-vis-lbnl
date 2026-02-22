@@ -491,6 +491,17 @@ class RawDataView(QWidget):
         self.viewModel.add_clustering_state_changed_callback(
             on_clustering_state_changed
         )
+
+        def on_clustering_progress():
+            QMetaObject.invokeMethod(
+                self, "_updateClusteringProgress",
+                Qt.AutoConnection,
+            )
+
+        self.viewModel.add_clustering_progress_callback(
+            on_clustering_progress
+        )
+
         self.viewModel.add_active_tool_changed_callback(
             lambda: QMetaObject.invokeMethod(
                 self, "_refreshExtractionButton",
@@ -722,6 +733,13 @@ class RawDataView(QWidget):
             self._clusteringOverlay.hideOverlay()
         self._setInteractionEnabled(not running)
         self._refreshExtractionButton()
+
+    @Slot()
+    def _updateClusteringProgress(self):
+        """Updates the overlay progress bar from ViewModel state."""
+        self._clusteringOverlay.setProgress(
+            self.viewModel.clusteringProgress
+        )
 
     @Slot()
     def _showClusteringError(self):

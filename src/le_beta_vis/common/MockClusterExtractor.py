@@ -29,6 +29,7 @@ class MockClusterExtractor(ClusterExtractor):
         callback: Callable[[List[ClusteredEventInfo]], None],
         energyMinimum: Optional[float] = None,
         energyMaximum: Optional[float] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         """Starts a simulated extraction after a short delay."""
         self._cancelled = False

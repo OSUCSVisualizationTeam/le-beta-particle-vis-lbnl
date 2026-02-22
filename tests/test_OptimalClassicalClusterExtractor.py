@@ -150,3 +150,42 @@ class TestOptimalClassicalClusterExtractor:
 
         time.sleep(0.2)
         assert called == []
+
+    def test_progress_callback_called(self):
+        """progress_callback receives values in [0.0, 1.0]."""
+        data = np.zeros((30, 30), dtype=np.float64)
+        # Two separate clusters
+        for i in range(5):
+            data[2, 2 + i] = 500
+        for i in range(5):
+            data[25, 25 + i] = 600
+        bbox = BoundingBox(0, 0, 30, 30)
+
+        progress_values = []
+        done = threading.Event()
+
+        def on_done(events):
+            done.set()
+
+        extractor = _make_extractor()
+        extractor.extract(
+            data, bbox, on_done,
+            progress_callback=lambda v: progress_values.append(v),
+        )
+        assert done.wait(timeout=5), "Extraction timed out"
+
+        assert len(progress_values) > 0
+        for v in progress_values:
+            assert 0.0 <= v <= 1.0
+        assert progress_values[-1] == 1.0
+
+    def test_progress_callback_none_is_accepted(self):
+        """extract() works with progress_callback=None (default)."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(
+            _make_extractor(), data, bbox, progress_callback=None,
+        )
+        assert len(results) == 1

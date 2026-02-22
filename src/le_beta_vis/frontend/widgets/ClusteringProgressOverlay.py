@@ -1,59 +1,15 @@
-from PySide6.QtCore import QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-
-class _ArcSpinner(QWidget):
-    """A spinning arc indicator drawn as a semi-closed circle."""
-
-    def __init__(self, parent: QWidget = None):
-        super().__init__(parent)
-        self._angle: int = 0
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._tick)
-        self.setFixedSize(48, 48)
-
-    def start(self) -> None:
-        """Starts the spinning animation."""
-        self._angle = 0
-        self._timer.start(33)
-
-    def stop(self) -> None:
-        """Stops the spinning animation."""
-        self._timer.stop()
-
-    def _tick(self) -> None:
-        self._angle = (self._angle + 10) % 360
-        self.update()
-
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        pen = QPen(QColor(0, 0, 0))
-        pen.setWidth(4)
-        pen.setCapStyle(Qt.RoundCap)
-        painter.setPen(pen)
-
-        margin = 6
-        rect = QRectF(
-            margin,
-            margin,
-            self.width() - 2 * margin,
-            self.height() - 2 * margin,
-        )
-
-        # Draw a 270-degree arc that rotates
-        start = self._angle * 16
-        span = 270 * 16
-        painter.drawArc(rect, start, span)
-        painter.end()
+from .ArcSpinner import ArcSpinner
 
 
 class ClusteringProgressOverlay(QWidget):
@@ -81,7 +37,8 @@ class ClusteringProgressOverlay(QWidget):
         self._card = QWidget(self)
         self._card.setFixedSize(200, 160)
         self._card.setStyleSheet(
-            "background-color: rgba(255, 255, 255, 64);" " border-radius: 12px;"
+            "background-color: rgba(255, 255, 255, 64);"
+            " border-radius: 12px;"
         )
 
         card_layout = QVBoxLayout(self._card)
@@ -97,9 +54,25 @@ class ClusteringProgressOverlay(QWidget):
         self._headerLabel.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(self._headerLabel, 0, Qt.AlignHCenter)
 
-        # Spinner
-        self._spinner = _ArcSpinner(self._card)
+        # Spinner (indeterminate mode)
+        self._spinner = ArcSpinner(self._card)
         card_layout.addWidget(self._spinner, 0, Qt.AlignHCenter)
+
+        # Progress bar (determinate mode, hidden by default)
+        self._progressBar = QProgressBar(self._card)
+        self._progressBar.setRange(0, 100)
+        self._progressBar.setValue(0)
+        self._progressBar.setFixedWidth(160)
+        self._progressBar.setFixedHeight(20)
+        self._progressBar.setStyleSheet(
+            "QProgressBar { background: rgba(0, 0, 0, 40);"
+            " border-radius: 4px; text-align: center;"
+            " color: #000000; }"
+            " QProgressBar::chunk { background: #3daee9;"
+            " border-radius: 4px; }"
+        )
+        self._progressBar.hide()
+        card_layout.addWidget(self._progressBar, 0, Qt.AlignHCenter)
 
         # Cancel button
         btn_row = QHBoxLayout()
@@ -120,9 +93,12 @@ class ClusteringProgressOverlay(QWidget):
     # --- Lifecycle ---
 
     def showOverlay(self) -> None:
-        """Shows the overlay and starts the spinner."""
+        """Shows the overlay in indeterminate (spinner) mode."""
         if self.parent():
             self.setGeometry(self.parent().rect())
+        self._progressBar.hide()
+        self._progressBar.setValue(0)
+        self._spinner.show()
         self._spinner.start()
         self.show()
         self.raise_()
@@ -131,6 +107,18 @@ class ClusteringProgressOverlay(QWidget):
         """Hides the overlay and stops the spinner."""
         self._spinner.stop()
         self.hide()
+
+    def setProgress(self, value: float) -> None:
+        """Switch to determinate mode and update the progress bar.
+
+        Args:
+            value: Progress fraction in [0.0, 1.0].
+        """
+        if self._spinner.isVisible():
+            self._spinner.stop()
+            self._spinner.hide()
+            self._progressBar.show()
+        self._progressBar.setValue(int(value * 100))
 
     def resizeEvent(self, event) -> None:
         if self.parent():

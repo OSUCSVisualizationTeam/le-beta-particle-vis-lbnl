@@ -85,6 +85,7 @@ class RawDataViewModel:
         self._clusteringState: ClusteringState = ClusteringState.IDLE
         self._clusteringResults: List[ClusteredEventInfo] = []
         self._clusteringError: Optional[str] = None
+        self._clusteringProgress: float = 0.0
         self._clustering_timeout_timer: Optional[threading.Timer] = None
 
         # Async Rendering State
@@ -108,6 +109,7 @@ class RawDataViewModel:
         self._on_clustering_state_changed_callbacks: List[Callable] = []
         self._on_clustering_completed_callbacks: List[Callable] = []
         self._on_clustering_error_callbacks: List[Callable] = []
+        self._on_clustering_progress_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -377,6 +379,11 @@ class RawDataViewModel:
         """Returns the most recent clustering error message, if any."""
         return self._clusteringError
 
+    @property
+    def clusteringProgress(self) -> float:
+        """Returns the current extraction progress in [0.0, 1.0]."""
+        return self._clusteringProgress
+
     def triggerClustering(self) -> None:
         """Starts cluster extraction on the current ROI.
 
@@ -394,6 +401,7 @@ class RawDataViewModel:
             return
 
         self._clusteringError = None
+        self._clusteringProgress = 0.0
         self._clusteringState = ClusteringState.RUNNING
         self._notify_clustering_state_changed()
 
@@ -406,7 +414,8 @@ class RawDataViewModel:
 
         bbox = roi.geometry()
         self._clusterExtractor.extract(
-            data, bbox, self._on_clustering_success
+            data, bbox, self._on_clustering_success,
+            progress_callback=self._on_clustering_progress,
         )
 
     def cancelClustering(self) -> None:
@@ -443,6 +452,11 @@ class RawDataViewModel:
         self._clusteringState = ClusteringState.IDLE
         self._notify_clustering_state_changed()
         self._notify_clustering_error()
+
+    def _on_clustering_progress(self, value: float) -> None:
+        """Called from the extractor thread with progress updates."""
+        self._clusteringProgress = value
+        self._notify_clustering_progress()
 
     def _cancel_timeout_timer(self) -> None:
         """Cancels the timeout watchdog if active."""
@@ -678,4 +692,14 @@ class RawDataViewModel:
 
     def _notify_clustering_error(self):
         for callback in self._on_clustering_error_callbacks:
+            callback()
+
+    def add_clustering_progress_callback(
+        self, callback: Callable
+    ):
+        """Register a callback for extraction progress updates."""
+        self._on_clustering_progress_callbacks.append(callback)
+
+    def _notify_clustering_progress(self) -> None:
+        for callback in self._on_clustering_progress_callbacks:
             callback()

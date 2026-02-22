@@ -118,6 +118,7 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
         callback: Callable[[List[ClusteredEventInfo]], None],
         energyMinimum: Optional[float] = None,
         energyMaximum: Optional[float] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         """Start asynchronous extraction on a daemon thread."""
         self._cancelled = False

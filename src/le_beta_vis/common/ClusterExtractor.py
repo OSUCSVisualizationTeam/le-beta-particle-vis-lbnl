@@ -55,6 +55,7 @@ class ClusterExtractor(ABC):
         callback: Callable[[List[ClusteredEventInfo]], None],
         energyMinimum: Optional[float] = None,
         energyMaximum: Optional[float] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         """
         Starts an asynchronous cluster extraction process.
@@ -70,6 +71,9 @@ class ClusterExtractor(ABC):
                 objects when extraction finishes.
             energyMinimum: Ignore pixels below this value.
             energyMaximum: Ignore pixels above this value.
+            progress_callback: Optional callback invoked from the
+                worker thread with a float in [0.0, 1.0] indicating
+                extraction progress. None means no progress reporting.
         """
         raise NotImplementedError
 

@@ -94,13 +94,14 @@ class OptimalClassicalClusterExtractor(ClusterExtractor):
         callback: Callable[[List[ClusteredEventInfo]], None],
         energyMinimum: Optional[float] = None,
         energyMaximum: Optional[float] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         """Start asynchronous extraction on a daemon thread."""
         self._cancelled = False
         self._thread = threading.Thread(
             target=self._run,
             args=(data.copy(), bounding_box, callback,
-                  energyMinimum, energyMaximum),
+                  energyMinimum, energyMaximum, progress_callback),
             daemon=True,
         )
         self._thread.start()
@@ -116,13 +117,15 @@ class OptimalClassicalClusterExtractor(ClusterExtractor):
         callback: Callable[[List[ClusteredEventInfo]], None],
         energy_min: Optional[float],
         energy_max: Optional[float],
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         """Worker executed on background thread."""
         if self._cancelled:
             return
         try:
             results = self._extract_all(
-                data, bounding_box, energy_min, energy_max
+                data, bounding_box, energy_min, energy_max,
+                progress_callback,
             )
             if not self._cancelled:
                 callback(results)
@@ -137,6 +140,7 @@ class OptimalClassicalClusterExtractor(ClusterExtractor):
         bounding_box: BoundingBox,
         energy_min: Optional[float],
         energy_max: Optional[float],
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> List[ClusteredEventInfo]:
         """Label, slice, and filter all clusters."""
         threshold = self._sigma * self._ped_width
@@ -146,12 +150,15 @@ class OptimalClassicalClusterExtractor(ClusterExtractor):
             return []
 
         slices_list = find_objects(labeled_array)
+        total = len(slices_list)
         results: List[ClusteredEventInfo] = []
 
         for label_idx, slices in enumerate(slices_list, start=1):
             if self._cancelled:
                 return []
             if slices is None:
+                if progress_callback is not None:
+                    progress_callback(label_idx / total)
                 continue
 
             event = _process_cluster(
@@ -160,5 +167,8 @@ class OptimalClassicalClusterExtractor(ClusterExtractor):
             )
             if event is not None:
                 results.append(event)
+
+            if progress_callback is not None:
+                progress_callback(label_idx / total)
 
         return results
