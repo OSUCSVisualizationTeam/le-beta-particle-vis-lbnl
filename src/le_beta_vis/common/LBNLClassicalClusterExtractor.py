@@ -88,15 +88,17 @@ def _build_event_info(
 
 
 class LBNLClassicalClusterExtractor(ClusterExtractor):
-    """Cluster extractor wrapping ``mlccd_diffusion.cluster_sigma``.
+    """Tritium-detection extractor wrapping ``mlccd_diffusion``.
 
-    Delegates sigma/energy computation to the canonical lab
-    implementation and performs its own ``scipy.ndimage.label``
-    call for spatial information (bounding box, peak coords,
-    pixel count).
+    This backend is specific to the LBNL tritium detection pipeline
+    and depends on ``mlccd_diffusion.cluster_sigma`` for sigma and
+    energy computation.  It returns only the single brightest
+    cluster (selected by max single pixel via argmax), matching
+    ``cluster_sigma``'s strategy, and populates ``sigmaX``,
+    ``sigmaY``, ``energy``, and ``pixelCount``.
 
-    The brightest cluster is selected by **max single pixel**
-    (argmax), matching ``cluster_sigma``'s strategy.
+    For general-purpose multi-cluster ROI analysis without the
+    ``mlccd_diffusion`` dependency, use ``GeneralClusterExtractor``.
     """
 
     def __init__(

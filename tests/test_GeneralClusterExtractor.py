@@ -1,4 +1,9 @@
-"""Tests for OptimalClassicalClusterExtractor.
+# Citation for Unit Tests: Tests for GeneralClusterExtractor covering filtering and progress reporting.
+# Date: 21/02/2026
+# Adapted from Claude Code:
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+
+"""Tests for GeneralClusterExtractor.
 
 Uses ped_width=100, sigma=4.0 so threshold = 400.
 kev_conversion=0.01 so energy of 500 ADU = 5 keV (above 1 keV minimum).
@@ -13,19 +18,19 @@ import numpy as np
 from scipy.ndimage import label
 
 from le_beta_vis.common.BoundingBox import BoundingBox
-from le_beta_vis.common.OptimalClassicalClusterExtractor import (
-    OptimalClassicalClusterExtractor,
+from le_beta_vis.common.GeneralClusterExtractor import (
+    GeneralClusterExtractor,
 )
 
-_oce_mod = sys.modules['le_beta_vis.common.OptimalClassicalClusterExtractor']
+_gce_mod = sys.modules['le_beta_vis.common.GeneralClusterExtractor']
 
 _SIGMA = 4.0
 _PED = 100
 _KEV = 0.01
 
 
-def _make_extractor() -> OptimalClassicalClusterExtractor:
-    return OptimalClassicalClusterExtractor(
+def _make_extractor() -> GeneralClusterExtractor:
+    return GeneralClusterExtractor(
         sigma_multiplier=_SIGMA, ped_width=_PED, kev_conversion=_KEV,
     )
 
@@ -44,7 +49,8 @@ def _run_extract(extractor, data, bbox, **kwargs):
     return result
 
 
-class TestOptimalClassicalClusterExtractor:
+class TestGeneralClusterExtractor:
+    """Tests for GeneralClusterExtractor."""
     def test_no_clusters_returns_empty_list(self):
         data = np.zeros((20, 20), dtype=np.float64)
         bbox = BoundingBox(0, 0, 20, 20)
@@ -143,7 +149,7 @@ class TestOptimalClassicalClusterExtractor:
             time.sleep(0.1)
             return original_label(*args, **kwargs)
 
-        with patch.object(_oce_mod, 'label', _synced_label):
+        with patch.object(_gce_mod, 'label', _synced_label):
             extractor.extract(data, bbox, lambda e: called.extend(e))
             worker_started.wait(timeout=2)
             extractor.cancel()

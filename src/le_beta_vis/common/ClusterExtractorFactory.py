@@ -3,10 +3,10 @@ from enum import Enum
 
 from .ClusterExtractor import ClusterExtractor
 from .ConfigurationService import ConfigurationService
+from .GeneralClusterExtractor import GeneralClusterExtractor
 from .LBNLClassicalClusterExtractor import LBNLClassicalClusterExtractor
 from .LBNLOptimizedClusterExtractor import LBNLOptimizedClusterExtractor
 from .MockClusterExtractor import MockClusterExtractor
-from .OptimalClassicalClusterExtractor import OptimalClassicalClusterExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +17,19 @@ class ClusterExtractorMethod(str, Enum):
     MOCK = "mock"
     LBNL_CLASSICAL = "lbnl_classical"
     LBNL_OPTIMIZED = "lbnl_optimized"
-    OPTIMAL_CLASSICAL = "optimal_classical"
+    GENERAL = "general"
 
 
 def create_cluster_extractor(
     config: ConfigurationService,
 ) -> ClusterExtractor:
     """Create a ClusterExtractor from application configuration.
+
+    The ``general`` backend is a domain-agnostic multi-cluster
+    extractor suitable for any ROI analysis.  The ``lbnl_classical``
+    and ``lbnl_optimized`` backends are tritium-detection specific
+    and depend on the lab's ``mlccd_diffusion`` classification
+    pipeline.
 
     Reads the following config keys:
     - ``gui:raw_analysis:cluster_extractor_method`` (str)
@@ -32,13 +38,18 @@ def create_cluster_extractor(
     - ``global:physics:kev_conversion`` (float)
     """
     method_str: str = config.get(
-        "gui:raw_analysis:cluster_extractor_method", "lbnl_classical"
+        "gui:raw_analysis:cluster_extractor_method",
+        "lbnl_classical",
     )
     sigma: float = config.get(
         "gui:raw_analysis:clustering_threshold", 4.0
     )
-    ped_width: int = config.get("global:physics:ped_width", 1400)
-    kev: float = config.get("global:physics:kev_conversion", 1.02857e-5)
+    ped_width: int = config.get(
+        "global:physics:ped_width", 1400
+    )
+    kev: float = config.get(
+        "global:physics:kev_conversion", 1.02857e-5
+    )
 
     try:
         method = ClusterExtractorMethod(method_str)
@@ -60,8 +71,8 @@ def create_cluster_extractor(
             kev_conversion=kev,
         )
 
-    if method == ClusterExtractorMethod.OPTIMAL_CLASSICAL:
-        return OptimalClassicalClusterExtractor(
+    if method == ClusterExtractorMethod.GENERAL:
+        return GeneralClusterExtractor(
             sigma_multiplier=sigma,
             ped_width=ped_width,
             kev_conversion=kev,

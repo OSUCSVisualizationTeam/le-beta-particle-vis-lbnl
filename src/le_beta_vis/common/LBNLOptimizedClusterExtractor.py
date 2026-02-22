@@ -86,12 +86,18 @@ def _build_event_info(
 
 
 class LBNLOptimizedClusterExtractor(ClusterExtractor):
-    """Cluster extractor that returns only the single brightest cluster.
+    """Tritium-detection extractor returning the brightest cluster.
 
-    Selects the brightest cluster by **total energy sum** across all
-    labels.  This is the original ported algorithm from
-    ``FileProcessing.py:cluster_fits``, fixing the off-by-one in label
-    iteration (label 0 is background).
+    This backend is specific to the LBNL tritium detection pipeline.
+    It is the original ported algorithm from
+    ``FileProcessing.py:cluster_fits``, selecting the brightest
+    cluster by total energy sum across all labels and fixing the
+    off-by-one in label iteration (label 0 is background).
+
+    Unlike ``LBNLClassicalClusterExtractor``, this backend does not
+    depend on ``mlccd_diffusion`` but is still designed for the
+    lab's tritium classification workflow.  For general-purpose
+    multi-cluster ROI analysis, use ``GeneralClusterExtractor``.
     """
 
     def __init__(

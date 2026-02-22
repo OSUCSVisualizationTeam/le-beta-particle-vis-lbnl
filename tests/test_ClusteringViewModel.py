@@ -256,12 +256,12 @@ def test_trigger_resets_progress(view_model):
 
 def test_progress_callback_fires(view_model):
     """Progress callback is registered and fires on extractor call."""
-    from le_beta_vis.common.OptimalClassicalClusterExtractor import (
-        OptimalClassicalClusterExtractor,
+    from le_beta_vis.common.GeneralClusterExtractor import (
+        GeneralClusterExtractor,
     )
 
-    # Use OptimalClassical since it actually reports progress
-    extractor = OptimalClassicalClusterExtractor(
+    # Use GeneralClusterExtractor since it actually reports progress
+    extractor = GeneralClusterExtractor(
         sigma_multiplier=4.0, ped_width=100, kev_conversion=0.01,
     )
     _setup_for_clustering(view_model)

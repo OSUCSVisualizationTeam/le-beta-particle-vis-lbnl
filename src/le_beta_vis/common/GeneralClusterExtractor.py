@@ -68,11 +68,15 @@ def _process_cluster(
     )
 
 
-class OptimalClassicalClusterExtractor(ClusterExtractor):
-    """Cluster extractor that returns all qualifying clusters.
+class GeneralClusterExtractor(ClusterExtractor):
+    """General-purpose multi-cluster extractor for ROI analysis.
 
-    Uses ``scipy.ndimage.find_objects`` for efficient per-cluster
-    slicing instead of scanning the full array for each label.
+    Returns all qualifying clusters from a region of interest using
+    ``scipy.ndimage.find_objects`` for efficient per-cluster slicing.
+    Unlike the LBNL backends (which are tritium-detection specific
+    and return only the single brightest cluster), this extractor
+    applies broad filters (min pixel count, min energy, optional
+    energy range) and returns every cluster that passes.
     """
 
     def __init__(

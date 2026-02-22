@@ -1,3 +1,8 @@
+# Citation for Unit Tests: Tests for LBNLClassicalClusterExtractor (cluster_sigma wrapper) with mocking.
+# Date: 21/02/2026
+# Adapted from Claude Code:
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+
 """Tests for LBNLClassicalClusterExtractor (cluster_sigma wrapper).
 
 Mocks ``mlccd_diffusion.help_functions.cluster_sigma`` so tests

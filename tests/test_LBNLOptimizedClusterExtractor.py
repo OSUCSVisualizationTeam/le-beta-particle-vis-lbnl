@@ -1,3 +1,8 @@
+# Citation for Unit Tests: Tests for LBNLOptimizedClusterExtractor verifying optimized labeling and brightest cluster selection.
+# Date: 21/02/2026
+# Adapted from Claude Code:
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+
 """Tests for LBNLOptimizedClusterExtractor.
 
 Uses ped_width=100, sigma=4.0 so threshold = 400.

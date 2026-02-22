@@ -1,8 +1,16 @@
+# Citation for Unit Tests: Tests for ClusterExtractorFactory ensuring correct implementation selection.
+# Date: 21/02/2026
+# Adapted from Claude Code:
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+
 """Tests for ClusterExtractorFactory."""
 
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
 from le_beta_vis.common.ClusterExtractorFactory import (
     create_cluster_extractor,
+)
+from le_beta_vis.common.GeneralClusterExtractor import (
+    GeneralClusterExtractor,
 )
 from le_beta_vis.common.LBNLClassicalClusterExtractor import (
     LBNLClassicalClusterExtractor,
@@ -11,9 +19,6 @@ from le_beta_vis.common.LBNLOptimizedClusterExtractor import (
     LBNLOptimizedClusterExtractor,
 )
 from le_beta_vis.common.MockClusterExtractor import MockClusterExtractor
-from le_beta_vis.common.OptimalClassicalClusterExtractor import (
-    OptimalClassicalClusterExtractor,
-)
 
 
 def _config_with_method(method: str) -> MockConfigurationService:
@@ -35,10 +40,10 @@ class TestClusterExtractorFactory:
         extractor = create_cluster_extractor(config)
         assert isinstance(extractor, MockClusterExtractor)
 
-    def test_optimal_method_returns_optimal(self):
-        config = _config_with_method("optimal_classical")
+    def test_general_method_returns_general(self):
+        config = _config_with_method("general")
         extractor = create_cluster_extractor(config)
-        assert isinstance(extractor, OptimalClassicalClusterExtractor)
+        assert isinstance(extractor, GeneralClusterExtractor)
 
     def test_optimized_method_returns_optimized(self):
         config = _config_with_method("lbnl_optimized")
@@ -49,3 +54,4 @@ class TestClusterExtractorFactory:
         config = _config_with_method("nonexistent_algorithm")
         extractor = create_cluster_extractor(config)
         assert isinstance(extractor, LBNLClassicalClusterExtractor)
+

@@ -1,3 +1,8 @@
+# Citation for Unit Tests: Tests for the Cluster data model including base fields and classification.
+# Date: 21/02/2026
+# Adapted from Claude Code:
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+
 """Tests for the Cluster data model."""
 
 import numpy as np

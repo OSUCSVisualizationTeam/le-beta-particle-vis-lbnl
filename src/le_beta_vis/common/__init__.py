@@ -11,5 +11,5 @@ from .Cluster import Cluster
 from .MockClusterExtractor import MockClusterExtractor
 from .LBNLClassicalClusterExtractor import LBNLClassicalClusterExtractor
 from .LBNLOptimizedClusterExtractor import LBNLOptimizedClusterExtractor
-from .OptimalClassicalClusterExtractor import OptimalClassicalClusterExtractor
+from .GeneralClusterExtractor import GeneralClusterExtractor
 from .ClusterExtractorFactory import ClusterExtractorMethod, create_cluster_extractor
