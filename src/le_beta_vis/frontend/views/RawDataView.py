@@ -398,7 +398,15 @@ class RawDataView(QWidget):
         self.rightLayout.addWidget(group)
 
     def bindViewModel(self):
-        # Image changed callback from background thread
+        """Bind all ViewModel callbacks and View signals."""
+        self._bindImageCallbacks()
+        self._bindToolCallbacks()
+        self._bindGraphicsViewSignals()
+        self._bindRoiCallbacks()
+        self._bindClusteringCallbacks()
+
+    def _bindImageCallbacks(self):
+        """Wire image rendering, scale, mosaic, and range control."""
         def on_image_changed():
             QMetaObject.invokeMethod(
                 self, "updateImage", Qt.QueuedConnection
@@ -409,6 +417,19 @@ class RawDataView(QWidget):
                 self, "updateZoom", Qt.QueuedConnection
             )
 
+        self.viewModel.add_image_changed_callback(on_image_changed)
+        self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
+            self.updateMosaicVisibility
+        )
+        self.viewModel.add_scale_changed_callback(on_scale_changed)
+        self.updateMosaicVisibility()
+
+        vmin, vmax = self.viewModel.visualizationRange
+        self.rangeControl.setValues(vmin, vmax)
+        self.rangeControl.setColormap(self.viewModel.colormap)
+
+    def _bindToolCallbacks(self):
+        """Wire active tool, magnifier, and pointer hover callbacks."""
         def on_active_tool_changed():
             QMetaObject.invokeMethod(
                 self, "_updateActiveTool", Qt.QueuedConnection
@@ -431,11 +452,6 @@ class RawDataView(QWidget):
                 Qt.QueuedConnection,
             )
 
-        self.viewModel.add_image_changed_callback(on_image_changed)
-        self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
-            self.updateMosaicVisibility
-        )
-        self.viewModel.add_scale_changed_callback(on_scale_changed)
         self.viewModel.add_active_tool_changed_callback(
             on_active_tool_changed
         )
@@ -448,13 +464,9 @@ class RawDataView(QWidget):
         self.viewModel.add_pointer_hover_changed_callback(
             on_pointer_hover_changed
         )
-        self.updateMosaicVisibility()
 
-        vmin, vmax = self.viewModel.visualizationRange
-        self.rangeControl.setValues(vmin, vmax)
-        self.rangeControl.setColormap(self.viewModel.colormap)
-
-        # CaptureGraphicsView signals
+    def _bindGraphicsViewSignals(self):
+        """Connect CaptureGraphicsView Qt signals to handlers."""
         self.graphicsView.pixelHovered.connect(self._onPixelHovered)
         self.graphicsView.pixelNudgeRequested.connect(
             self._onPixelNudged
@@ -472,6 +484,8 @@ class RawDataView(QWidget):
             self._onBoxSelectClicked
         )
 
+    def _bindRoiCallbacks(self):
+        """Wire ROI change and extraction button refresh callbacks."""
         def on_roi_changed():
             QMetaObject.invokeMethod(
                 self, "_updateBoxSelection", Qt.QueuedConnection
@@ -479,9 +493,26 @@ class RawDataView(QWidget):
 
         self.viewModel.add_roi_changed_callback(on_roi_changed)
 
-        # Clustering callbacks — AutoConnection so the overlay shows
-        # immediately when triggerClustering runs on the main thread,
-        # while still queuing safely from the extractor background thread.
+        self.viewModel.add_active_tool_changed_callback(
+            lambda: QMetaObject.invokeMethod(
+                self, "_refreshExtractionButton",
+                Qt.QueuedConnection,
+            )
+        )
+        self.viewModel.add_roi_changed_callback(
+            lambda: QMetaObject.invokeMethod(
+                self, "_refreshExtractionButton",
+                Qt.QueuedConnection,
+            )
+        )
+
+    def _bindClusteringCallbacks(self):
+        """Wire clustering state, progress, error, and cancel callbacks.
+
+        Uses Qt.AutoConnection so the overlay shows immediately when
+        triggerClustering runs on the main thread, while still queuing
+        safely from the extractor background thread.
+        """
         def on_clustering_state_changed():
             QMetaObject.invokeMethod(
                 self, "_updateClusteringState",
@@ -500,19 +531,6 @@ class RawDataView(QWidget):
 
         self.viewModel.add_clustering_progress_callback(
             on_clustering_progress
-        )
-
-        self.viewModel.add_active_tool_changed_callback(
-            lambda: QMetaObject.invokeMethod(
-                self, "_refreshExtractionButton",
-                Qt.QueuedConnection,
-            )
-        )
-        self.viewModel.add_roi_changed_callback(
-            lambda: QMetaObject.invokeMethod(
-                self, "_refreshExtractionButton",
-                Qt.QueuedConnection,
-            )
         )
 
         self._clusteringOverlay.cancelRequested.connect(
