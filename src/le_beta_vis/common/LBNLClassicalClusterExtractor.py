@@ -87,15 +87,34 @@ def _build_event_info(
     )
 
 
+def _pad_to_square(data: np.ndarray) -> np.ndarray:
+    """Pad a non-square array to square with zeros.
+
+    Workaround for ``cluster_sigma``'s meshgrid bug where coordinate
+    grids get shape ``(ypixels, xpixels)`` instead of
+    ``(xpixels, ypixels)``.  Zero-padding is safe — zeros are below
+    threshold and contribute no weight to sigma/energy calculations.
+    """
+    rows, cols = data.shape
+    if rows == cols:
+        return data
+    size = max(rows, cols)
+    padded = np.zeros((size, size), dtype=data.dtype)
+    padded[:rows, :cols] = data
+    return padded
+
+
 class LBNLClassicalClusterExtractor(ClusterExtractor):
     """Tritium-detection extractor wrapping ``mlccd_diffusion``.
 
     This backend is specific to the LBNL tritium detection pipeline
     and depends on ``mlccd_diffusion.cluster_sigma`` for sigma and
-    energy computation.  It returns only the single brightest
-    cluster (selected by max single pixel via argmax), matching
-    ``cluster_sigma``'s strategy, and populates ``sigmaX``,
-    ``sigmaY``, ``energy``, and ``pixelCount``.
+    energy computation.  It iteratively extracts all qualifying
+    clusters (brightest first) by zeroing each found cluster and
+    re-running ``cluster_sigma`` until no signal remains.
+
+    Each cluster is characterised with ``sigmaX``, ``sigmaY``,
+    ``energy``, and ``pixelCount``.
 
     For general-purpose multi-cluster ROI analysis without the
     ``mlccd_diffusion`` dependency, use ``GeneralClusterExtractor``.
@@ -126,7 +145,10 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
         self._cancelled = False
         self._thread = threading.Thread(
             target=self._run,
-            args=(data.copy(), bounding_box, callback),
+            args=(
+                data.copy(), bounding_box, callback,
+                progress_callback,
+            ),
             daemon=True,
         )
         self._thread.start()
@@ -140,12 +162,17 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
         data: np.ndarray,
         bounding_box: BoundingBox,
         callback: Callable[[List[ClusteredEventInfo]], None],
+        progress_callback: Optional[Callable[[float], None]],
     ) -> None:
         """Worker executed on background thread."""
         if self._cancelled:
             return
         try:
-            self._run_impl(data, bounding_box, callback)
+            results = self._run_impl(
+                data, bounding_box, progress_callback,
+            )
+            if not self._cancelled:
+                callback(results)
         except Exception:
             logger.exception("Cluster extraction failed")
             if not self._cancelled:
@@ -155,61 +182,85 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
         self,
         data: np.ndarray,
         bounding_box: BoundingBox,
-        callback: Callable[[List[ClusteredEventInfo]], None],
-    ) -> None:
-        """Core extraction logic."""
-        # Lazy import to avoid hard dependency at import time
+        progress_callback: Optional[Callable[[float], None]],
+    ) -> List[ClusteredEventInfo]:
+        """Iteratively extract all clusters via cluster_sigma."""
         from mlccd_diffusion.help_functions import cluster_sigma
 
         threshold = self._sigma * self._ped_width
+        working_data = data.copy()
 
-        # Pad to square: cluster_sigma has a meshgrid bug where
-        # coordinate grids get shape (ypixels, xpixels) instead of
-        # (xpixels, ypixels).  For square arrays this is harmless;
-        # for non-square it causes a broadcast error.  Zero-padding
-        # to square is safe — zeros are below threshold and
-        # contribute no weight to sigma/energy calculations.
-        rows, cols = data.shape
-        if rows != cols:
-            size = max(rows, cols)
-            padded = np.zeros((size, size), dtype=data.dtype)
-            padded[:rows, :cols] = data
-        else:
-            padded = data
+        # Initial labeling for iteration cap and progress
+        _, max_clusters = label(working_data > threshold)
+        if max_clusters == 0:
+            return []
 
+        results: List[ClusteredEventInfo] = []
+
+        for iteration in range(max_clusters):
+            if self._cancelled:
+                return []
+
+            event = self._extract_one(
+                working_data, threshold, bounding_box,
+                cluster_sigma,
+            )
+            if event is None:
+                break
+
+            results.append(event)
+            if progress_callback is not None:
+                progress_callback(
+                    (iteration + 1) / max_clusters
+                )
+
+        if progress_callback is not None:
+            progress_callback(1.0)
+
+        return results
+
+    def _extract_one(
+        self,
+        working_data: np.ndarray,
+        threshold: float,
+        bounding_box: BoundingBox,
+        cluster_sigma: Callable,
+    ) -> Optional[ClusteredEventInfo]:
+        """Extract the brightest remaining cluster, zeroing it.
+
+        Calls ``cluster_sigma`` on the current working data, finds
+        the brightest label, builds the event info, and zeros the
+        label mask in ``working_data`` so the next iteration skips it.
+
+        Returns None when no above-threshold signal remains.
+        """
+        padded = _pad_to_square(working_data)
         sigma_x, sigma_y, energy = cluster_sigma(
             padded,
             threshold=threshold,
             min_pixels_in_cluster=_MIN_PIXELS_IN_CLUSTER,
         )
 
-        if self._cancelled:
-            return
-
         if energy == 0:
-            callback([])
-            return
+            return None
 
-        # Own labeling for spatial info (on original orientation)
-        labeled_array, num_features = label(data > threshold)
-
-        if self._cancelled:
-            return
-
-        best_label = _find_brightest_label_by_peak(
-            data, labeled_array, num_features
+        labeled_array, num_features = label(
+            working_data > threshold
         )
-
+        best_label = _find_brightest_label_by_peak(
+            working_data, labeled_array, num_features,
+        )
         if best_label is None:
-            callback([])
-            return
-
-        if self._cancelled:
-            return
+            return None
 
         event = _build_event_info(
-            data, labeled_array, best_label, bounding_box,
-            sigma_x, sigma_y, energy,
+            working_data, labeled_array, best_label,
+            bounding_box, sigma_x, sigma_y, energy,
         )
-        if not self._cancelled:
-            callback([event])
+
+        # Zero all pixels of this cluster so the next iteration
+        # skips it.  Uses the label mask (not the display bounding
+        # box) to guarantee complete removal.
+        working_data[labeled_array == best_label] = 0
+
+        return event

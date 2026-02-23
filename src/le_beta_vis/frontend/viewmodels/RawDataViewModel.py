@@ -87,6 +87,7 @@ class RawDataViewModel:
         self._clusteringError: Optional[str] = None
         self._clusteringProgress: float = 0.0
         self._clustering_timeout_timer: Optional[threading.Timer] = None
+        self._selectedClusterIndex: int = -1
 
         # Async Rendering State
         self._current_buffer: Optional[np.ndarray] = None
@@ -110,6 +111,7 @@ class RawDataViewModel:
         self._on_clustering_completed_callbacks: List[Callable] = []
         self._on_clustering_error_callbacks: List[Callable] = []
         self._on_clustering_progress_callbacks: List[Callable] = []
+        self._on_selected_cluster_changed_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -323,10 +325,14 @@ class RawDataViewModel:
         return roi
 
     def clearRois(self) -> None:
-        """Clears all ROIs. Notifies listeners if the list was non-empty."""
+        """Clears all ROIs and clustering results.
+
+        Notifies listeners if the list was non-empty.
+        """
         if self._rois:
             self._rois.clear()
             self._notify_roi_changed()
+        self.clearClusteringResults()
 
     def removeRoi(self, index: int) -> None:
         """Removes an ROI by index. Notifies listeners on success."""
@@ -384,6 +390,68 @@ class RawDataViewModel:
         """Returns the current extraction progress in [0.0, 1.0]."""
         return self._clusteringProgress
 
+    @property
+    def selectedClusterIndex(self) -> int:
+        """Returns the index of the currently selected cluster, or -1."""
+        return self._selectedClusterIndex
+
+    @property
+    def selectedCluster(self) -> Optional[ClusteredEventInfo]:
+        """Returns the currently selected cluster, or None."""
+        if 0 <= self._selectedClusterIndex < len(self._clusteringResults):
+            return self._clusteringResults[self._selectedClusterIndex]
+        return None
+
+    def selectCluster(self, index: int) -> None:
+        """Selects a cluster by index. Pass -1 to deselect.
+
+        Notifies listeners only if the selection changed.
+        """
+        if index == self._selectedClusterIndex:
+            return
+        if index < -1 or index >= len(self._clusteringResults):
+            return
+        self._selectedClusterIndex = index
+        self._notify_selected_cluster_changed()
+
+    def clearClusteringResults(self) -> None:
+        """Clears results and resets selection. Notifies listeners."""
+        if self._clusteringResults or self._selectedClusterIndex != -1:
+            self._clusteringResults = []
+            self._selectedClusterIndex = -1
+            self._notify_clustering_completed()
+            self._notify_selected_cluster_changed()
+
+    def classifySelectedCluster(self) -> None:
+        """Placeholder for cluster classification (issue #54).
+
+        Logs the request; no-op until classification pipeline is wired.
+        """
+        cluster = self.selectedCluster
+        if cluster is None:
+            logger.info("classifySelectedCluster: no cluster selected")
+            return
+        logger.info(
+            "classifySelectedCluster: placeholder for cluster at "
+            "(%d, %d) with energy %.2f ADU",
+            cluster.centerX, cluster.centerY, cluster.energy,
+        )
+
+    def exportSelectedCluster(self) -> None:
+        """Placeholder for training data export (issue #56).
+
+        Logs the request; no-op until export pipeline is wired.
+        """
+        cluster = self.selectedCluster
+        if cluster is None:
+            logger.info("exportSelectedCluster: no cluster selected")
+            return
+        logger.info(
+            "exportSelectedCluster: placeholder for cluster at "
+            "(%d, %d) with %d pixels",
+            cluster.centerX, cluster.centerY, cluster.pixelCount,
+        )
+
     def triggerClustering(self) -> None:
         """Starts cluster extraction on the current ROI.
 
@@ -400,6 +468,8 @@ class RawDataViewModel:
         if data is None:
             return
 
+        self._clusteringResults = []
+        self._selectedClusterIndex = -1
         self._clusteringError = None
         self._clusteringProgress = 0.0
         self._clusteringState = ClusteringState.RUNNING
@@ -702,4 +772,14 @@ class RawDataViewModel:
 
     def _notify_clustering_progress(self) -> None:
         for callback in self._on_clustering_progress_callbacks:
+            callback()
+
+    def add_selected_cluster_changed_callback(
+        self, callback: Callable
+    ) -> None:
+        """Register a callback for cluster selection changes."""
+        self._on_selected_cluster_changed_callbacks.append(callback)
+
+    def _notify_selected_cluster_changed(self) -> None:
+        for callback in self._on_selected_cluster_changed_callbacks:
             callback()

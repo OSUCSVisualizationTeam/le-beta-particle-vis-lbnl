@@ -41,22 +41,15 @@ def create_cluster_extractor(
         "gui:raw_analysis:cluster_extractor_method",
         "lbnl_classical",
     )
-    sigma: float = config.get(
-        "gui:raw_analysis:clustering_threshold", 4.0
-    )
-    ped_width: int = config.get(
-        "global:physics:ped_width", 1400
-    )
-    kev: float = config.get(
-        "global:physics:kev_conversion", 1.02857e-5
-    )
+    sigma: float = config.get("gui:raw_analysis:clustering_threshold", 4.0)
+    ped_width: int = config.get("global:physics:ped_width", 1400)
+    kev: float = config.get("global:physics:kev_conversion", 1.02857e-5)
 
     try:
         method = ClusterExtractorMethod(method_str)
     except ValueError:
         logger.warning(
-            "Unknown cluster extractor method '%s', "
-            "falling back to lbnl_classical",
+            "Unknown cluster extractor method '%s', " "falling back to lbnl_classical",
             method_str,
         )
         method = ClusterExtractorMethod.LBNL_CLASSICAL

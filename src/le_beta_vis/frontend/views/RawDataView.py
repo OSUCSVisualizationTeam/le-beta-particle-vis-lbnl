@@ -37,6 +37,7 @@ from ..viewmodels.RawDataViewModel import (
 from ..widgets.BoxSelectionGraphicsItem import BoxSelectionGraphicsItem
 from ..widgets.CaptureGraphicsView import CaptureGraphicsView
 from ..widgets.MagnifierGraphicsItem import MagnifierGraphicsItem
+from ..widgets.ClusteredEventWidget import ClusteredEventWidget
 from ..widgets.ClusteringProgressOverlay import ClusteringProgressOverlay
 from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .MosaicView import MosaicView
@@ -391,11 +392,11 @@ class RawDataView(QWidget):
         self.rightLayout.addWidget(group)
 
     def _addInspectorSection(self):
-        group = QGroupBox(self.tr("Inspector: Selection"))
-        layout = QVBoxLayout(group)
-        layout.addWidget(QLabel(self.tr("No selection")))
-        group.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self.rightLayout.addWidget(group)
+        self._clusteredEventWidget = ClusteredEventWidget()
+        self._clusteredEventWidget.setSizePolicy(
+            QSizePolicy.Preferred, QSizePolicy.Expanding
+        )
+        self.rightLayout.addWidget(self._clusteredEventWidget)
 
     def bindViewModel(self):
         """Bind all ViewModel callbacks and View signals."""
@@ -545,6 +546,36 @@ class RawDataView(QWidget):
 
         self.viewModel.add_clustering_error_callback(
             on_clustering_error
+        )
+
+        def on_clustering_completed():
+            QMetaObject.invokeMethod(
+                self, "_updateClusteringResults",
+                Qt.AutoConnection,
+            )
+
+        self.viewModel.add_clustering_completed_callback(
+            on_clustering_completed
+        )
+
+        def on_selected_cluster_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateSelectedCluster",
+                Qt.QueuedConnection,
+            )
+
+        self.viewModel.add_selected_cluster_changed_callback(
+            on_selected_cluster_changed
+        )
+
+        self._clusteredEventWidget.clusterSelected.connect(
+            self.viewModel.selectCluster
+        )
+        self._clusteredEventWidget.classifyRequested.connect(
+            self.viewModel.classifySelectedCluster
+        )
+        self._clusteredEventWidget.exportRequested.connect(
+            self.viewModel.exportSelectedCluster
         )
 
     def updateMosaicVisibility(self):
@@ -769,6 +800,19 @@ class RawDataView(QWidget):
             self,
             self.tr("Cluster Extraction Failed"),
             message,
+        )
+
+    @Slot()
+    def _updateClusteringResults(self):
+        """Populates the clustered event widget from ViewModel results."""
+        results = self.viewModel.clusteringResults
+        self._clusteredEventWidget.setResults(results)
+
+    @Slot()
+    def _updateSelectedCluster(self):
+        """Syncs the widget's selection with ViewModel state."""
+        self._clusteredEventWidget.setSelectedIndex(
+            self.viewModel.selectedClusterIndex
         )
 
     @Slot()

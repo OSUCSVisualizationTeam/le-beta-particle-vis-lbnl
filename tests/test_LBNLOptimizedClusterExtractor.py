@@ -66,7 +66,8 @@ class TestLBNLOptimizedClusterExtractor:
         results = _run_extract(_make_extractor(), data, bbox)
         assert len(results) == 1
 
-    def test_brightest_cluster_selected(self):
+    def test_multiple_clusters_all_returned(self):
+        """Both qualifying clusters are returned."""
         data = np.zeros((30, 30), dtype=np.float64)
         # Dimmer cluster at (5,5)
         data[5, 5] = 500
@@ -75,9 +76,10 @@ class TestLBNLOptimizedClusterExtractor:
         data[25, 26] = 900
         bbox = BoundingBox(0, 0, 30, 30)
         results = _run_extract(_make_extractor(), data, bbox)
-        assert len(results) == 1
-        assert results[0].centerX == 25
-        assert results[0].centerY == 25
+        assert len(results) == 2
+        energies = sorted(r.energy for r in results)
+        assert energies[0] == pytest.approx(500.0)
+        assert energies[1] == pytest.approx(1900.0)
 
     def test_center_coords_global_frame(self):
         data = np.zeros((20, 20), dtype=np.float64)
@@ -164,3 +166,56 @@ class TestLBNLOptimizedClusterExtractor:
         results = _run_extract(_make_extractor(), data, bbox)
         assert len(results) == 1
         assert results[0].pixelCount == 2
+
+    def test_low_energy_cluster_filtered(self):
+        """Cluster below 1.0 keV is excluded."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        # Energy = 500 ADU * 0.01 keV/ADU = 5 keV — qualifying
+        data[5, 5] = 500
+        # Energy = 50 ADU * 0.01 = 0.5 keV — below 1 keV minimum
+        # But 50 < threshold (400), so it won't even be labeled.
+        # Use a value above threshold but with low total energy:
+        # single pixel at 401 ADU → 401 * 0.01 = 4.01 keV — still
+        # above 1 keV. To get below 1 keV with kev=0.01, need
+        # energy < 100 ADU total. That's impossible above threshold
+        # (400). So with these test params, all labeled clusters
+        # pass. Use a different kev to test filtering:
+        extractor = LBNLOptimizedClusterExtractor(
+            sigma_multiplier=_SIGMA, ped_width=_PED,
+            kev_conversion=0.001,  # 500 * 0.001 = 0.5 keV < 1.0
+        )
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(extractor, data, bbox)
+        assert results == []
+
+    def test_progress_callback_called(self):
+        """Progress values end at 1.0."""
+        data = np.zeros((30, 30), dtype=np.float64)
+        data[5, 5] = 500
+        data[25, 25] = 1000
+        bbox = BoundingBox(0, 0, 30, 30)
+        progress_values = []
+
+        extractor = _make_extractor()
+        result = []
+        done = threading.Event()
+
+        def cb(events):
+            result.extend(events)
+            done.set()
+
+        extractor.extract(
+            data, bbox, cb,
+            progress_callback=lambda v: progress_values.append(v),
+        )
+        assert done.wait(timeout=5)
+        assert len(progress_values) >= 1
+        assert progress_values[-1] == pytest.approx(1.0)
+
+    def test_progress_callback_none_accepted(self):
+        """Extraction works when progress_callback is None."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        data[10, 10] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
