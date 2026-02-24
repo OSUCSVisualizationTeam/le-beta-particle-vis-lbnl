@@ -13,6 +13,7 @@ from le_beta_vis.common.ClusterExtractor import (
     ClusterExtractor,
 )
 from le_beta_vis.common.ConfigurationService import ConfigurationService
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.common.RoiRect import RoiRect
 from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
 
@@ -42,8 +43,9 @@ class RawDataViewModel:
     Pure Python class - No Qt dependencies.
     """
 
-    def __init__(self, configService: ConfigurationService):
+    def __init__(self, configService: ConfigurationService, physics_manager: PhysicsConversionManager):
         self._config = configService
+        self._physics_manager = physics_manager
         self._converter = OpenCVBasedConverter()
 
         self._captures: List[CCDCaptureModel] = []
@@ -52,7 +54,7 @@ class RawDataViewModel:
         # Sub-ViewModels
         from .MosaicViewModel import MosaicViewModel
 
-        self.mosaicViewModel = MosaicViewModel(configService)
+        self.mosaicViewModel = MosaicViewModel(configService, physics_manager)
         self.mosaicViewModel.add_selection_changed_callback(self.setActiveHDU)
 
         # Viz Parameters
@@ -557,10 +559,7 @@ class RawDataViewModel:
                 current_capture = self._captures[self._activeIndex]
                 raw_data = current_capture.rawData()
                 self._image_bounds = raw_data.shape[:2]
-                kev_factor = self._config.get(
-                    "global:physics:kev_conversion", 1.02857e-5
-                )
-                viz_data = raw_data * kev_factor
+                viz_data = self._physics_manager.adu_to_kev(raw_data)
 
                 self._current_buffer = self._converter.convert(
                     viz_data, self._colormap, self._vrange
@@ -581,12 +580,9 @@ class RawDataViewModel:
         if self._activeIndex == -1 or not self._captures:
             return 0.0, 1000.0
         info = self._captures[self._activeIndex].info()
-        kev_factor = self._config.get(
-            "global:physics:kev_conversion", 1.02857e-5
-        )
         return (
-            float(info.min * kev_factor),
-            float(info.max * kev_factor),
+            float(self._physics_manager.adu_to_kev(info.min)),
+            float(self._physics_manager.adu_to_kev(info.max)),
         )
 
     @property
@@ -622,9 +618,7 @@ class RawDataViewModel:
     @property
     def kevConversion(self) -> float:
         """ADU-to-keV conversion factor from configuration."""
-        return float(self._config.get(
-            "global:physics:kev_conversion", 1.02857e-5
-        ))
+        return self._physics_manager.kev_conversion_factor
 
     @property
     def hduSummaries(self) -> List[str]:
@@ -659,7 +653,7 @@ class RawDataViewModel:
 
     @property
     def kevConversionFactor(self) -> float:
-        return self._config.get("global:physics:kev_conversion", 1.02857e-5)
+        return self._physics_manager.kev_conversion_factor
 
     @property
     def activeRawData(self) -> Optional[np.ndarray]:
@@ -678,7 +672,7 @@ class RawDataViewModel:
         raw = self.activeRawData
         if raw is None:
             return None
-        value = float(raw[row, col]) * self.kevConversionFactor
+        value = self._physics_manager.adu_to_kev(float(raw[row, col]))
         return (row, col, value)
 
     @property

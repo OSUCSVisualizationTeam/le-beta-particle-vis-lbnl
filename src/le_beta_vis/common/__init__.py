@@ -2,6 +2,7 @@
 # pylint: disable=unused-import
 # pyright: reportUnusedImport=false
 from .ConfigurationService import ConfigurationService, MockConfigurationService
+from .PhysicsConversionManager import PhysicsConversionManager, PhysicsConversionManagerImpl
 from .CCDCaptureModel import CCDCaptureModel
 from .RegionOfInterest import RegionOfInterest
 from .RoiRect import RoiRect

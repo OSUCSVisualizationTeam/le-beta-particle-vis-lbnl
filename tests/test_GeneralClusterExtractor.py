@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 from unittest.mock import patch
+from typing import Union
 
 import numpy as np
 from scipy.ndimage import label
@@ -21,6 +22,7 @@ from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.GeneralClusterExtractor import (
     GeneralClusterExtractor,
 )
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 
 _gce_mod = sys.modules['le_beta_vis.common.GeneralClusterExtractor']
 
@@ -28,10 +30,29 @@ _SIGMA = 4.0
 _PED = 100
 _KEV = 0.01
 
+class MockPhysicsManager(PhysicsConversionManager):
+    def __init__(self, factor: float, ped_width: int):
+        self._factor = factor
+        self._ped_width = ped_width
+    
+    @property
+    def kev_conversion_factor(self) -> float:
+        return self._factor
+    
+    @property
+    def pedestal_width(self) -> int:
+        return self._ped_width
+    
+    def calculate_threshold(self, sigma: float) -> float:
+        return sigma * self._ped_width
+    
+    def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+        return value * self._factor
 
 def _make_extractor() -> GeneralClusterExtractor:
+    physics = MockPhysicsManager(factor=_KEV, ped_width=_PED)
     return GeneralClusterExtractor(
-        sigma_multiplier=_SIGMA, ped_width=_PED, kev_conversion=_KEV,
+        sigma_multiplier=_SIGMA, physics_manager=physics,
     )
 
 

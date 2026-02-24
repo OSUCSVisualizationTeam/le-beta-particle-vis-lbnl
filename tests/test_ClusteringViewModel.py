@@ -1,22 +1,43 @@
 import threading
 from unittest.mock import MagicMock
+from typing import Union
 
 import numpy as np
 import pytest
 
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
 from le_beta_vis.common.MockClusterExtractor import MockClusterExtractor
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager, PhysicsConversionManagerImpl
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     ClusteringState,
     RawDataViewModel,
 )
 
+class MockPhysicsManager(PhysicsConversionManager):
+    def __init__(self, factor: float, ped_width: int):
+        self._factor = factor
+        self._ped_width = ped_width
+    
+    @property
+    def kev_conversion_factor(self) -> float:
+        return self._factor
+    
+    @property
+    def pedestal_width(self) -> int:
+        return self._ped_width
+    
+    def calculate_threshold(self, sigma: float) -> float:
+        return sigma * self._ped_width
+    
+    def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+        return value * self._factor
 
 @pytest.fixture
 def view_model():
     config = MockConfigurationService()
-    vm = RawDataViewModel(config)
+    physics_manager = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics_manager)
     vm._converter = MagicMock()
     vm._converter.convert.return_value = np.zeros(
         (10, 10, 3), dtype=np.uint8
@@ -261,8 +282,9 @@ def test_progress_callback_fires(view_model):
     )
 
     # Use GeneralClusterExtractor since it actually reports progress
+    physics = MockPhysicsManager(factor=0.01, ped_width=100)
     extractor = GeneralClusterExtractor(
-        sigma_multiplier=4.0, ped_width=100, kev_conversion=0.01,
+        sigma_multiplier=4.0, physics_manager=physics,
     )
     _setup_for_clustering(view_model)
 

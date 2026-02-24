@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 from unittest.mock import patch
+from typing import Union
 
 import numpy as np
 import pytest
@@ -23,6 +24,7 @@ from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.LBNLOptimizedClusterExtractor import (
     LBNLOptimizedClusterExtractor,
 )
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 
 _opt_mod = sys.modules['le_beta_vis.common.LBNLOptimizedClusterExtractor']
 
@@ -31,10 +33,29 @@ _SIGMA = 4.0
 _PED = 100
 _KEV = 0.01  # 500 ADU * 0.01 = 5 keV
 
+class MockPhysicsManager(PhysicsConversionManager):
+    def __init__(self, factor: float, ped_width: int):
+        self._factor = factor
+        self._ped_width = ped_width
+    
+    @property
+    def kev_conversion_factor(self) -> float:
+        return self._factor
+    
+    @property
+    def pedestal_width(self) -> int:
+        return self._ped_width
+    
+    def calculate_threshold(self, sigma: float) -> float:
+        return sigma * self._ped_width
+    
+    def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+        return value * self._factor
 
 def _make_extractor() -> LBNLOptimizedClusterExtractor:
+    physics = MockPhysicsManager(factor=_KEV, ped_width=_PED)
     return LBNLOptimizedClusterExtractor(
-        sigma_multiplier=_SIGMA, ped_width=_PED, kev_conversion=_KEV,
+        sigma_multiplier=_SIGMA, physics_manager=physics,
     )
 
 
@@ -180,9 +201,9 @@ class TestLBNLOptimizedClusterExtractor:
         # energy < 100 ADU total. That's impossible above threshold
         # (400). So with these test params, all labeled clusters
         # pass. Use a different kev to test filtering:
+        physics = MockPhysicsManager(factor=0.001, ped_width=_PED)
         extractor = LBNLOptimizedClusterExtractor(
-            sigma_multiplier=_SIGMA, ped_width=_PED,
-            kev_conversion=0.001,  # 500 * 0.001 = 0.5 keV < 1.0
+            sigma_multiplier=_SIGMA, physics_manager=physics,
         )
         bbox = BoundingBox(0, 0, 20, 20)
         results = _run_extract(extractor, data, bbox)

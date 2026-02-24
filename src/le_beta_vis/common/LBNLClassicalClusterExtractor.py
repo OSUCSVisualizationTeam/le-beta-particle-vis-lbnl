@@ -7,6 +7,7 @@ from scipy.ndimage import label
 
 from .BoundingBox import BoundingBox
 from .ClusterExtractor import ClusteredEventInfo, ClusterExtractor
+from .PhysicsConversionManager import PhysicsConversionManager
 
 logger = logging.getLogger(__name__)
 
@@ -122,13 +123,11 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
 
     def __init__(
         self,
+        physics_manager: PhysicsConversionManager,
         sigma_multiplier: float = 4.0,
-        ped_width: int = 1400,
-        kev_conversion: float = 1.02857e-5,
     ):
         self._sigma = sigma_multiplier
-        self._ped_width = ped_width
-        self._kev = kev_conversion
+        self._physics_manager = physics_manager
         self._cancelled = False
         self._thread: Optional[threading.Thread] = None
 
@@ -187,7 +186,7 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
         """Iteratively extract all clusters via cluster_sigma."""
         from mlccd_diffusion.help_functions import cluster_sigma
 
-        threshold = self._sigma * self._ped_width
+        threshold = self._physics_manager.calculate_threshold(self._sigma)
         working_data = data.copy()
 
         # Initial labeling for iteration cap and progress

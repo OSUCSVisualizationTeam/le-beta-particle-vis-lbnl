@@ -8,6 +8,7 @@ from scipy.ndimage import label, maximum_position
 from .BoundingBox import BoundingBox
 from .cluster_sigma import compute_cluster_sigmas
 from .ClusterExtractor import ClusteredEventInfo, ClusterExtractor
+from .PhysicsConversionManager import PhysicsConversionManager
 
 logger = logging.getLogger(__name__)
 
@@ -103,13 +104,11 @@ class LBNLOptimizedClusterExtractor(ClusterExtractor):
 
     def __init__(
         self,
+        physics_manager: PhysicsConversionManager,
         sigma_multiplier: float = 4.0,
-        ped_width: int = 1400,
-        kev_conversion: float = 1.02857e-5,
     ):
         self._sigma = sigma_multiplier
-        self._ped_width = ped_width
-        self._kev = kev_conversion
+        self._physics_manager = physics_manager
         self._cancelled = False
         self._thread: Optional[threading.Thread] = None
 
@@ -166,14 +165,15 @@ class LBNLOptimizedClusterExtractor(ClusterExtractor):
         progress_callback: Optional[Callable[[float], None]],
     ) -> List[ClusteredEventInfo]:
         """Extract all qualifying clusters from the data."""
-        threshold = self._sigma * self._ped_width
+        threshold = self._physics_manager.calculate_threshold(self._sigma)
         labeled_array, num_features = label(data > threshold)
 
         if num_features == 0:
             return []
 
         qualifying = _collect_qualifying_labels(
-            data, labeled_array, num_features, self._kev,
+            data, labeled_array, num_features,
+            self._physics_manager.kev_conversion_factor,
         )
 
         if not qualifying:

@@ -10,12 +10,14 @@ from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     RawDataViewModel,
 )
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
 
 
 @pytest.fixture
 def view_model():
     config = MockConfigurationService()
-    vm = RawDataViewModel(config)
+    physics_manager = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics_manager)
     vm._converter = MagicMock()
     vm._converter.convert.return_value = np.zeros(
         (10, 10, 3), dtype=np.uint8
