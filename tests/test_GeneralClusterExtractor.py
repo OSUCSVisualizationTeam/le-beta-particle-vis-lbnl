@@ -195,3 +195,33 @@ class TestGeneralClusterExtractor:
             _make_extractor(), data, bbox, progress_callback=None,
         )
         assert len(results) == 1
+
+    def test_energy_is_populated(self):
+        """Extracted cluster has non-zero energy (ADU)."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+        assert results[0].energy == 2500.0  # 5 * 500 ADU
+
+    def test_pixel_count_is_populated(self):
+        """Extracted cluster has correct pixelCount."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+        assert results[0].pixelCount == 5
+
+    def test_sigma_is_populated(self):
+        """Extracted cluster has non-zero sigmaX for horizontal spread."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+        assert results[0].sigmaX > 0.0

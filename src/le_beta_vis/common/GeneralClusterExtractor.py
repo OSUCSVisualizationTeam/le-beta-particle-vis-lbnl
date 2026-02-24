@@ -6,6 +6,7 @@ import numpy as np
 from scipy.ndimage import find_objects, label, maximum_position
 
 from .BoundingBox import BoundingBox
+from .cluster_sigma import compute_cluster_sigmas
 from .ClusterExtractor import ClusteredEventInfo, ClusterExtractor
 
 logger = logging.getLogger(__name__)
@@ -60,11 +61,17 @@ def _process_cluster(
         right=bounding_box.left + col_offset + cluster_data.shape[1],
     )
 
+    sigma_x, sigma_y = compute_cluster_sigmas(cluster_data)
+
     return ClusteredEventInfo(
         boundingBox=bbox,
         data=cluster_data.copy(),
         centerX=bounding_box.left + col_offset + peak_col,
         centerY=bounding_box.top + row_offset + peak_row,
+        sigmaX=sigma_x,
+        sigmaY=sigma_y,
+        energy=energy,
+        pixelCount=pixel_count,
     )
 
 

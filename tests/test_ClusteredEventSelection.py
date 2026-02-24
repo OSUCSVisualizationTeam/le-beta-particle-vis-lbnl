@@ -234,3 +234,39 @@ def test_export_selected_cluster_no_error(view_model):
 def test_export_no_selection_no_error(view_model):
     """exportSelectedCluster is safe when nothing selected."""
     view_model.exportSelectedCluster()
+
+
+# --- Cluster display properties ---
+
+
+def test_cluster_thumbnail_colormap_disabled_by_default(view_model):
+    """clusterThumbnailColormap returns None with default config."""
+    assert view_model.clusterThumbnailColormap is None
+
+
+def test_cluster_thumbnail_colormap_enabled(view_model):
+    """clusterThumbnailColormap returns active colormap when enabled."""
+    view_model._config.set(
+        "gui:raw_analysis:cluster_thumbnail_use_colormap", True
+    )
+    result = view_model.clusterThumbnailColormap
+    assert result is not None
+    assert result.value == "viridis"
+
+
+def test_display_energy_in_kev_default_true(view_model):
+    """displayEnergyInKev defaults to True."""
+    assert view_model.displayEnergyInKev is True
+
+
+def test_display_energy_in_kev_disabled(view_model):
+    """displayEnergyInKev returns False when config is set."""
+    view_model._config.set(
+        "gui:raw_analysis:display_energy_in_kev", False
+    )
+    assert view_model.displayEnergyInKev is False
+
+
+def test_kev_conversion_from_config(view_model):
+    """kevConversion reads from config."""
+    assert view_model.kevConversion == pytest.approx(1.02857e-5)

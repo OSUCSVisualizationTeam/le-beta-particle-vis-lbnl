@@ -219,3 +219,14 @@ class TestLBNLOptimizedClusterExtractor:
         bbox = BoundingBox(0, 0, 20, 20)
         results = _run_extract(_make_extractor(), data, bbox)
         assert len(results) == 1
+
+    def test_sigma_is_populated(self):
+        """Extracted cluster with spread has non-zero sigmaX."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        data[10, 10] = 500
+        data[10, 11] = 450
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+        # Two adjacent pixels should produce horizontal spread
+        assert results[0].sigmaX > 0.0

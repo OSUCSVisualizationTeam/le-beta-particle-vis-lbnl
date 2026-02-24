@@ -806,6 +806,15 @@ class RawDataView(QWidget):
     def _updateClusteringResults(self):
         """Populates the clustered event widget from ViewModel results."""
         results = self.viewModel.clusteringResults
+        self._clusteredEventWidget.setColormap(
+            self.viewModel.clusterThumbnailColormap
+        )
+        self._clusteredEventWidget.setDisplayEnergyInKev(
+            self.viewModel.displayEnergyInKev
+        )
+        self._clusteredEventWidget.setKevConversion(
+            self.viewModel.kevConversion
+        )
         self._clusteredEventWidget.setResults(results)
 
     @Slot()

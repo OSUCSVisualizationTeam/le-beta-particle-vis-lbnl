@@ -8,6 +8,7 @@ import numpy as np
 from le_beta_vis.frontend.fitsconverters.cluster_thumbnail import (
     generate_cluster_thumbnail,
 )
+from le_beta_vis.frontend.fitsconverters.interface import Colormap
 
 
 def test_returns_uint8():
@@ -61,3 +62,29 @@ def test_all_zeros():
     result = generate_cluster_thumbnail(data)
     assert result.shape == (5, 5)
     assert result.dtype == np.uint8
+
+
+def test_rgb_with_colormap():
+    """Colormap produces 3-channel RGB output."""
+    data = np.random.rand(7, 12) * 50
+    result = generate_cluster_thumbnail(data, colormap=Colormap.VIRIDIS)
+    assert result.dtype == np.uint8
+    assert result.ndim == 3
+    assert result.shape == (7, 12, 3)
+
+
+def test_empty_data_rgb_fallback():
+    """Empty data with colormap returns 3-channel fallback."""
+    result = generate_cluster_thumbnail(
+        None, colormap=Colormap.PLASMA
+    )
+    assert result.shape == (48, 48, 3)
+    assert result.dtype == np.uint8
+    assert (result == 0).all()
+
+
+def test_none_colormap_returns_grayscale():
+    """Explicit colormap=None produces 2D grayscale."""
+    data = np.random.rand(5, 5) * 100
+    result = generate_cluster_thumbnail(data, colormap=None)
+    assert result.ndim == 2

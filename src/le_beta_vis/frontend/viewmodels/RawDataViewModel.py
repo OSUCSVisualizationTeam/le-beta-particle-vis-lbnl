@@ -598,6 +598,35 @@ class RawDataViewModel:
         return self._colormap.value
 
     @property
+    def clusterThumbnailColormap(self) -> Optional[Colormap]:
+        """Returns the active colormap if thumbnail coloring is enabled.
+
+        Reads ``gui:raw_analysis:cluster_thumbnail_use_colormap``.
+        When enabled, returns the current colormap for false-color
+        cluster thumbnails.  When disabled, returns None (grayscale).
+        """
+        use_colormap: bool = self._config.get(
+            "gui:raw_analysis:cluster_thumbnail_use_colormap", False
+        )
+        if use_colormap:
+            return self._colormap
+        return None
+
+    @property
+    def displayEnergyInKev(self) -> bool:
+        """Whether cluster energy should be displayed in keV."""
+        return bool(self._config.get(
+            "gui:raw_analysis:display_energy_in_kev", True
+        ))
+
+    @property
+    def kevConversion(self) -> float:
+        """ADU-to-keV conversion factor from configuration."""
+        return float(self._config.get(
+            "global:physics:kev_conversion", 1.02857e-5
+        ))
+
+    @property
     def hduSummaries(self) -> List[str]:
         return [
             f"HDU {i}: {c.info().rows}x{c.info().cols}"

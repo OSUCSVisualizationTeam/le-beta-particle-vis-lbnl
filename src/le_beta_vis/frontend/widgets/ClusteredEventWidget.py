@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QImage, QPixmap
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
 from le_beta_vis.frontend.fitsconverters import generate_cluster_thumbnail
+from le_beta_vis.frontend.fitsconverters.interface import Colormap
 
 THUMBNAIL_SIZE = 48
 
@@ -38,6 +39,9 @@ class ClusteredEventWidget(QWidget):
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
         self._results: List[ClusteredEventInfo] = []
+        self._colormap: Optional[Colormap] = None
+        self._displayKeV: bool = True
+        self._kevConversion: float = 1.02857e-5
         self._initUI()
 
     def _initUI(self) -> None:
@@ -71,6 +75,31 @@ class ClusteredEventWidget(QWidget):
 
         layout.addLayout(btnLayout)
         outerLayout.addWidget(group)
+
+    def setColormap(self, colormap: Optional[Colormap]) -> None:
+        """Sets the colormap used for thumbnail rendering.
+
+        Args:
+            colormap: Colormap enum for false-color thumbnails,
+                or None for grayscale.
+        """
+        self._colormap = colormap
+
+    def setDisplayEnergyInKev(self, enabled: bool) -> None:
+        """Toggles energy display between keV and ADU.
+
+        Args:
+            enabled: When True, energy is shown in keV.
+        """
+        self._displayKeV = enabled
+
+    def setKevConversion(self, factor: float) -> None:
+        """Sets the ADU-to-keV conversion factor.
+
+        Args:
+            factor: Multiplicative factor (keV per ADU).
+        """
+        self._kevConversion = factor
 
     def setResults(self, results: List[ClusteredEventInfo]) -> None:
         """Populates the list with clustered events.
@@ -125,20 +154,25 @@ class ClusteredEventWidget(QWidget):
         metaLayout.setSpacing(1)
 
         bb = event.boundingBox
+        width = bb.right - bb.left
+        height = bb.bottom - bb.top
         metaLayout.addWidget(QLabel(
-            self.tr("BBox: ({top}, {left})\u2013({bottom}, {right})").format(
-                top=bb.top, left=bb.left,
-                bottom=bb.bottom, right=bb.right,
-            )
+            self.tr("Geometry: {w}x{h}").format(w=width, h=height)
         ))
+
+        rel_cx = event.centerX - bb.left
+        rel_cy = event.centerY - bb.top
         metaLayout.addWidget(QLabel(
             self.tr("Center: ({cx}, {cy})").format(
-                cx=event.centerX, cy=event.centerY,
+                cx=rel_cx, cy=rel_cy,
             )
         ))
+
+        metaLayout.addWidget(self._createEnergyLabel(event))
+
         metaLayout.addWidget(QLabel(
-            self.tr("Energy: {energy:.2f} ADU").format(
-                energy=event.energy,
+            self.tr("Sigma: ({sx:.2f}, {sy:.2f})").format(
+                sx=event.sigmaX, sy=event.sigmaY,
             )
         ))
         metaLayout.addWidget(QLabel(
@@ -149,6 +183,23 @@ class ClusteredEventWidget(QWidget):
         layout.setStretch(1, 1)
         return entry
 
+    def _createEnergyLabel(
+        self, event: ClusteredEventInfo
+    ) -> QLabel:
+        """Creates the energy label, converting to keV if enabled."""
+        if self._displayKeV:
+            energy_kev = event.energy * self._kevConversion
+            return QLabel(
+                self.tr("Energy: {energy:.4f} keV").format(
+                    energy=energy_kev,
+                )
+            )
+        return QLabel(
+            self.tr("Energy: {energy:.2f} ADU").format(
+                energy=event.energy,
+            )
+        )
+
     def _createThumbnailLabel(
         self, event: ClusteredEventInfo
     ) -> QLabel:
@@ -156,12 +207,23 @@ class ClusteredEventWidget(QWidget):
         label = QLabel()
         label.setFixedSize(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
 
-        buffer = generate_cluster_thumbnail(event.data)
-        height, width = buffer.shape[:2]
-        q_img = QImage(
-            buffer.data, width, height, width,
-            QImage.Format_Grayscale8,
+        buffer = generate_cluster_thumbnail(
+            event.data, colormap=self._colormap
         )
+        height, width = buffer.shape[:2]
+
+        if buffer.ndim == 3:
+            bytes_per_line = 3 * width
+            q_img = QImage(
+                buffer.data, width, height, bytes_per_line,
+                QImage.Format_RGB888,
+            )
+        else:
+            q_img = QImage(
+                buffer.data, width, height, width,
+                QImage.Format_Grayscale8,
+            )
+
         pixmap = QPixmap.fromImage(q_img.copy())
         pixmap = pixmap.scaled(
             THUMBNAIL_SIZE, THUMBNAIL_SIZE,
