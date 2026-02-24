@@ -19,6 +19,10 @@ class ClusteredEventInfo:
             the maximum energy in the cluster.
         centerY (int): The y-coordinate (row) of the pixel with
             the maximum energy in the cluster.
+        sigmaX (float): Gaussian spread along the x-axis.
+        sigmaY (float): Gaussian spread along the y-axis.
+        energy (float): Total energy of the cluster (ADU).
+        pixelCount (int): Number of pixels in the cluster.
     """
 
     def __init__(
@@ -27,11 +31,19 @@ class ClusteredEventInfo:
         data: np.ndarray,
         centerX: int,
         centerY: int,
+        sigmaX: float = 0.0,
+        sigmaY: float = 0.0,
+        energy: float = 0.0,
+        pixelCount: int = 0,
     ):
         self.boundingBox = boundingBox
         self.data = data
         self.centerX = centerX
         self.centerY = centerY
+        self.sigmaX = sigmaX
+        self.sigmaY = sigmaY
+        self.energy = energy
+        self.pixelCount = pixelCount
 
 
 class ClusterExtractor(ABC):
@@ -43,6 +55,7 @@ class ClusterExtractor(ABC):
         callback: Callable[[List[ClusteredEventInfo]], None],
         energyMinimum: Optional[float] = None,
         energyMaximum: Optional[float] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         """
         Starts an asynchronous cluster extraction process.
@@ -58,6 +71,9 @@ class ClusterExtractor(ABC):
                 objects when extraction finishes.
             energyMinimum: Ignore pixels below this value.
             energyMaximum: Ignore pixels above this value.
+            progress_callback: Optional callback invoked from the
+                worker thread with a float in [0.0, 1.0] indicating
+                extraction progress. None means no progress reporting.
         """
         raise NotImplementedError
 

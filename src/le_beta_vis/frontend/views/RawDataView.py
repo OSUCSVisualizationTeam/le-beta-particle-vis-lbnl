@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QToolButton,
@@ -478,16 +479,29 @@ class RawDataView(QWidget):
 
         self.viewModel.add_roi_changed_callback(on_roi_changed)
 
-        # Clustering callbacks
+        # Clustering callbacks — AutoConnection so the overlay shows
+        # immediately when triggerClustering runs on the main thread,
+        # while still queuing safely from the extractor background thread.
         def on_clustering_state_changed():
             QMetaObject.invokeMethod(
                 self, "_updateClusteringState",
-                Qt.QueuedConnection,
+                Qt.AutoConnection,
             )
 
         self.viewModel.add_clustering_state_changed_callback(
             on_clustering_state_changed
         )
+
+        def on_clustering_progress():
+            QMetaObject.invokeMethod(
+                self, "_updateClusteringProgress",
+                Qt.AutoConnection,
+            )
+
+        self.viewModel.add_clustering_progress_callback(
+            on_clustering_progress
+        )
+
         self.viewModel.add_active_tool_changed_callback(
             lambda: QMetaObject.invokeMethod(
                 self, "_refreshExtractionButton",
@@ -503,6 +517,16 @@ class RawDataView(QWidget):
 
         self._clusteringOverlay.cancelRequested.connect(
             self.viewModel.cancelClustering
+        )
+
+        def on_clustering_error():
+            QMetaObject.invokeMethod(
+                self, "_showClusteringError",
+                Qt.QueuedConnection,
+            )
+
+        self.viewModel.add_clustering_error_callback(
+            on_clustering_error
         )
 
     def updateMosaicVisibility(self):
@@ -708,6 +732,26 @@ class RawDataView(QWidget):
         else:
             self._clusteringOverlay.hideOverlay()
         self._setInteractionEnabled(not running)
+        self._refreshExtractionButton()
+
+    @Slot()
+    def _updateClusteringProgress(self):
+        """Updates the overlay progress bar from ViewModel state."""
+        self._clusteringOverlay.setProgress(
+            self.viewModel.clusteringProgress
+        )
+
+    @Slot()
+    def _showClusteringError(self):
+        """Displays a warning dialog with the clustering error message."""
+        message = self.viewModel.clusteringError or self.tr(
+            "An unknown error occurred during cluster extraction."
+        )
+        QMessageBox.warning(
+            self,
+            self.tr("Cluster Extraction Failed"),
+            message,
+        )
 
     @Slot()
     def _refreshExtractionButton(self):

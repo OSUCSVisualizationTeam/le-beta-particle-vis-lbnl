@@ -6,10 +6,11 @@ from dotenv import load_dotenv
 
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 
+
 class RedisBackedConfigurationService(ConfigurationService):
     """
     Redis-backed implementation of the ConfigurationService interface.
- 
+
     Provides low-latency key-value access to system configuration using Redis
     as the fast-path cache layer, as specified in Design Doc Section 6.
 
@@ -28,8 +29,9 @@ class RedisBackedConfigurationService(ConfigurationService):
         "global:redis:host": str,
         "global:redis:port": int,
         "global:redis:channel_events": str,
-        
+
         "global:physics:kev_conversion": float,
+        "global:physics:ped_width": int,
 
         # GUI - Raw Analysis
         "gui:raw_analysis:default_colormap": str,
@@ -37,6 +39,7 @@ class RedisBackedConfigurationService(ConfigurationService):
         "gui:raw_analysis:vis_range_max": float,
         "gui:raw_analysis:filter_gaussian_sigma": float,
         "gui:raw_analysis:clustering_threshold": float,
+        "gui:raw_analysis:cluster_extractor_method": str,
         "gui:raw_analysis:zoom_step_factor": float,
         "gui:raw_analysis:magnifier_display_size": int,
         "gui:raw_analysis:magnifier_default_factor": float,
@@ -90,7 +93,7 @@ class RedisBackedConfigurationService(ConfigurationService):
         )
 
     def ping(self) -> bool:
-            return self._client.ping()
+        return self._client.ping()
 
     def get(self, key: str, default: Any = None) -> Any:
         """

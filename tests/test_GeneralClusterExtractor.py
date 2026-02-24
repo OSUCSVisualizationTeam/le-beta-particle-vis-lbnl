@@ -1,0 +1,197 @@
+# Citation for Unit Tests: Tests for GeneralClusterExtractor covering filtering and progress reporting.
+# Date: 21/02/2026
+# Adapted from Claude Code:
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+
+"""Tests for GeneralClusterExtractor.
+
+Uses ped_width=100, sigma=4.0 so threshold = 400.
+kev_conversion=0.01 so energy of 500 ADU = 5 keV (above 1 keV minimum).
+"""
+
+import sys
+import threading
+import time
+from unittest.mock import patch
+
+import numpy as np
+from scipy.ndimage import label
+
+from le_beta_vis.common.BoundingBox import BoundingBox
+from le_beta_vis.common.GeneralClusterExtractor import (
+    GeneralClusterExtractor,
+)
+
+_gce_mod = sys.modules['le_beta_vis.common.GeneralClusterExtractor']
+
+_SIGMA = 4.0
+_PED = 100
+_KEV = 0.01
+
+
+def _make_extractor() -> GeneralClusterExtractor:
+    return GeneralClusterExtractor(
+        sigma_multiplier=_SIGMA, ped_width=_PED, kev_conversion=_KEV,
+    )
+
+
+def _run_extract(extractor, data, bbox, **kwargs):
+    """Run extract synchronously, returning the result list."""
+    result = []
+    done = threading.Event()
+
+    def cb(events):
+        result.extend(events)
+        done.set()
+
+    extractor.extract(data, bbox, cb, **kwargs)
+    assert done.wait(timeout=5), "Extraction timed out"
+    return result
+
+
+class TestGeneralClusterExtractor:
+    """Tests for GeneralClusterExtractor."""
+    def test_no_clusters_returns_empty_list(self):
+        data = np.zeros((20, 20), dtype=np.float64)
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert results == []
+
+    def test_single_cluster_returned(self):
+        data = np.zeros((20, 20), dtype=np.float64)
+        # 5 pixels above threshold (min pixel filter = 5)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+
+    def test_multiple_clusters_returned(self):
+        data = np.zeros((30, 30), dtype=np.float64)
+        # Cluster A at top-left — 5 pixels
+        for i in range(5):
+            data[2, 2 + i] = 500
+        # Cluster B at bottom-right — 5 pixels
+        for i in range(5):
+            data[25, 25 + i] = 600
+        bbox = BoundingBox(0, 0, 30, 30)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 2
+
+    def test_min_pixel_filter(self):
+        data = np.zeros((20, 20), dtype=np.float64)
+        # Only 4 pixels — below the 5-pixel minimum
+        for i in range(4):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert results == []
+
+    def test_min_energy_filter(self):
+        data = np.zeros((20, 20), dtype=np.float64)
+        # 5 pixels but very low energy: 5 * 10 * 0.01 = 0.5 keV < 1.0
+        for i in range(5):
+            data[10, 10 + i] = 10  # below threshold! won't even be labeled
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert results == []
+
+    def test_energy_minimum_param(self):
+        data = np.zeros((20, 20), dtype=np.float64)
+        # 5 pixels: total energy = 5*500*0.01 = 25 keV
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        # Set minimum to 30 keV — should filter out
+        results = _run_extract(
+            _make_extractor(), data, bbox, energyMinimum=30.0
+        )
+        assert results == []
+
+    def test_energy_maximum_param(self):
+        data = np.zeros((20, 20), dtype=np.float64)
+        # 5 pixels: total energy = 5*500*0.01 = 25 keV
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        # Set maximum to 10 keV — should filter out
+        results = _run_extract(
+            _make_extractor(), data, bbox, energyMaximum=10.0
+        )
+        assert results == []
+
+    def test_center_coords_global_frame(self):
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        # Peak is at the highest value — all equal, so first pixel
+        data[10, 12] = 1000  # make peak at col 12
+        bbox = BoundingBox(top=100, left=200, bottom=120, right=220)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+        assert results[0].centerX == 200 + 12
+        assert results[0].centerY == 100 + 10
+
+    def test_cancel_prevents_callback(self):
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        extractor = _make_extractor()
+
+        called = []
+        worker_started = threading.Event()
+
+        original_label = label
+
+        def _synced_label(*args, **kwargs):
+            worker_started.set()
+            time.sleep(0.1)
+            return original_label(*args, **kwargs)
+
+        with patch.object(_gce_mod, 'label', _synced_label):
+            extractor.extract(data, bbox, lambda e: called.extend(e))
+            worker_started.wait(timeout=2)
+            extractor.cancel()
+
+        time.sleep(0.2)
+        assert called == []
+
+    def test_progress_callback_called(self):
+        """progress_callback receives values in [0.0, 1.0]."""
+        data = np.zeros((30, 30), dtype=np.float64)
+        # Two separate clusters
+        for i in range(5):
+            data[2, 2 + i] = 500
+        for i in range(5):
+            data[25, 25 + i] = 600
+        bbox = BoundingBox(0, 0, 30, 30)
+
+        progress_values = []
+        done = threading.Event()
+
+        def on_done(events):
+            done.set()
+
+        extractor = _make_extractor()
+        extractor.extract(
+            data, bbox, on_done,
+            progress_callback=lambda v: progress_values.append(v),
+        )
+        assert done.wait(timeout=5), "Extraction timed out"
+
+        assert len(progress_values) > 0
+        for v in progress_values:
+            assert 0.0 <= v <= 1.0
+        assert progress_values[-1] == 1.0
+
+    def test_progress_callback_none_is_accepted(self):
+        """extract() works with progress_callback=None (default)."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(
+            _make_extractor(), data, bbox, progress_callback=None,
+        )
+        assert len(results) == 1
