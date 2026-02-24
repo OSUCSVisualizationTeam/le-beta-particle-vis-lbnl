@@ -17,7 +17,11 @@ from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
 from le_beta_vis.frontend.fitsconverters import generate_cluster_thumbnail
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
 
-THUMBNAIL_SIZE = 48
+THUMBNAIL_SIZE = 64
+
+
+class _Style:
+    ENTRY_WIDGET = "background: transparent; border: 0;"
 
 
 class ClusteredEventWidget(QWidget):
@@ -57,9 +61,7 @@ class ClusteredEventWidget(QWidget):
 
         self._listWidget = QListWidget()
         self._listWidget.setAlternatingRowColors(True)
-        self._listWidget.currentRowChanged.connect(
-            self._onSelectionChanged
-        )
+        self._listWidget.currentRowChanged.connect(self._onSelectionChanged)
         layout.addWidget(self._listWidget)
 
         btnLayout = QHBoxLayout()
@@ -139,13 +141,13 @@ class ClusteredEventWidget(QWidget):
         elif index < self._listWidget.count():
             self._listWidget.setCurrentRow(index)
 
-    def _createEntryWidget(
-        self, index: int, event: ClusteredEventInfo
-    ) -> QWidget:
+    def _createEntryWidget(self, index: int, event: ClusteredEventInfo) -> QWidget:
         """Creates a single list entry with thumbnail and metadata."""
         entry = QWidget()
+        entry.setStyleSheet(_Style.ENTRY_WIDGET)
         layout = QHBoxLayout(entry)
         layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(8)
 
         thumbnail = self._createThumbnailLabel(event)
         layout.addWidget(thumbnail)
@@ -156,36 +158,38 @@ class ClusteredEventWidget(QWidget):
         bb = event.boundingBox
         width = bb.right - bb.left
         height = bb.bottom - bb.top
-        metaLayout.addWidget(QLabel(
-            self.tr("Geometry: {w}x{h}").format(w=width, h=height)
-        ))
+        metaLayout.addWidget(
+            QLabel(self.tr("Geometry: {w}x{h}").format(w=width, h=height))
+        )
 
         rel_cx = event.centerX - bb.left
         rel_cy = event.centerY - bb.top
-        metaLayout.addWidget(QLabel(
-            self.tr("Center: ({cx}, {cy})").format(
-                cx=rel_cx, cy=rel_cy,
+        metaLayout.addWidget(
+            QLabel(
+                self.tr("Center: ({cx}, {cy})").format(
+                    cx=rel_cx,
+                    cy=rel_cy,
+                )
             )
-        ))
+        )
 
         metaLayout.addWidget(self._createEnergyLabel(event))
 
-        metaLayout.addWidget(QLabel(
-            self.tr("Sigma: ({sx:.2f}, {sy:.2f})").format(
-                sx=event.sigmaX, sy=event.sigmaY,
-            )
-        ))
-        metaLayout.addWidget(QLabel(
-            self.tr("Pixels: {count}").format(count=event.pixelCount)
-        ))
+        sigma_label = QLabel(
+            self.tr(
+                "\u03c3<sub>x</sub> = {sx:.2f}," " \u03c3<sub>y</sub> = {sy:.2f}"
+            ).format(sx=event.sigmaX, sy=event.sigmaY)
+        )
+        metaLayout.addWidget(sigma_label)
+        metaLayout.addWidget(
+            QLabel(self.tr("Pixels: {count}").format(count=event.pixelCount))
+        )
 
         layout.addLayout(metaLayout)
         layout.setStretch(1, 1)
         return entry
 
-    def _createEnergyLabel(
-        self, event: ClusteredEventInfo
-    ) -> QLabel:
+    def _createEnergyLabel(self, event: ClusteredEventInfo) -> QLabel:
         """Creates the energy label, converting to keV if enabled."""
         if self._displayKeV:
             energy_kev = event.energy * self._kevConversion
@@ -200,34 +204,38 @@ class ClusteredEventWidget(QWidget):
             )
         )
 
-    def _createThumbnailLabel(
-        self, event: ClusteredEventInfo
-    ) -> QLabel:
+    def _createThumbnailLabel(self, event: ClusteredEventInfo) -> QLabel:
         """Generates a thumbnail QLabel from cluster data."""
         label = QLabel()
         label.setFixedSize(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
 
-        buffer = generate_cluster_thumbnail(
-            event.data, colormap=self._colormap
-        )
+        buffer = generate_cluster_thumbnail(event.data, colormap=self._colormap)
         height, width = buffer.shape[:2]
 
         if buffer.ndim == 3:
             bytes_per_line = 3 * width
             q_img = QImage(
-                buffer.data, width, height, bytes_per_line,
+                buffer.data,
+                width,
+                height,
+                bytes_per_line,
                 QImage.Format_RGB888,
             )
         else:
             q_img = QImage(
-                buffer.data, width, height, width,
+                buffer.data,
+                width,
+                height,
+                width,
                 QImage.Format_Grayscale8,
             )
 
         pixmap = QPixmap.fromImage(q_img.copy())
         pixmap = pixmap.scaled(
-            THUMBNAIL_SIZE, THUMBNAIL_SIZE,
-            Qt.KeepAspectRatio, Qt.SmoothTransformation,
+            THUMBNAIL_SIZE,
+            THUMBNAIL_SIZE,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
         )
         label.setPixmap(pixmap)
         label.setAlignment(Qt.AlignCenter)

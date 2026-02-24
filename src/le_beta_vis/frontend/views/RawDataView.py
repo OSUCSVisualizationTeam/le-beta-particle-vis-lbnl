@@ -43,6 +43,39 @@ from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .MosaicView import MosaicView
 
 
+class _Style:
+    LEFT_TOOLBAR = (
+        "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
+    )
+    LEFT_TOOLBAR_BUTTON = "font-weight: bold; color: #ffffff;"
+    LEFT_TOOLBAR_DIVIDER = "background-color: #555555;"
+    ZOOM_IN = "font-size: 20px; font-weight: bold; color: #ffffff;"
+    ZOOM_OUT = "font-size: 20px; font-weight: bold; color: #ffffff;"
+    GRAPHICS_VIEW = "background-color: #000; border: none;"
+    STATUS_BAR = (
+        "background-color: #1e1e1e; color: #cccccc;"
+        " font-size: 12px; padding-left: 8px;"
+    )
+    RIGHT_SIDEBAR = """
+        QFrame { background-color: #f0f0f0; border-left: 1px solid #ccc; }
+        QGroupBox { color: #000000; }
+        QGroupBox::title { color: #000000; }
+        QLabel { color: #000000; background: transparent; }
+        QPushButton { color: #000000; }
+        QComboBox { color: #000000; background-color: #ffffff; }
+        QComboBox QAbstractItemView {
+            color: #000000; background-color: #ffffff;
+        }
+        QDoubleSpinBox { color: #000000; background-color: #ffffff; }
+        QListWidget {
+            color: #000000;
+            background-color: #f4f4f4;
+            alternate-background-color: #e8e8e8;
+        }
+        QListWidget::item:selected { background-color: #b3d4fc; }
+    """
+
+
 class RawDataView(QWidget):
     def __init__(self, viewModel: RawDataViewModel):
         super().__init__()
@@ -78,16 +111,14 @@ class RawDataView(QWidget):
     def _setupLeftToolbar(self):
         self.leftToolbar = QFrame()
         self.leftToolbar.setFixedWidth(100)
-        self.leftToolbar.setStyleSheet(
-            "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
-        )
+        self.leftToolbar.setStyleSheet(_Style.LEFT_TOOLBAR)
         layout = QVBoxLayout(self.leftToolbar)
         layout.setContentsMargins(5, 10, 5, 10)
         layout.setSpacing(10)
         layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
         btn_size = QSize(40, 40)
-        tool_btn_style = "font-weight: bold; color: #ffffff;"
+        tool_btn_style = _Style.LEFT_TOOLBAR_BUTTON
 
         self._setupToolButtons(layout, btn_size, tool_btn_style)
 
@@ -235,9 +266,7 @@ class RawDataView(QWidget):
         self.btnZoomIn.setText("+")
         self.btnZoomIn.setToolTip(self.tr("Zoom In"))
         self.btnZoomIn.setFixedSize(btn_size)
-        self.btnZoomIn.setStyleSheet(
-            "font-size: 20px; font-weight: bold; color: #ffffff;"
-        )
+        self.btnZoomIn.setStyleSheet(_Style.ZOOM_IN)
         self.btnZoomIn.clicked.connect(self.viewModel.zoomIn)
         layout.addWidget(self.btnZoomIn, 0, Qt.AlignHCenter)
 
@@ -246,7 +275,7 @@ class RawDataView(QWidget):
         self.btnZoomReset.setText("1x")
         self.btnZoomReset.setToolTip(self.tr("Reset Zoom (1:1)"))
         self.btnZoomReset.setFixedSize(btn_size)
-        self.btnZoomReset.setStyleSheet("font-weight: bold; color: #ffffff;")
+        self.btnZoomReset.setStyleSheet(_Style.LEFT_TOOLBAR_BUTTON)
         self.btnZoomReset.clicked.connect(self.viewModel.resetZoom)
         layout.addWidget(self.btnZoomReset, 0, Qt.AlignHCenter)
 
@@ -255,9 +284,7 @@ class RawDataView(QWidget):
         self.btnZoomOut.setText("-")
         self.btnZoomOut.setToolTip(self.tr("Zoom Out"))
         self.btnZoomOut.setFixedSize(btn_size)
-        self.btnZoomOut.setStyleSheet(
-            "font-size: 20px; font-weight: bold; color: #ffffff;"
-        )
+        self.btnZoomOut.setStyleSheet(_Style.ZOOM_OUT)
         self.btnZoomOut.clicked.connect(self.viewModel.zoomOut)
         layout.addWidget(self.btnZoomOut, 0, Qt.AlignHCenter)
 
@@ -265,7 +292,7 @@ class RawDataView(QWidget):
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Sunken)
-        line.setStyleSheet("background-color: #555555;")
+        line.setStyleSheet(_Style.LEFT_TOOLBAR_DIVIDER)
         line.setFixedWidth(80)
         return line
 
@@ -278,9 +305,7 @@ class RawDataView(QWidget):
         self.scene = QGraphicsScene()
         self.graphicsView = CaptureGraphicsView()
         self.graphicsView.setScene(self.scene)
-        self.graphicsView.setStyleSheet(
-            "background-color: #000; border: none;"
-        )
+        self.graphicsView.setStyleSheet(_Style.GRAPHICS_VIEW)
         self.graphicsView.setAlignment(Qt.AlignCenter)
 
         self.pixmapItem = QGraphicsPixmapItem()
@@ -314,10 +339,7 @@ class RawDataView(QWidget):
         # Status bar for pointer pixel inspection
         self._statusLabel = QLabel()
         self._statusLabel.setFixedHeight(24)
-        self._statusLabel.setStyleSheet(
-            "background-color: #1e1e1e; color: #cccccc;"
-            " font-size: 12px; padding-left: 8px;"
-        )
+        self._statusLabel.setStyleSheet(_Style.STATUS_BAR)
         centerLayout.addWidget(self._statusLabel)
 
         # Activate pointer mode by default
@@ -333,9 +355,7 @@ class RawDataView(QWidget):
     def _setupRightSidebar(self):
         self.rightSidebar = QFrame()
         self.rightSidebar.setFixedWidth(300)
-        self.rightSidebar.setStyleSheet(
-            "background-color: #f0f0f0; border-left: 1px solid #ccc;"
-        )
+        self.rightSidebar.setStyleSheet(_Style.RIGHT_SIDEBAR)
         self.rightLayout = QVBoxLayout(self.rightSidebar)
         self.rightLayout.setContentsMargins(10, 10, 10, 10)
         self.rightLayout.setSpacing(15)
