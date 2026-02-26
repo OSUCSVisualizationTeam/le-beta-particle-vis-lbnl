@@ -19,9 +19,12 @@ class Cluster(ClusteredEventInfo):
             FITS capture.
         clusterId (Optional[int]): Unique cluster identifier
             within the FITS capture.
-        cnnClassification (int): CNN classification label.
-        nrgClassification (int): Energy-based classification label.
-        bdtClassification (int): BDT classification label.
+        cnnClassification (float): CNN tritium confidence score
+            (0.0–1.0).
+        nrgClassification (float): Energy-based tritium confidence
+            score (0.0–1.0).
+        bdtClassification (float): BDT tritium confidence score
+            (0.0–1.0).
     """
 
     def __init__(
@@ -36,9 +39,9 @@ class Cluster(ClusteredEventInfo):
         pixelCount: int = 0,
         fitsId: Optional[int] = None,
         clusterId: Optional[int] = None,
-        cnnClassification: int = 0,
-        nrgClassification: int = 0,
-        bdtClassification: int = 0,
+        cnnClassification: float = 0.0,
+        nrgClassification: float = 0.0,
+        bdtClassification: float = 0.0,
     ):
         super().__init__(
             boundingBox=boundingBox,
