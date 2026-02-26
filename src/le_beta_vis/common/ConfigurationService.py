@@ -69,6 +69,11 @@ class MockConfigurationService(ConfigurationService):
             "gui:historical:default_query_hours": 24,
             "gui:historical:live_update_rate_ms": 1000,
             "gui:historical:mode": "historical",
+            "gui:historical:classification_threshold": 0.75,
+            "gui:historical:grid_item_width": 140,
+            "gui:historical:grid_item_height": 160,
+            "gui:historical:grid_default_columns": 2,
+            "gui:historical:grid_max_columns": 3,
             "gui:inspector:histogram_bins": 50,
             # Export & Reporting (GUI)
             "gui:export:default_path": "~/Data",
