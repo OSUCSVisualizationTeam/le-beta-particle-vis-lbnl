@@ -34,6 +34,11 @@ This document serves as the authoritative registry for all configuration keys us
 | **gui:mosaic** | `height` | Integer | `130` | Fixed height (in pixels) of the Mosaic View container strip. |
 | **gui:mosaic** | `thumbnail_height` | Integer | `100` | Height (in pixels) of the individual thumbnail images inside the strip. Width is calculated dynamically. |
 | **gui:mosaic** | `scaling_function` | Enum (Str) | `log` | Transfer function used to render thumbnails. Values: `linear`, `log`, `sqrt`. |
+| **gui:historical** | `grid_item_width` | Integer | `140` | Width (in pixels) of each event thumbnail cell in the Historical Analysis grid. |
+| **gui:historical** | `grid_item_height` | Integer | `160` | Height (in pixels) of each event thumbnail cell in the Historical Analysis grid. |
+| **gui:historical** | `classification_threshold` | Float | `0.75` | Min confidence for positive classification in the Historical Analysis grid and inspector. |
+| **gui:historical** | `grid_default_columns` | Integer | `2` | Default number of visible columns in the event grid. |
+| **gui:historical** | `grid_max_columns` | Integer | `3` | Maximum number of visible columns in the event grid. |
 | **gui:historical** | `default_query_hours` | Integer | `24` | Default lookback period (in hours) when opening the Historical Analysis view. |
 | **gui:historical** | `live_update_rate_ms` | Integer | `1000` | Refresh rate (in milliseconds) for the live monitoring dashboard. |
 | **gui:historical** | `mode` | Enum (Str) | `historical` | Operational mode of the Historical View. Values: `live`, `historical`. |
