@@ -9,6 +9,10 @@ from .RoiRect import RoiRect
 from .BoundingBox import BoundingBox
 from .ClusterExtractor import ClusterExtractor, ClusteredEventInfo
 from .Cluster import Cluster
+from .ParticleType import ParticleType, classify_particle, CLASSIFICATION_THRESHOLD
+from .EventRepository import EventRepository
+from .MockEventRepository import MockEventRepository
+from .HistogramRenderer import HistogramRenderer, MatplotlibHistogramRenderer
 from .MockClusterExtractor import MockClusterExtractor
 from .LBNLClassicalClusterExtractor import LBNLClassicalClusterExtractor
 from .LBNLOptimizedClusterExtractor import LBNLOptimizedClusterExtractor
