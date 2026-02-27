@@ -8,7 +8,7 @@ import numpy as np
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-import requests
+import zmq
 
 load_dotenv()
 
@@ -155,21 +155,15 @@ class Cluster():
     def classify_cluster(self):
         """
         Run clusters through classification models to save in database.
+        Connects to the Classification Service through a zmq endpoint.
         """
-        classification_request = {
-            "id": self.cluster_id,
-            "data": self.data
-        }
-        try:    # sample endpoint for localhost, will most likely be changed from config
-            response = requests.post("localhost:8081/classifyall", json=classification_request)
-            # Placeholders for all classifications that the /classifyall end point would return
-            classifications = response.json()
-            self.cnn_classification = classifications["CNN"]
-            self.nrg_classification = classifications["NRG"]
-            self.bdt_classification = classifications["BDT"]
+        raise NotImplementedError
 
-        except requests.exceptions.RequestException as e:
-            print(f"Could not request classifications: {e}")
+            # Placeholders for all classifications that the /classifyall end point would return
+            #classifications = response.json()
+            #self.cnn_classification = classifications["CNN"]
+            #self.nrg_classification = classifications["NRG"]
+            #self.bdt_classification = classifications["BDT"]
 
     def store_clusters(self):
         """

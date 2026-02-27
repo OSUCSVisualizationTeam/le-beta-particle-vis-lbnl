@@ -10,6 +10,7 @@ import threading
 # Needed for local imports, can be removed later when called by main program
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+from le_beta_vis.common.RedisBackedConfigurationService import RedisBackedConfigurationService
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.backend.FileProcessing import ProcessFile
 
@@ -88,8 +89,7 @@ def file_uploaded(queue: queue.Queue, config: ConfigurationService):
         ProcessFile(config_service=config, file=path)
 
 if __name__ == "__main__":
-    from le_beta_vis.common.ConfigurationService import MockConfigurationService
-    polling = PollingThread(MockConfigurationService())
+    polling = PollingThread(RedisBackedConfigurationService())
     polling.begin()
     try:
         while True:

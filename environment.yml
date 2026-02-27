@@ -19,7 +19,7 @@ dependencies:
   - watchdog
   - mysql-connector-python
   - python-dotenv
-  - requests
+  - pyzmq
   - pip:
     - numpy<2
     - git+https://gitlab.com/lbl-anp/mlccd/mlccd_models.git
