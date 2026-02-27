@@ -123,6 +123,6 @@ DROP VIEW IF EXISTS v_tritium_candidates;
 CREATE VIEW v_tritium_candidates as
 SELECT * FROM clusters
 WHERE classification = "tritium"
-ORDER BY classificationCNN DESC, classificationNRG DESC, classificationBDT DESC;
+ORDER BY classification DESC;
 
 SET FOREIGN_KEY_CHECKS=1;
