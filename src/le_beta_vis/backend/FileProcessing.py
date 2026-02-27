@@ -50,7 +50,7 @@ class ProcessFile():
         """
         Iterates through HDUs, creating clusters from each
         """
-        for hdu in self.capture:
+        for hdu_index, hdu in enumerate(self.capture):
             data = hdu.rawData()
             # Label as a cluster if the data passes the four sigma threshold comparison to the background noise
             labeled_array, num_features = label(data > 4 * self.ped_width) # 4 sigma threshold
@@ -98,7 +98,7 @@ class ProcessFile():
                 cluster_sigma_y = sigma_y
                 cluster_energy = np.sum(pixels_around_cluster_wo_noise)
                 cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
-                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, bounding_box, cluster_sigma_x,
+                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, hdu_index, bounding_box, cluster_sigma_x,
                                              cluster_sigma_y, cluster_energy, cluster_pixels,
                                              self.fits_id))
 
@@ -125,6 +125,7 @@ class ProcessFile():
             request = {
                 "Action": "Storage",
                 "data": cluster.data,
+                "hdu_id": cluster.hdu,
                 "bounding_box": cluster.bounding_box,
                 "sigmaX": cluster.sigmaX, "sigmaY": cluster.sigmaY,
                 "total_energy": cluster.total_energy,
@@ -147,6 +148,7 @@ class Cluster():
     """
     def __init__(self,
                  data: np.ndarray,
+                 hdu: int,
                  bounding_box: BoundingBox,
                  sigmaX: float,
                  sigmaY: float,
@@ -155,6 +157,7 @@ class Cluster():
                  fits_id: int
                  ):
         self.data = data
+        self.hdu = hdu
         self.bounding_box = bounding_box
         self.sigmaX = sigmaX
         self.sigmaY = sigmaY

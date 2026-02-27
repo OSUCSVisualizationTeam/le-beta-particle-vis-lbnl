@@ -194,6 +194,8 @@ class EventPersistence():
                 if id > 0:
                     fits_id = id
                 else:
+                    self.conn.close()
+                    self.conn = None
                     raise FailedProcException
 
             # Commit results and close connection
@@ -211,6 +213,7 @@ class EventPersistence():
                 self.conn = self.db_connect()
             cursor = self.conn.cursor()
             proc_args = (self.cluster_to_store["fits_id"], self.cluster_to_store["data"],
+                         self.cluster_to_store["hdu_id"],
                          self.cluster_to_store["bounding_box"].top, self.cluster_to_store["bounding_box"].left,
                          self.cluster_to_store["bounding_box"].bottom, self.cluster_to_store["bounding_box"].right,
                          self.cluster_to_store["total_energy"],
@@ -224,6 +227,8 @@ class EventPersistence():
                 if id > 0:
                     cluster_id = id
                 else:
+                    self.conn.close()
+                    self.conn = None
                     raise FailedProcException
 
             # Commit results and close connection
@@ -293,6 +298,7 @@ class EventPersistence():
             cursor = self.conn.cursor()
 
             data = self.retrieval_clusters["data"]
+            hdu = self.retrieval_clusters["hdu_id"]
             cluster_id = self.retrieval_clusters["cluster_id"]
             bounding_box = self.retrieval_clusters["bounding_box"]
             fits_id = self.retrieval_clusters["fits_id"]
@@ -308,6 +314,9 @@ class EventPersistence():
             if data:
                 select_args.append("data = %s")
                 select_argv.append(data)
+            if hdu:
+                select_args.append("hduID = %s")
+                select_argv.append(hdu)
             if bounding_box:
                 select_args.extend(["top = %s", "left = %s", "bottom = %s", "right = %s"])
                 select_argv.extend([bounding_box.top, bounding_box.left, bounding_box.bottom, bounding_box.right])
@@ -393,16 +402,17 @@ class EventPersistence():
         clusters_list = []
         for result in results:
         # Tuple return from a select statement will be in the order:
-        # `fitsFile`, `clusterID`, `data`, `totalEnergy`, `sigmaX`, `sigmaY`, `classification`, `pixelCount`,
+        # `fitsFile`, `hdu_id`, `clusterID`, `data`, `totalEnergy`, `sigmaX`, `sigmaY`, `classification`, `pixelCount`,
             clusters_list.append({
                 "fits_id": result[0],
-                "cluster_id": result[1],
-                "data": result[2],
-                "total_energy": result[3],
-                "sigmaX": result[4],
-                "sigmaY": result[5],
-                "classification": result[5],
-                "total_pixels": result[5]
+                "hdu_id": result[1],
+                "cluster_id": result[2],
+                "data": result[3],
+                "total_energy": result[4],
+                "sigmaX": result[5],
+                "sigmaY": result[6],
+                "classification": result[7],
+                "total_pixels": result[8]
             })
         response = {
             "result": "success",
