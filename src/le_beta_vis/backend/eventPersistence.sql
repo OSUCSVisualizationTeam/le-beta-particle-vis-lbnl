@@ -19,6 +19,10 @@ DROP TABLE IF EXISTS `clusters` ;
 CREATE TABLE IF NOT EXISTS `clusters` (
   `fitsFile` INT NOT NULL,
   `clusterID` INT NOT NULL,
+  `top` INT NOT NULL,
+  `left` INT NOT NULL,
+  `bottom` INT NOT NULL,
+  `right` INT NOT NULL,
   `data` BLOB NOT NULL,
   `totalEnergy` FLOAT NOT NULL,
   `sigmaX` FLOAT NOT NULL,
@@ -66,6 +70,10 @@ DELIMITER //
 
 CREATE PROCEDURE insert_cluster(
     IN fitsFile INT,
+    IN top INT,
+    IN left INT,
+    IN bottom INT,
+    IN right INT,
     IN data BLOB,
     IN totalEnergy FLOAT,
     IN sigmaX FLOAT,
@@ -81,8 +89,8 @@ BEGIN
         SET clusterID = -99;
     END;
     START TRANSACTION;
-    INSERT INTO clusters(fitsFile, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
-    VALUES (fitsFile, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount);
+    INSERT INTO clusters(fitsFile, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
+    VALUES (fitsFile, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount);
 
     SET clusterID = LAST_INSERT_ID();
 

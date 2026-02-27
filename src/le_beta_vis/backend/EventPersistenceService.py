@@ -110,6 +110,7 @@ class EventPersistence():
             try:
                 self.cluster_to_store = {
                         "data": np.array(request["data"]),
+                        "bounding_box": request["bounding_box"],
                         "sigmaX": request["sigmaX"],
                         "sigmaY": request["sigmaY"],
                         "total_energy": request["total_energy"],
@@ -127,6 +128,7 @@ class EventPersistence():
                 self.retrieval_clusters = {
                         "data": np.array(request["data"]),
                         "cluster_id": request["cluster_id"],
+                        "bounding_box": request["bounding_box"],
                         "sigmaX": request["sigmaX"],
                         "sigmaY": request["sigmaY"],
                         "total_energy": request["total_energy"],
@@ -209,6 +211,8 @@ class EventPersistence():
                 self.conn = self.db_connect()
             cursor = self.conn.cursor()
             proc_args = (self.cluster_to_store["fits_id"], self.cluster_to_store["data"],
+                         self.cluster_to_store["bounding_box"].top, self.cluster_to_store["bounding_box"].left,
+                         self.cluster_to_store["bounding_box"].bottom, self.cluster_to_store["bounding_box"].right,
                          self.cluster_to_store["total_energy"],
                          self.cluster_to_store["sigmaX"], self.cluster_to_store["sigmaY"],
                          self.cluster_to_store["classification"],
@@ -290,6 +294,7 @@ class EventPersistence():
 
             data = self.retrieval_clusters["data"]
             cluster_id = self.retrieval_clusters["cluster_id"]
+            bounding_box = self.retrieval_clusters["bounding_box"]
             fits_id = self.retrieval_clusters["fits_id"]
             sigmaX = self.retrieval_clusters["sigmaX"]
             sigmaY = self.retrieval_clusters["sigmaY"]
@@ -303,6 +308,9 @@ class EventPersistence():
             if data:
                 select_args.append("data = %s")
                 select_argv.append(data)
+            if bounding_box:
+                select_args.extend(["top = %s", "left = %s", "bottom = %s", "right = %s"])
+                select_argv.extend([bounding_box.top, bounding_box.left, bounding_box.bottom, bounding_box.right])
             if fits_id:
                 select_args.append("fitsFile = %s")
                 select_argv.append(fits_id)

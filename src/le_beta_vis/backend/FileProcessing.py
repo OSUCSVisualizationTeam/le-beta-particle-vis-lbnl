@@ -1,6 +1,7 @@
 import numpy as np
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
+from le_beta_vis.common.BoundingBox import BoundingBox
 import mysql.connector
 from astropy.io import fits
 from scipy.ndimage import label, maximum_position
@@ -87,6 +88,7 @@ class ProcessFile():
                 # Extract a cluster centered at the maximum position, with and without background noise
                 # pixels_around_cluster_with_noise = data[y_start:y_end, x_start:x_end]
                 pixels_around_cluster_wo_noise = cluster_image[y_start:y_end, x_start:x_end]
+                bounding_box = BoundingBox(y_end, x_start, y_start, x_end)
 
                 # Calculate weighted mean sigma
                 sigma_x, sigma_y = self.calc_sigmas(pixels_around_cluster_wo_noise)
@@ -96,7 +98,7 @@ class ProcessFile():
                 cluster_sigma_y = sigma_y
                 cluster_energy = np.sum(pixels_around_cluster_wo_noise)
                 cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
-                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, cluster_sigma_x,
+                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, bounding_box, cluster_sigma_x,
                                              cluster_sigma_y, cluster_energy, cluster_pixels,
                                              self.fits_id))
 
@@ -118,11 +120,12 @@ class ProcessFile():
         """
         socket = self.process_context.socket(zmq.REQ)
         socket.connect("ipc:///tmp/EPCCluster.ipc")
-        # Form JSON request with fits data, send to endpoint and grab response
+        # Form JSON request with cluster data, send to endpoint and grab response
         for cluster in self.clusters:
             request = {
                 "Action": "Storage",
                 "data": cluster.data,
+                "bounding_box": cluster.bounding_box,
                 "sigmaX": cluster.sigmaX, "sigmaY": cluster.sigmaY,
                 "total_energy": cluster.total_energy,
                 "total_pixels": cluster.total_pixels,
@@ -132,9 +135,10 @@ class ProcessFile():
             socket.send_json(request)
             response = socket.recv_json()
             if response["result"] == "success":
-                self.fits_id = response["fits_id"]
+                cluster.cluster_id = response["cluster_id"]
             else:
                 print("There was an issue communicating with the EPS.")
+                # kill loop here, can include logging and exceptions to try and restart the service later
                 break
 
 class Cluster():
@@ -143,6 +147,7 @@ class Cluster():
     """
     def __init__(self,
                  data: np.ndarray,
+                 bounding_box: BoundingBox,
                  sigmaX: float,
                  sigmaY: float,
                  energy: float,
@@ -150,6 +155,7 @@ class Cluster():
                  fits_id: int
                  ):
         self.data = data
+        self.bounding_box = bounding_box
         self.sigmaX = sigmaX
         self.sigmaY = sigmaY
         self.total_energy = energy
