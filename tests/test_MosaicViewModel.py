@@ -3,6 +3,7 @@ import numpy as np
 from unittest.mock import MagicMock
 from le_beta_vis.frontend.viewmodels.MosaicViewModel import MosaicViewModel
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.frontend.fitsconverters import ScalingFunction, Colormap
 
@@ -22,7 +23,8 @@ def view_model():
     config.set("gui:mosaic:thumbnail_height", 120)
     config.set("gui:mosaic:scaling_function", "log")
 
-    vm = MosaicViewModel(config)
+    physics_manager = PhysicsConversionManagerImpl(config)
+    vm = MosaicViewModel(config, physics_manager)
 
     # Mock the converter to return a numpy array
     vm._converter = MagicMock()

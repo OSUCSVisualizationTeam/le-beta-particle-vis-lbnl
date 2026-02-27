@@ -6,7 +6,9 @@ import numpy as np
 from scipy.ndimage import find_objects, label, maximum_position
 
 from .BoundingBox import BoundingBox
+from .cluster_sigma import compute_cluster_sigmas
 from .ClusterExtractor import ClusteredEventInfo, ClusterExtractor
+from .PhysicsConversionManager import PhysicsConversionManager
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +62,17 @@ def _process_cluster(
         right=bounding_box.left + col_offset + cluster_data.shape[1],
     )
 
+    sigma_x, sigma_y = compute_cluster_sigmas(cluster_data)
+
     return ClusteredEventInfo(
         boundingBox=bbox,
         data=cluster_data.copy(),
         centerX=bounding_box.left + col_offset + peak_col,
         centerY=bounding_box.top + row_offset + peak_row,
+        sigmaX=sigma_x,
+        sigmaY=sigma_y,
+        energy=energy,
+        pixelCount=pixel_count,
     )
 
 
@@ -81,13 +89,11 @@ class GeneralClusterExtractor(ClusterExtractor):
 
     def __init__(
         self,
+        physics_manager: PhysicsConversionManager,
         sigma_multiplier: float = 4.0,
-        ped_width: int = 1400,
-        kev_conversion: float = 1.02857e-5,
     ):
         self._sigma = sigma_multiplier
-        self._ped_width = ped_width
-        self._kev = kev_conversion
+        self._physics_manager = physics_manager
         self._cancelled = False
         self._thread: Optional[threading.Thread] = None
 
@@ -147,7 +153,7 @@ class GeneralClusterExtractor(ClusterExtractor):
         progress_callback: Optional[Callable[[float], None]] = None,
     ) -> List[ClusteredEventInfo]:
         """Label, slice, and filter all clusters."""
-        threshold = self._sigma * self._ped_width
+        threshold = self._physics_manager.calculate_threshold(self._sigma)
         labeled_array, num_features = label(data > threshold)
 
         if num_features == 0:
@@ -167,7 +173,7 @@ class GeneralClusterExtractor(ClusterExtractor):
 
             event = _process_cluster(
                 data, labeled_array, label_idx, slices,
-                bounding_box, self._kev, energy_min, energy_max,
+                bounding_box, self._physics_manager.kev_conversion_factor, energy_min, energy_max,
             )
             if event is not None:
                 results.append(event)

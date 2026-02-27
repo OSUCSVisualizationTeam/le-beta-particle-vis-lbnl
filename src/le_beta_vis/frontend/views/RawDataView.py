@@ -37,9 +37,43 @@ from ..viewmodels.RawDataViewModel import (
 from ..widgets.BoxSelectionGraphicsItem import BoxSelectionGraphicsItem
 from ..widgets.CaptureGraphicsView import CaptureGraphicsView
 from ..widgets.MagnifierGraphicsItem import MagnifierGraphicsItem
+from ..widgets.ClusteredEventWidget import ClusteredEventWidget
 from ..widgets.ClusteringProgressOverlay import ClusteringProgressOverlay
 from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .MosaicView import MosaicView
+
+
+class _Style:
+    LEFT_TOOLBAR = (
+        "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
+    )
+    LEFT_TOOLBAR_BUTTON = "font-weight: bold; color: #ffffff;"
+    LEFT_TOOLBAR_DIVIDER = "background-color: #555555;"
+    ZOOM_IN = "font-size: 20px; font-weight: bold; color: #ffffff;"
+    ZOOM_OUT = "font-size: 20px; font-weight: bold; color: #ffffff;"
+    GRAPHICS_VIEW = "background-color: #000; border: none;"
+    STATUS_BAR = (
+        "background-color: #1e1e1e; color: #cccccc;"
+        " font-size: 12px; padding-left: 8px;"
+    )
+    RIGHT_SIDEBAR = """
+        QFrame { background-color: #f0f0f0; border-left: 1px solid #ccc; }
+        QGroupBox { color: #000000; }
+        QGroupBox::title { color: #000000; }
+        QLabel { color: #000000; background: transparent; }
+        QPushButton { color: #000000; }
+        QComboBox { color: #000000; background-color: #ffffff; }
+        QComboBox QAbstractItemView {
+            color: #000000; background-color: #ffffff;
+        }
+        QDoubleSpinBox { color: #000000; background-color: #ffffff; }
+        QListWidget {
+            color: #000000;
+            background-color: #f4f4f4;
+            alternate-background-color: #e8e8e8;
+        }
+        QListWidget::item:selected { background-color: #b3d4fc; }
+    """
 
 
 class RawDataView(QWidget):
@@ -77,16 +111,14 @@ class RawDataView(QWidget):
     def _setupLeftToolbar(self):
         self.leftToolbar = QFrame()
         self.leftToolbar.setFixedWidth(100)
-        self.leftToolbar.setStyleSheet(
-            "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
-        )
+        self.leftToolbar.setStyleSheet(_Style.LEFT_TOOLBAR)
         layout = QVBoxLayout(self.leftToolbar)
         layout.setContentsMargins(5, 10, 5, 10)
         layout.setSpacing(10)
         layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
         btn_size = QSize(40, 40)
-        tool_btn_style = "font-weight: bold; color: #ffffff;"
+        tool_btn_style = _Style.LEFT_TOOLBAR_BUTTON
 
         self._setupToolButtons(layout, btn_size, tool_btn_style)
 
@@ -234,9 +266,7 @@ class RawDataView(QWidget):
         self.btnZoomIn.setText("+")
         self.btnZoomIn.setToolTip(self.tr("Zoom In"))
         self.btnZoomIn.setFixedSize(btn_size)
-        self.btnZoomIn.setStyleSheet(
-            "font-size: 20px; font-weight: bold; color: #ffffff;"
-        )
+        self.btnZoomIn.setStyleSheet(_Style.ZOOM_IN)
         self.btnZoomIn.clicked.connect(self.viewModel.zoomIn)
         layout.addWidget(self.btnZoomIn, 0, Qt.AlignHCenter)
 
@@ -245,7 +275,7 @@ class RawDataView(QWidget):
         self.btnZoomReset.setText("1x")
         self.btnZoomReset.setToolTip(self.tr("Reset Zoom (1:1)"))
         self.btnZoomReset.setFixedSize(btn_size)
-        self.btnZoomReset.setStyleSheet("font-weight: bold; color: #ffffff;")
+        self.btnZoomReset.setStyleSheet(_Style.LEFT_TOOLBAR_BUTTON)
         self.btnZoomReset.clicked.connect(self.viewModel.resetZoom)
         layout.addWidget(self.btnZoomReset, 0, Qt.AlignHCenter)
 
@@ -254,9 +284,7 @@ class RawDataView(QWidget):
         self.btnZoomOut.setText("-")
         self.btnZoomOut.setToolTip(self.tr("Zoom Out"))
         self.btnZoomOut.setFixedSize(btn_size)
-        self.btnZoomOut.setStyleSheet(
-            "font-size: 20px; font-weight: bold; color: #ffffff;"
-        )
+        self.btnZoomOut.setStyleSheet(_Style.ZOOM_OUT)
         self.btnZoomOut.clicked.connect(self.viewModel.zoomOut)
         layout.addWidget(self.btnZoomOut, 0, Qt.AlignHCenter)
 
@@ -264,7 +292,7 @@ class RawDataView(QWidget):
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Sunken)
-        line.setStyleSheet("background-color: #555555;")
+        line.setStyleSheet(_Style.LEFT_TOOLBAR_DIVIDER)
         line.setFixedWidth(80)
         return line
 
@@ -277,9 +305,7 @@ class RawDataView(QWidget):
         self.scene = QGraphicsScene()
         self.graphicsView = CaptureGraphicsView()
         self.graphicsView.setScene(self.scene)
-        self.graphicsView.setStyleSheet(
-            "background-color: #000; border: none;"
-        )
+        self.graphicsView.setStyleSheet(_Style.GRAPHICS_VIEW)
         self.graphicsView.setAlignment(Qt.AlignCenter)
 
         self.pixmapItem = QGraphicsPixmapItem()
@@ -313,10 +339,7 @@ class RawDataView(QWidget):
         # Status bar for pointer pixel inspection
         self._statusLabel = QLabel()
         self._statusLabel.setFixedHeight(24)
-        self._statusLabel.setStyleSheet(
-            "background-color: #1e1e1e; color: #cccccc;"
-            " font-size: 12px; padding-left: 8px;"
-        )
+        self._statusLabel.setStyleSheet(_Style.STATUS_BAR)
         centerLayout.addWidget(self._statusLabel)
 
         # Activate pointer mode by default
@@ -332,9 +355,7 @@ class RawDataView(QWidget):
     def _setupRightSidebar(self):
         self.rightSidebar = QFrame()
         self.rightSidebar.setFixedWidth(300)
-        self.rightSidebar.setStyleSheet(
-            "background-color: #f0f0f0; border-left: 1px solid #ccc;"
-        )
+        self.rightSidebar.setStyleSheet(_Style.RIGHT_SIDEBAR)
         self.rightLayout = QVBoxLayout(self.rightSidebar)
         self.rightLayout.setContentsMargins(10, 10, 10, 10)
         self.rightLayout.setSpacing(15)
@@ -391,14 +412,22 @@ class RawDataView(QWidget):
         self.rightLayout.addWidget(group)
 
     def _addInspectorSection(self):
-        group = QGroupBox(self.tr("Inspector: Selection"))
-        layout = QVBoxLayout(group)
-        layout.addWidget(QLabel(self.tr("No selection")))
-        group.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self.rightLayout.addWidget(group)
+        self._clusteredEventWidget = ClusteredEventWidget()
+        self._clusteredEventWidget.setSizePolicy(
+            QSizePolicy.Preferred, QSizePolicy.Expanding
+        )
+        self.rightLayout.addWidget(self._clusteredEventWidget)
 
     def bindViewModel(self):
-        # Image changed callback from background thread
+        """Bind all ViewModel callbacks and View signals."""
+        self._bindImageCallbacks()
+        self._bindToolCallbacks()
+        self._bindGraphicsViewSignals()
+        self._bindRoiCallbacks()
+        self._bindClusteringCallbacks()
+
+    def _bindImageCallbacks(self):
+        """Wire image rendering, scale, mosaic, and range control."""
         def on_image_changed():
             QMetaObject.invokeMethod(
                 self, "updateImage", Qt.QueuedConnection
@@ -409,6 +438,19 @@ class RawDataView(QWidget):
                 self, "updateZoom", Qt.QueuedConnection
             )
 
+        self.viewModel.add_image_changed_callback(on_image_changed)
+        self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
+            self.updateMosaicVisibility
+        )
+        self.viewModel.add_scale_changed_callback(on_scale_changed)
+        self.updateMosaicVisibility()
+
+        vmin, vmax = self.viewModel.visualizationRange
+        self.rangeControl.setValues(vmin, vmax)
+        self.rangeControl.setColormap(self.viewModel.colormap)
+
+    def _bindToolCallbacks(self):
+        """Wire active tool, magnifier, and pointer hover callbacks."""
         def on_active_tool_changed():
             QMetaObject.invokeMethod(
                 self, "_updateActiveTool", Qt.QueuedConnection
@@ -431,11 +473,6 @@ class RawDataView(QWidget):
                 Qt.QueuedConnection,
             )
 
-        self.viewModel.add_image_changed_callback(on_image_changed)
-        self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
-            self.updateMosaicVisibility
-        )
-        self.viewModel.add_scale_changed_callback(on_scale_changed)
         self.viewModel.add_active_tool_changed_callback(
             on_active_tool_changed
         )
@@ -448,13 +485,9 @@ class RawDataView(QWidget):
         self.viewModel.add_pointer_hover_changed_callback(
             on_pointer_hover_changed
         )
-        self.updateMosaicVisibility()
 
-        vmin, vmax = self.viewModel.visualizationRange
-        self.rangeControl.setValues(vmin, vmax)
-        self.rangeControl.setColormap(self.viewModel.colormap)
-
-        # CaptureGraphicsView signals
+    def _bindGraphicsViewSignals(self):
+        """Connect CaptureGraphicsView Qt signals to handlers."""
         self.graphicsView.pixelHovered.connect(self._onPixelHovered)
         self.graphicsView.pixelNudgeRequested.connect(
             self._onPixelNudged
@@ -472,6 +505,8 @@ class RawDataView(QWidget):
             self._onBoxSelectClicked
         )
 
+    def _bindRoiCallbacks(self):
+        """Wire ROI change and extraction button refresh callbacks."""
         def on_roi_changed():
             QMetaObject.invokeMethod(
                 self, "_updateBoxSelection", Qt.QueuedConnection
@@ -479,9 +514,26 @@ class RawDataView(QWidget):
 
         self.viewModel.add_roi_changed_callback(on_roi_changed)
 
-        # Clustering callbacks — AutoConnection so the overlay shows
-        # immediately when triggerClustering runs on the main thread,
-        # while still queuing safely from the extractor background thread.
+        self.viewModel.add_active_tool_changed_callback(
+            lambda: QMetaObject.invokeMethod(
+                self, "_refreshExtractionButton",
+                Qt.QueuedConnection,
+            )
+        )
+        self.viewModel.add_roi_changed_callback(
+            lambda: QMetaObject.invokeMethod(
+                self, "_refreshExtractionButton",
+                Qt.QueuedConnection,
+            )
+        )
+
+    def _bindClusteringCallbacks(self):
+        """Wire clustering state, progress, error, and cancel callbacks.
+
+        Uses Qt.AutoConnection so the overlay shows immediately when
+        triggerClustering runs on the main thread, while still queuing
+        safely from the extractor background thread.
+        """
         def on_clustering_state_changed():
             QMetaObject.invokeMethod(
                 self, "_updateClusteringState",
@@ -502,19 +554,6 @@ class RawDataView(QWidget):
             on_clustering_progress
         )
 
-        self.viewModel.add_active_tool_changed_callback(
-            lambda: QMetaObject.invokeMethod(
-                self, "_refreshExtractionButton",
-                Qt.QueuedConnection,
-            )
-        )
-        self.viewModel.add_roi_changed_callback(
-            lambda: QMetaObject.invokeMethod(
-                self, "_refreshExtractionButton",
-                Qt.QueuedConnection,
-            )
-        )
-
         self._clusteringOverlay.cancelRequested.connect(
             self.viewModel.cancelClustering
         )
@@ -527,6 +566,36 @@ class RawDataView(QWidget):
 
         self.viewModel.add_clustering_error_callback(
             on_clustering_error
+        )
+
+        def on_clustering_completed():
+            QMetaObject.invokeMethod(
+                self, "_updateClusteringResults",
+                Qt.AutoConnection,
+            )
+
+        self.viewModel.add_clustering_completed_callback(
+            on_clustering_completed
+        )
+
+        def on_selected_cluster_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateSelectedCluster",
+                Qt.QueuedConnection,
+            )
+
+        self.viewModel.add_selected_cluster_changed_callback(
+            on_selected_cluster_changed
+        )
+
+        self._clusteredEventWidget.clusterSelected.connect(
+            self.viewModel.selectCluster
+        )
+        self._clusteredEventWidget.classifyRequested.connect(
+            self.viewModel.classifySelectedCluster
+        )
+        self._clusteredEventWidget.exportRequested.connect(
+            self.viewModel.exportSelectedCluster
         )
 
     def updateMosaicVisibility(self):
@@ -751,6 +820,28 @@ class RawDataView(QWidget):
             self,
             self.tr("Cluster Extraction Failed"),
             message,
+        )
+
+    @Slot()
+    def _updateClusteringResults(self):
+        """Populates the clustered event widget from ViewModel results."""
+        results = self.viewModel.clusteringResults
+        self._clusteredEventWidget.setColormap(
+            self.viewModel.clusterThumbnailColormap
+        )
+        self._clusteredEventWidget.setDisplayEnergyInKev(
+            self.viewModel.displayEnergyInKev
+        )
+        self._clusteredEventWidget.setKevConversion(
+            self.viewModel.kevConversion
+        )
+        self._clusteredEventWidget.setResults(results)
+
+    @Slot()
+    def _updateSelectedCluster(self):
+        """Syncs the widget's selection with ViewModel state."""
+        self._clusteredEventWidget.setSelectedIndex(
+            self.viewModel.selectedClusterIndex
         )
 
     @Slot()

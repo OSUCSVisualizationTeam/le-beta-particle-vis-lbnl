@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 from unittest.mock import patch
+from typing import Union
 
 import numpy as np
 from scipy.ndimage import label
@@ -21,6 +22,7 @@ from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.GeneralClusterExtractor import (
     GeneralClusterExtractor,
 )
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 
 _gce_mod = sys.modules['le_beta_vis.common.GeneralClusterExtractor']
 
@@ -28,10 +30,29 @@ _SIGMA = 4.0
 _PED = 100
 _KEV = 0.01
 
+class MockPhysicsManager(PhysicsConversionManager):
+    def __init__(self, factor: float, ped_width: int):
+        self._factor = factor
+        self._ped_width = ped_width
+    
+    @property
+    def kev_conversion_factor(self) -> float:
+        return self._factor
+    
+    @property
+    def pedestal_width(self) -> int:
+        return self._ped_width
+    
+    def calculate_threshold(self, sigma: float) -> float:
+        return sigma * self._ped_width
+    
+    def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+        return value * self._factor
 
 def _make_extractor() -> GeneralClusterExtractor:
+    physics = MockPhysicsManager(factor=_KEV, ped_width=_PED)
     return GeneralClusterExtractor(
-        sigma_multiplier=_SIGMA, ped_width=_PED, kev_conversion=_KEV,
+        sigma_multiplier=_SIGMA, physics_manager=physics,
     )
 
 
@@ -195,3 +216,33 @@ class TestGeneralClusterExtractor:
             _make_extractor(), data, bbox, progress_callback=None,
         )
         assert len(results) == 1
+
+    def test_energy_is_populated(self):
+        """Extracted cluster has non-zero energy (ADU)."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+        assert results[0].energy == 2500.0  # 5 * 500 ADU
+
+    def test_pixel_count_is_populated(self):
+        """Extracted cluster has correct pixelCount."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+        assert results[0].pixelCount == 5
+
+    def test_sigma_is_populated(self):
+        """Extracted cluster has non-zero sigmaX for horizontal spread."""
+        data = np.zeros((20, 20), dtype=np.float64)
+        for i in range(5):
+            data[10, 10 + i] = 500
+        bbox = BoundingBox(0, 0, 20, 20)
+        results = _run_extract(_make_extractor(), data, bbox)
+        assert len(results) == 1
+        assert results[0].sigmaX > 0.0

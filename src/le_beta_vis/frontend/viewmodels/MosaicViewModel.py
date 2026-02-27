@@ -2,6 +2,7 @@ from typing import List, Callable
 import numpy as np
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.frontend.fitsconverters import (
     FastPixmapConverter,
     ScalingFunction,
@@ -16,8 +17,9 @@ class MosaicViewModel:
     Pure Python class - No Qt dependencies.
     """
 
-    def __init__(self, configService: ConfigurationService):
+    def __init__(self, configService: ConfigurationService, physics_manager: PhysicsConversionManager):
         self._config = configService
+        self._physics_manager = physics_manager
         self._converter = FastPixmapConverter()
 
         self._captures: List[CCDCaptureModel] = []
@@ -36,7 +38,6 @@ class MosaicViewModel:
         self._thumbnails = []
 
         # Retrieve Config Constants
-        kev_factor = self._config.get("global:physics:kev_conversion", 1.02857e-5)
 
         # Use Shared Thresholds from Main View
         vmin = self._config.get("gui:raw_analysis:vis_range_min", 0.0)
@@ -54,7 +55,7 @@ class MosaicViewModel:
         # Generate Thumbnails
         for capture in self._captures:
             # Convert to keV
-            data_kev = capture.rawData() * kev_factor
+            data_kev = self._physics_manager.adu_to_kev(capture.rawData())
 
             # Generate Thumbnail Buffer
             buffer = self._converter.convert(

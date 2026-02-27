@@ -33,9 +33,13 @@ class MainWindow(QMainWindow):
         self.main_layout.addWidget(self.tabs)
 
         # Initialize Child ViewModels with Configuration Service
-        self.rawDataViewModel = RawDataViewModel(self.viewModel.configService)
+        self.rawDataViewModel = RawDataViewModel(
+            self.viewModel.configService, self.viewModel.physicsManager
+        )
         self.rawDataViewModel.setClusterExtractor(
-            create_cluster_extractor(self.viewModel.configService)
+            create_cluster_extractor(
+                self.viewModel.configService, self.viewModel.physicsManager
+            )
         )
         self.historicalViewModel = HistoricalViewModel(self.viewModel.configService)
 

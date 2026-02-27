@@ -2,8 +2,10 @@ from enum import Enum
 
 import numpy as np
 
+
 class Colormap(str, Enum):
     """Available colormaps for false-color visualization."""
+
     VIRIDIS = "viridis"
     PLASMA = "plasma"
     INFERNO = "inferno"
@@ -13,13 +15,14 @@ class Colormap(str, Enum):
     HOT = "hot"
     COOL = "cool"
 
+
 def get_cv2_colormap_id(name: str) -> int:
     """
     Returns the OpenCV colormap ID for the given string name.
     Lazily imports cv2 to ensure headless compatibility.
     """
     import cv2
-    
+
     mapping = {
         Colormap.VIRIDIS: cv2.COLORMAP_VIRIDIS,
         Colormap.PLASMA: cv2.COLORMAP_PLASMA,
@@ -32,6 +35,7 @@ def get_cv2_colormap_id(name: str) -> int:
     }
     # Default to Viridis if unknown
     return mapping.get(name, cv2.COLORMAP_VIRIDIS)
+
 
 def generate_gradient_pixmap(name: str, width: int = 20, height: int = 256):
     """
@@ -52,7 +56,10 @@ def generate_gradient_pixmap(name: str, width: int = 20, height: int = 256):
     h, w, ch = color_img.shape
     bytes_per_line = ch * w
     q_img = QImage(
-        color_img.data, w, h, bytes_per_line,
+        color_img.data,
+        w,
+        h,
+        bytes_per_line,
         QImage.Format_RGB888,
     )
     return QPixmap.fromImage(q_img.copy())

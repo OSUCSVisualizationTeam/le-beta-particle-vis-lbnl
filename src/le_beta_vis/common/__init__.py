@@ -2,6 +2,7 @@
 # pylint: disable=unused-import
 # pyright: reportUnusedImport=false
 from .ConfigurationService import ConfigurationService, MockConfigurationService
+from .PhysicsConversionManager import PhysicsConversionManager, PhysicsConversionManagerImpl
 from .CCDCaptureModel import CCDCaptureModel
 from .RegionOfInterest import RegionOfInterest
 from .RoiRect import RoiRect
@@ -13,3 +14,4 @@ from .LBNLClassicalClusterExtractor import LBNLClassicalClusterExtractor
 from .LBNLOptimizedClusterExtractor import LBNLOptimizedClusterExtractor
 from .GeneralClusterExtractor import GeneralClusterExtractor
 from .ClusterExtractorFactory import ClusterExtractorMethod, create_cluster_extractor
+from .cluster_sigma import compute_cluster_sigmas

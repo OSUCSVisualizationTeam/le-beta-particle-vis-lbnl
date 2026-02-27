@@ -6,35 +6,33 @@ import numpy as np
 from scipy.ndimage import label, maximum_position
 
 from .BoundingBox import BoundingBox
+from .cluster_sigma import compute_cluster_sigmas
 from .ClusterExtractor import ClusteredEventInfo, ClusterExtractor
+from .PhysicsConversionManager import PhysicsConversionManager
 
 logger = logging.getLogger(__name__)
 
 
-def _find_brightest_label(
+def _collect_qualifying_labels(
     data: np.ndarray,
     labeled_array: np.ndarray,
     num_features: int,
     kev_conversion: float,
-) -> Optional[int]:
-    """Return the label index with the highest energy, or None.
+) -> List[int]:
+    """Return all label indices whose total energy >= 1.0 keV.
 
-    Skips clusters whose total energy is below 1 keV.
-    Label 0 is background and is never considered.
+    Skips label 0 (background).  Labels are returned in arbitrary
+    order; the caller may sort by energy if needed.
     """
-    best_label: Optional[int] = None
-    best_energy = 0.0
+    qualifying: List[int] = []
 
     for i in range(1, num_features + 1):
         cluster_image = np.where(labeled_array == i, data, 0)
         energy = float(np.sum(cluster_image))
-        if energy * kev_conversion < 1.0:
-            continue
-        if energy > best_energy:
-            best_energy = energy
-            best_label = i
+        if energy * kev_conversion >= 1.0:
+            qualifying.append(i)
 
-    return best_label
+    return qualifying
 
 
 def _build_event_info(
@@ -75,24 +73,28 @@ def _build_event_info(
         right=bounding_box.left + x_end,
     )
 
+    sigma_x, sigma_y = compute_cluster_sigmas(sub_data)
+
     return ClusteredEventInfo(
         boundingBox=bbox,
         data=sub_data,
         centerX=bounding_box.left + peak_col,
         centerY=bounding_box.top + peak_row,
+        sigmaX=sigma_x,
+        sigmaY=sigma_y,
         energy=energy,
         pixelCount=pixel_count,
     )
 
 
 class LBNLOptimizedClusterExtractor(ClusterExtractor):
-    """Tritium-detection extractor returning the brightest cluster.
+    """Tritium-detection extractor returning all qualifying clusters.
 
     This backend is specific to the LBNL tritium detection pipeline.
     It is the original ported algorithm from
-    ``FileProcessing.py:cluster_fits``, selecting the brightest
-    cluster by total energy sum across all labels and fixing the
-    off-by-one in label iteration (label 0 is background).
+    ``FileProcessing.py:cluster_fits``, extended to return all
+    clusters whose total energy is at least 1.0 keV (fixing the
+    off-by-one in label iteration where label 0 is background).
 
     Unlike ``LBNLClassicalClusterExtractor``, this backend does not
     depend on ``mlccd_diffusion`` but is still designed for the
@@ -102,13 +104,11 @@ class LBNLOptimizedClusterExtractor(ClusterExtractor):
 
     def __init__(
         self,
+        physics_manager: PhysicsConversionManager,
         sigma_multiplier: float = 4.0,
-        ped_width: int = 1400,
-        kev_conversion: float = 1.02857e-5,
     ):
         self._sigma = sigma_multiplier
-        self._ped_width = ped_width
-        self._kev = kev_conversion
+        self._physics_manager = physics_manager
         self._cancelled = False
         self._thread: Optional[threading.Thread] = None
 
@@ -125,7 +125,10 @@ class LBNLOptimizedClusterExtractor(ClusterExtractor):
         self._cancelled = False
         self._thread = threading.Thread(
             target=self._run,
-            args=(data.copy(), bounding_box, callback),
+            args=(
+                data.copy(), bounding_box, callback,
+                progress_callback,
+            ),
             daemon=True,
         )
         self._thread.start()
@@ -139,12 +142,17 @@ class LBNLOptimizedClusterExtractor(ClusterExtractor):
         data: np.ndarray,
         bounding_box: BoundingBox,
         callback: Callable[[List[ClusteredEventInfo]], None],
+        progress_callback: Optional[Callable[[float], None]],
     ) -> None:
         """Worker executed on background thread."""
         if self._cancelled:
             return
         try:
-            self._run_impl(data, bounding_box, callback)
+            results = self._run_impl(
+                data, bounding_box, progress_callback,
+            )
+            if not self._cancelled:
+                callback(results)
         except Exception:
             logger.exception("Cluster extraction failed")
             if not self._cancelled:
@@ -154,26 +162,36 @@ class LBNLOptimizedClusterExtractor(ClusterExtractor):
         self,
         data: np.ndarray,
         bounding_box: BoundingBox,
-        callback: Callable[[List[ClusteredEventInfo]], None],
-    ) -> None:
-        """Core extraction logic."""
-        threshold = self._sigma * self._ped_width
+        progress_callback: Optional[Callable[[float], None]],
+    ) -> List[ClusteredEventInfo]:
+        """Extract all qualifying clusters from the data."""
+        threshold = self._physics_manager.calculate_threshold(self._sigma)
         labeled_array, num_features = label(data > threshold)
 
-        if self._cancelled:
-            return
+        if num_features == 0:
+            return []
 
-        best = _find_brightest_label(
-            data, labeled_array, num_features, self._kev
+        qualifying = _collect_qualifying_labels(
+            data, labeled_array, num_features,
+            self._physics_manager.kev_conversion_factor,
         )
 
-        if self._cancelled:
-            return
+        if not qualifying:
+            return []
 
-        if best is None:
-            callback([])
-            return
+        total = len(qualifying)
+        results: List[ClusteredEventInfo] = []
 
-        event = _build_event_info(data, labeled_array, best, bounding_box)
-        if not self._cancelled:
-            callback([event])
+        for i, lbl in enumerate(qualifying):
+            if self._cancelled:
+                return []
+
+            event = _build_event_info(
+                data, labeled_array, lbl, bounding_box,
+            )
+            results.append(event)
+
+            if progress_callback is not None:
+                progress_callback((i + 1) / total)
+
+        return results

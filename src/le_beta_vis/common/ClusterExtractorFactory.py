@@ -3,6 +3,7 @@ from enum import Enum
 
 from .ClusterExtractor import ClusterExtractor
 from .ConfigurationService import ConfigurationService
+from .PhysicsConversionManager import PhysicsConversionManager
 from .GeneralClusterExtractor import GeneralClusterExtractor
 from .LBNLClassicalClusterExtractor import LBNLClassicalClusterExtractor
 from .LBNLOptimizedClusterExtractor import LBNLOptimizedClusterExtractor
@@ -22,6 +23,7 @@ class ClusterExtractorMethod(str, Enum):
 
 def create_cluster_extractor(
     config: ConfigurationService,
+    physics_manager: PhysicsConversionManager,
 ) -> ClusterExtractor:
     """Create a ClusterExtractor from application configuration.
 
@@ -41,22 +43,13 @@ def create_cluster_extractor(
         "gui:raw_analysis:cluster_extractor_method",
         "lbnl_classical",
     )
-    sigma: float = config.get(
-        "gui:raw_analysis:clustering_threshold", 4.0
-    )
-    ped_width: int = config.get(
-        "global:physics:ped_width", 1400
-    )
-    kev: float = config.get(
-        "global:physics:kev_conversion", 1.02857e-5
-    )
+    sigma: float = config.get("gui:raw_analysis:clustering_threshold", 4.0)
 
     try:
         method = ClusterExtractorMethod(method_str)
     except ValueError:
         logger.warning(
-            "Unknown cluster extractor method '%s', "
-            "falling back to lbnl_classical",
+            "Unknown cluster extractor method '%s', " "falling back to lbnl_classical",
             method_str,
         )
         method = ClusterExtractorMethod.LBNL_CLASSICAL
@@ -66,21 +59,18 @@ def create_cluster_extractor(
 
     if method == ClusterExtractorMethod.LBNL_OPTIMIZED:
         return LBNLOptimizedClusterExtractor(
+            physics_manager=physics_manager,
             sigma_multiplier=sigma,
-            ped_width=ped_width,
-            kev_conversion=kev,
         )
 
     if method == ClusterExtractorMethod.GENERAL:
         return GeneralClusterExtractor(
+            physics_manager=physics_manager,
             sigma_multiplier=sigma,
-            ped_width=ped_width,
-            kev_conversion=kev,
         )
 
     # Default: LBNL_CLASSICAL
     return LBNLClassicalClusterExtractor(
+        physics_manager=physics_manager,
         sigma_multiplier=sigma,
-        ped_width=ped_width,
-        kev_conversion=kev,
     )

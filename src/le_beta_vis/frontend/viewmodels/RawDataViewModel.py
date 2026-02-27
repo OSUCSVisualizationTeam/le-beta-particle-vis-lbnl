@@ -13,6 +13,7 @@ from le_beta_vis.common.ClusterExtractor import (
     ClusterExtractor,
 )
 from le_beta_vis.common.ConfigurationService import ConfigurationService
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.common.RoiRect import RoiRect
 from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
 
@@ -42,8 +43,9 @@ class RawDataViewModel:
     Pure Python class - No Qt dependencies.
     """
 
-    def __init__(self, configService: ConfigurationService):
+    def __init__(self, configService: ConfigurationService, physics_manager: PhysicsConversionManager):
         self._config = configService
+        self._physics_manager = physics_manager
         self._converter = OpenCVBasedConverter()
 
         self._captures: List[CCDCaptureModel] = []
@@ -52,7 +54,7 @@ class RawDataViewModel:
         # Sub-ViewModels
         from .MosaicViewModel import MosaicViewModel
 
-        self.mosaicViewModel = MosaicViewModel(configService)
+        self.mosaicViewModel = MosaicViewModel(configService, physics_manager)
         self.mosaicViewModel.add_selection_changed_callback(self.setActiveHDU)
 
         # Viz Parameters
@@ -87,6 +89,7 @@ class RawDataViewModel:
         self._clusteringError: Optional[str] = None
         self._clusteringProgress: float = 0.0
         self._clustering_timeout_timer: Optional[threading.Timer] = None
+        self._selectedClusterIndex: int = -1
 
         # Async Rendering State
         self._current_buffer: Optional[np.ndarray] = None
@@ -110,6 +113,7 @@ class RawDataViewModel:
         self._on_clustering_completed_callbacks: List[Callable] = []
         self._on_clustering_error_callbacks: List[Callable] = []
         self._on_clustering_progress_callbacks: List[Callable] = []
+        self._on_selected_cluster_changed_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -323,10 +327,14 @@ class RawDataViewModel:
         return roi
 
     def clearRois(self) -> None:
-        """Clears all ROIs. Notifies listeners if the list was non-empty."""
+        """Clears all ROIs and clustering results.
+
+        Notifies listeners if the list was non-empty.
+        """
         if self._rois:
             self._rois.clear()
             self._notify_roi_changed()
+        self.clearClusteringResults()
 
     def removeRoi(self, index: int) -> None:
         """Removes an ROI by index. Notifies listeners on success."""
@@ -384,6 +392,68 @@ class RawDataViewModel:
         """Returns the current extraction progress in [0.0, 1.0]."""
         return self._clusteringProgress
 
+    @property
+    def selectedClusterIndex(self) -> int:
+        """Returns the index of the currently selected cluster, or -1."""
+        return self._selectedClusterIndex
+
+    @property
+    def selectedCluster(self) -> Optional[ClusteredEventInfo]:
+        """Returns the currently selected cluster, or None."""
+        if 0 <= self._selectedClusterIndex < len(self._clusteringResults):
+            return self._clusteringResults[self._selectedClusterIndex]
+        return None
+
+    def selectCluster(self, index: int) -> None:
+        """Selects a cluster by index. Pass -1 to deselect.
+
+        Notifies listeners only if the selection changed.
+        """
+        if index == self._selectedClusterIndex:
+            return
+        if index < -1 or index >= len(self._clusteringResults):
+            return
+        self._selectedClusterIndex = index
+        self._notify_selected_cluster_changed()
+
+    def clearClusteringResults(self) -> None:
+        """Clears results and resets selection. Notifies listeners."""
+        if self._clusteringResults or self._selectedClusterIndex != -1:
+            self._clusteringResults = []
+            self._selectedClusterIndex = -1
+            self._notify_clustering_completed()
+            self._notify_selected_cluster_changed()
+
+    def classifySelectedCluster(self) -> None:
+        """Placeholder for cluster classification (issue #54).
+
+        Logs the request; no-op until classification pipeline is wired.
+        """
+        cluster = self.selectedCluster
+        if cluster is None:
+            logger.info("classifySelectedCluster: no cluster selected")
+            return
+        logger.info(
+            "classifySelectedCluster: placeholder for cluster at "
+            "(%d, %d) with energy %.2f ADU",
+            cluster.centerX, cluster.centerY, cluster.energy,
+        )
+
+    def exportSelectedCluster(self) -> None:
+        """Placeholder for training data export (issue #56).
+
+        Logs the request; no-op until export pipeline is wired.
+        """
+        cluster = self.selectedCluster
+        if cluster is None:
+            logger.info("exportSelectedCluster: no cluster selected")
+            return
+        logger.info(
+            "exportSelectedCluster: placeholder for cluster at "
+            "(%d, %d) with %d pixels",
+            cluster.centerX, cluster.centerY, cluster.pixelCount,
+        )
+
     def triggerClustering(self) -> None:
         """Starts cluster extraction on the current ROI.
 
@@ -400,6 +470,8 @@ class RawDataViewModel:
         if data is None:
             return
 
+        self._clusteringResults = []
+        self._selectedClusterIndex = -1
         self._clusteringError = None
         self._clusteringProgress = 0.0
         self._clusteringState = ClusteringState.RUNNING
@@ -487,10 +559,7 @@ class RawDataViewModel:
                 current_capture = self._captures[self._activeIndex]
                 raw_data = current_capture.rawData()
                 self._image_bounds = raw_data.shape[:2]
-                kev_factor = self._config.get(
-                    "global:physics:kev_conversion", 1.02857e-5
-                )
-                viz_data = raw_data * kev_factor
+                viz_data = self._physics_manager.adu_to_kev(raw_data)
 
                 self._current_buffer = self._converter.convert(
                     viz_data, self._colormap, self._vrange
@@ -511,12 +580,9 @@ class RawDataViewModel:
         if self._activeIndex == -1 or not self._captures:
             return 0.0, 1000.0
         info = self._captures[self._activeIndex].info()
-        kev_factor = self._config.get(
-            "global:physics:kev_conversion", 1.02857e-5
-        )
         return (
-            float(info.min * kev_factor),
-            float(info.max * kev_factor),
+            float(self._physics_manager.adu_to_kev(info.min)),
+            float(self._physics_manager.adu_to_kev(info.max)),
         )
 
     @property
@@ -526,6 +592,33 @@ class RawDataViewModel:
     @property
     def colormap(self) -> str:
         return self._colormap.value
+
+    @property
+    def clusterThumbnailColormap(self) -> Optional[Colormap]:
+        """Returns the active colormap if thumbnail coloring is enabled.
+
+        Reads ``gui:raw_analysis:cluster_thumbnail_use_colormap``.
+        When enabled, returns the current colormap for false-color
+        cluster thumbnails.  When disabled, returns None (grayscale).
+        """
+        use_colormap: bool = self._config.get(
+            "gui:raw_analysis:cluster_thumbnail_use_colormap", False
+        )
+        if use_colormap:
+            return self._colormap
+        return None
+
+    @property
+    def displayEnergyInKev(self) -> bool:
+        """Whether cluster energy should be displayed in keV."""
+        return bool(self._config.get(
+            "gui:raw_analysis:display_energy_in_kev", True
+        ))
+
+    @property
+    def kevConversion(self) -> float:
+        """ADU-to-keV conversion factor from configuration."""
+        return self._physics_manager.kev_conversion_factor
 
     @property
     def hduSummaries(self) -> List[str]:
@@ -560,7 +653,7 @@ class RawDataViewModel:
 
     @property
     def kevConversionFactor(self) -> float:
-        return self._config.get("global:physics:kev_conversion", 1.02857e-5)
+        return self._physics_manager.kev_conversion_factor
 
     @property
     def activeRawData(self) -> Optional[np.ndarray]:
@@ -579,7 +672,7 @@ class RawDataViewModel:
         raw = self.activeRawData
         if raw is None:
             return None
-        value = float(raw[row, col]) * self.kevConversionFactor
+        value = self._physics_manager.adu_to_kev(float(raw[row, col]))
         return (row, col, value)
 
     @property
@@ -702,4 +795,14 @@ class RawDataViewModel:
 
     def _notify_clustering_progress(self) -> None:
         for callback in self._on_clustering_progress_callbacks:
+            callback()
+
+    def add_selected_cluster_changed_callback(
+        self, callback: Callable
+    ) -> None:
+        """Register a callback for cluster selection changes."""
+        self._on_selected_cluster_changed_callbacks.append(callback)
+
+    def _notify_selected_cluster_changed(self) -> None:
+        for callback in self._on_selected_cluster_changed_callbacks:
             callback()

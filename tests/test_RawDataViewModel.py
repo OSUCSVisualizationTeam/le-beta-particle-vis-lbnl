@@ -6,13 +6,15 @@ import pytest
 
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import RawDataViewModel
 
 
 @pytest.fixture
 def view_model():
     config = MockConfigurationService()
-    vm = RawDataViewModel(config)
+    physics_manager = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics_manager)
     # Mock the converter to return a numpy array
     vm._converter = MagicMock()
     vm._converter.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
