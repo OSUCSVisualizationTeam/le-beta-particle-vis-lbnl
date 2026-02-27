@@ -70,10 +70,10 @@ DELIMITER //
 
 CREATE PROCEDURE insert_cluster(
     IN fitsFile INT,
-    IN top INT,
-    IN left INT,
-    IN bottom INT,
-    IN right INT,
+    IN box_top INT,
+    IN box_left INT,
+    IN box_bottom INT,
+    IN box_right INT,
     IN data BLOB,
     IN totalEnergy FLOAT,
     IN sigmaX FLOAT,
@@ -90,7 +90,7 @@ BEGIN
     END;
     START TRANSACTION;
     INSERT INTO clusters(fitsFile, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
-    VALUES (fitsFile, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount);
+    VALUES (fitsFile, box_top, box_left, box_bottom, box_right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount);
 
     SET clusterID = LAST_INSERT_ID();
 
