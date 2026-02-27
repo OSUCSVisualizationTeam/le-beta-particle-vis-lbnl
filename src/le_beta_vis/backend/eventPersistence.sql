@@ -19,10 +19,10 @@ DROP TABLE IF EXISTS `clusters` ;
 CREATE TABLE IF NOT EXISTS `clusters` (
   `fitsFile` INT NOT NULL,
   `clusterID` INT NOT NULL,
-  `top` INT NOT NULL,
-  `left` INT NOT NULL,
-  `bottom` INT NOT NULL,
-  `right` INT NOT NULL,
+  `box_top` INT NOT NULL,
+  `box_left` INT NOT NULL,
+  `box_bottom` INT NOT NULL,
+  `box_right` INT NOT NULL,
   `data` BLOB NOT NULL,
   `totalEnergy` FLOAT NOT NULL,
   `sigmaX` FLOAT NOT NULL,
@@ -89,7 +89,7 @@ BEGIN
         SET clusterID = -99;
     END;
     START TRANSACTION;
-    INSERT INTO clusters(fitsFile, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
+    INSERT INTO clusters(fitsFile, box_top, box_left, box_bottom, box_right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
     VALUES (fitsFile, box_top, box_left, box_bottom, box_right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount);
 
     SET clusterID = LAST_INSERT_ID();
