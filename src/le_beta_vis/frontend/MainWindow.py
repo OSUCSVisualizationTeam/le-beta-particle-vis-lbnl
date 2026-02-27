@@ -1,11 +1,20 @@
-from PySide6.QtWidgets import QMainWindow, QTabWidget, QWidget, QVBoxLayout, QFileDialog
+from PySide6.QtWidgets import (
+    QMainWindow, QTabWidget, QWidget, QVBoxLayout, QFileDialog,
+)
 from PySide6.QtGui import QAction, QKeySequence
 from .viewmodels.MainViewModel import MainViewModel
 from .views.RawDataView import RawDataView
 from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
-from .viewmodels.HistoricalViewModel import HistoricalViewModel, HistoricalMode
-from le_beta_vis.common.ClusterExtractorFactory import create_cluster_extractor
+from .viewmodels.HistoricalViewModel import (
+    HistoricalViewModel, HistoricalMode,
+)
+from le_beta_vis.common.ClusterExtractorFactory import (
+    create_cluster_extractor,
+)
+from le_beta_vis.common.MockEventRepository import (
+    MockEventRepository,
+)
 
 
 class MainWindow(QMainWindow):
@@ -19,8 +28,12 @@ class MainWindow(QMainWindow):
 
         # Window Geometry
         self.setMinimumSize(960, 600)
-        width = self.viewModel.configService.get("gui:window:default_width", 1024)
-        height = self.viewModel.configService.get("gui:window:default_height", 700)
+        width = self.viewModel.configService.get(
+            "gui:window:default_width", 1024
+        )
+        height = self.viewModel.configService.get(
+            "gui:window:default_height", 700
+        )
         self.resize(width, height)
 
         # Central Widget
@@ -41,7 +54,11 @@ class MainWindow(QMainWindow):
                 self.viewModel.configService, self.viewModel.physicsManager
             )
         )
-        self.historicalViewModel = HistoricalViewModel(self.viewModel.configService)
+        self.historicalViewModel = HistoricalViewModel(
+            self.viewModel.configService,
+            self.viewModel.physicsManager,
+            MockEventRepository(),
+        )
 
         # Initialize Child Views
         self.rawDataView = RawDataView(self.rawDataViewModel)
@@ -86,14 +103,16 @@ class MainWindow(QMainWindow):
         self.toggleLiveAction = QAction(self.tr("Switch to Live Mode"), self)
         self.toggleLiveAction.setCheckable(True)
         self.toggleLiveAction.setChecked(False)  # Initial state
-        self.toggleLiveAction.triggered.connect(self.onToggleLiveMode)
+        self.toggleLiveAction.triggered.connect(
+            self.onToggleLiveMode
+        )
         viewMenu.addAction(self.toggleLiveAction)
 
         # Sync initial state
         self.onModeChanged(self.historicalViewModel.mode)
 
     def onOpenFile(self):
-        """Open a file dialog to select a FITS file and load it into the Raw Data view."""
+        """Open a file dialog and load it into the Raw Data view."""
         filePath, _ = QFileDialog.getOpenFileName(
             self,
             self.tr("Open FITS File"),
