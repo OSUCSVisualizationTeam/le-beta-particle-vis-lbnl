@@ -7,6 +7,7 @@ USE `lbnlfits` ;
 DROP TABLE IF EXISTS `fits_files` ;
 CREATE TABLE IF NOT EXISTS `fits_files`(
   `fitsID` INT NOT NULL,
+  `fileName` VARCHAR(255) NOT NULL,
   `date` DATETIME NOT NULL,
   `min` FLOAT NOT NULL,
   `max` FLOAT NOT NULL,
@@ -22,9 +23,7 @@ CREATE TABLE IF NOT EXISTS `clusters` (
   `totalEnergy` FLOAT NOT NULL,
   `sigmaX` FLOAT NOT NULL,
   `sigmaY` FLOAT NOT NULL,
-  `classificationCNN` FLOAT NULL,
-  `classificationNRG` FLOAT NULL,
-  `classificationBDT` FLOAT NULL,
+  `classification` VARCHAR(255),
   `pixelCount` INT NOT NULL,
   INDEX `fk_fits_files` (`fitsFile` ASC) VISIBLE,
   PRIMARY KEY (`clusterID`),
@@ -38,6 +37,7 @@ DROP PROCEDURE IF EXISTS insert_fits;
 DELIMITER //
 
 CREATE PROCEDURE insert_fits(
+    IN filename VARCHAR(255),
     IN date DATETIME,
     IN min FLOAT,
     IN max FLOAT,
@@ -51,8 +51,8 @@ BEGIN
         SET fitsID = -99;
     END;
     START TRANSACTION;
-    INSERT INTO fits_files(date, min, max, exposureTime)
-    VALUES (date, min, max, exposureTime);
+    INSERT INTO fits_files(fileName, date, min, max, exposureTime)
+    VALUES (filename, date, min, max, exposureTime);
 
     SET fitsID = LAST_INSERT_ID();
 
@@ -70,9 +70,7 @@ CREATE PROCEDURE insert_cluster(
     IN totalEnergy FLOAT,
     IN sigmaX FLOAT,
     IN sigmaY FLOAT,
-    IN classificationCNN FLOAT,
-    IN classificationNRG FLOAT,
-    IN classificationBDT FLOAT,
+    IN classification VARCHAR(255),
     IN pixelCount INT,
     OUT clusterID INT
 )
@@ -83,10 +81,8 @@ BEGIN
         SET clusterID = -99;
     END;
     START TRANSACTION;
-    INSERT INTO clusters(fitsFile, data, totalEnergy, sigmaX, sigmaY, classificationCNN,
-                        classificationNRG, classificationBDT, pixelCount)
-    VALUES (fitsFile, data, totalEnergy, sigmaX, sigmaY, classificationCNN,
-            classificationNRG, classificationBDT, pixelCount);
+    INSERT INTO clusters(fitsFile, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
+    VALUES (fitsFile, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount);
 
     SET clusterID = LAST_INSERT_ID();
 
@@ -99,9 +95,7 @@ DROP PROCEDURE IF EXISTS insert_classifications;
 DELIMITER //
 
 CREATE PROCEDURE insert_classifications(
-    IN classificationCNN FLOAT,
-    IN classificationNRG FLOAT,
-    IN classificationBDT FLOAT,
+    IN classification VARCHAR(255),
     IN in_clusterID INT
 )
 BEGIN
@@ -111,7 +105,7 @@ BEGIN
     END;
     START TRANSACTION;
     UPDATE clusters
-    SET classificationCNN = classificationCNN, classificationNRG = classificationNRG, classificationBDT = classificationBDT
+    SET classification = classification
     WHERE clusterID = in_clusterID;
     COMMIT;
 END //
@@ -120,7 +114,7 @@ DROP VIEW IF EXISTS v_tritium_candidates;
 
 CREATE VIEW v_tritium_candidates as
 SELECT * FROM clusters
-WHERE classificationCNN > 0.75 or classificationNRG > 0.75 or classificationBDT > 0.75
+WHERE classification = "tritium"
 ORDER BY classificationCNN DESC, classificationNRG DESC, classificationBDT DESC;
 
 SET FOREIGN_KEY_CHECKS=1;
