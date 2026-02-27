@@ -41,10 +41,11 @@ class ProcessFile():
         }
         socket.send_json(request)
         response = socket.recv_json()
+        socket.close()
         if response["result"] == "success":
             self.fits_id = response["fits_id"]
         else:
-            print("There was an issue communicating with the EPS.")
+            print(f"There was an issue communicating with the EPS. Due to {response["error"]}")
 
     def cluster_fits(self):
         """
@@ -138,7 +139,7 @@ class ProcessFile():
             if response["result"] == "success":
                 cluster.cluster_id = response["cluster_id"]
             else:
-                print("There was an issue communicating with the EPS.")
+                print(f"There was an issue communicating with the EPS. Due to {response["error"]}")
                 # kill loop here, can include logging and exceptions to try and restart the service later
                 break
 
