@@ -1,8 +1,10 @@
 # Citation for Unit Tests: MockHistogramRenderer returning dummy PNG bytes
-# Date: 26/02/2026
+# Date: 28/02/2026
 # Adapted from Claude Code:
 # Create a MockHistogramRenderer for tests that returns a minimal valid PNG.
 from pathlib import Path
+from typing import Optional
+
 import numpy as np
 
 from le_beta_vis.common.HistogramRenderer import HistogramRenderer
@@ -19,6 +21,7 @@ class MockHistogramRenderer(HistogramRenderer):
         height: int,
         dpi: int,
         x_label: str = "Energy (ADU)",
+        colormap: Optional[str] = None,
     ) -> bytes:
         """Returns a minimal valid PNG image.
 
@@ -29,6 +32,7 @@ class MockHistogramRenderer(HistogramRenderer):
             height: Ignored.
             dpi: Ignored.
             x_label: Ignored.
+            colormap: Ignored.
 
         Returns:
             A minimal valid PNG as bytes.

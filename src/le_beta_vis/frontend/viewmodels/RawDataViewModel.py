@@ -53,9 +53,11 @@ class RawDataViewModel:
 
         # Sub-ViewModels
         from .MosaicViewModel import MosaicViewModel
+        from .ClusterAnalysisViewModel import ClusterAnalysisViewModel
 
         self.mosaicViewModel = MosaicViewModel(configService, physics_manager)
         self.mosaicViewModel.add_selection_changed_callback(self.setActiveHDU)
+        self.clusterAnalysisViewModel = ClusterAnalysisViewModel(self)
 
         # Viz Parameters
         colormap_str = self._config.get(
@@ -602,7 +604,7 @@ class RawDataViewModel:
         cluster thumbnails.  When disabled, returns None (grayscale).
         """
         use_colormap: bool = self._config.get(
-            "gui:raw_analysis:cluster_thumbnail_use_colormap", False
+            "gui:raw_analysis:cluster_thumbnail_use_colormap", True
         )
         if use_colormap:
             return self._colormap
@@ -660,6 +662,13 @@ class RawDataViewModel:
         if self._activeIndex == -1 or not self._captures:
             return None
         return self._captures[self._activeIndex].rawData()
+
+    @property
+    def selectedRoiRawData(self) -> Optional[np.ndarray]:
+        """Returns the raw data cropped to the current ROI, or None."""
+        if not self._rois or self.activeRawData is None:
+            return None
+        return self._rois[-1].extract_raw_data(self.activeRawData)
 
     @property
     def pointerHoverInfo(
