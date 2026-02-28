@@ -111,6 +111,7 @@ class EventPersistence():
                 self.cluster_to_store = {
                         "data": np.array(request["data"]),
                         "bounding_box": request["bounding_box"],
+                        "hdu_id": request["hdu_id"],
                         "sigmaX": request["sigmaX"],
                         "sigmaY": request["sigmaY"],
                         "total_energy": request["total_energy"],
@@ -128,6 +129,7 @@ class EventPersistence():
                 self.retrieval_clusters = {
                         "data": np.array(request["data"]),
                         "cluster_id": request["cluster_id"],
+                        "hdu_id": request["hdu_id"],
                         "bounding_box": request["bounding_box"],
                         "sigmaX": request["sigmaX"],
                         "sigmaY": request["sigmaY"],
