@@ -1,22 +1,43 @@
+# Citation for Unit Tests: HistoricalViewModel default mode, config integration, and properties
+# Date: 26/02/2026
+# Adapted from Claude Code:
+# Write pure Python unit tests for HistoricalViewModel checking initialization,
+# state transitions, and configuration properties.
+
 import pytest
 from unittest.mock import MagicMock
 from le_beta_vis.frontend.viewmodels.HistoricalViewModel import (
     HistoricalViewModel,
     HistoricalMode,
 )
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from le_beta_vis.common.ConfigurationService import (
+    MockConfigurationService,
+)
+from le_beta_vis.common.MockEventRepository import (
+    MockEventRepository,
+)
+
+
+def _make_physics_mock():
+    mock = MagicMock()
+    mock.kev_conversion_factor = 1.02857e-5
+    return mock
 
 
 @pytest.fixture
 def view_model():
     config = MockConfigurationService()
     # Reset config to known state
-    config.set("gui:historical:mode", HistoricalMode.HISTORICAL)
-    return HistoricalViewModel(config)
+    config.set(
+        "gui:historical:mode", HistoricalMode.HISTORICAL
+    )
+    return HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository()
+    )
 
 
 def test_initial_state(view_model):
-    """Test that the ViewModel initializes with the default mode from config."""
+    """Test that ViewModel inits with the default mode."""
     assert view_model.mode == HistoricalMode.HISTORICAL
 
 
@@ -50,9 +71,75 @@ def test_toggle_mode(view_model):
 
 
 def test_config_integration():
-    """Test that the ViewModel reads from the configuration service correctly."""
+    """Test that ViewModel reads from config correctly."""
     config = MockConfigurationService()
     config.set("gui:historical:mode", HistoricalMode.LIVE)
 
-    vm = HistoricalViewModel(config)
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository()
+    )
     assert vm.mode == HistoricalMode.LIVE
+
+
+def test_classification_threshold_default():
+    """classificationThreshold should default to 0.75."""
+    config = MockConfigurationService()
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository()
+    )
+    assert vm.classificationThreshold == 0.75
+
+
+def test_classification_threshold_from_config():
+    """classificationThreshold should read from config."""
+    config = MockConfigurationService()
+    config.set("gui:historical:classification_threshold", 0.60)
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository()
+    )
+    assert vm.classificationThreshold == 0.60
+
+
+def test_display_energy_in_kev_default():
+    """displayEnergyInKev should default to True."""
+    config = MockConfigurationService()
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository()
+    )
+    assert vm.displayEnergyInKev is True
+
+
+def test_display_energy_in_kev_false():
+    """displayEnergyInKev should return False when config says so."""
+    config = MockConfigurationService()
+    config.set("gui:raw_analysis:display_energy_in_kev", False)
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository()
+    )
+    assert vm.displayEnergyInKev is False
+
+
+def test_histogram_renderer_default():
+    """histogramRenderer should default to MatplotlibHistogramRenderer."""
+    from le_beta_vis.common.HistogramRenderer import (
+        MatplotlibHistogramRenderer,
+    )
+    config = MockConfigurationService()
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository()
+    )
+    assert isinstance(vm.histogramRenderer, MatplotlibHistogramRenderer)
+
+
+def test_histogram_renderer_injected():
+    """histogramRenderer should use the injected renderer."""
+    from MockHistogramRenderer import (
+        MockHistogramRenderer,
+    )
+    config = MockConfigurationService()
+    renderer = MockHistogramRenderer()
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository(),
+        histogramRenderer=renderer,
+    )
+    assert vm.histogramRenderer is renderer

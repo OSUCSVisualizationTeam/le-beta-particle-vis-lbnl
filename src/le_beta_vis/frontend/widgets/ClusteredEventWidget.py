@@ -1,7 +1,6 @@
 from typing import List, Optional
 
-from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -14,8 +13,10 @@ from PySide6.QtWidgets import (
 )
 
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
-from le_beta_vis.frontend.fitsconverters import generate_cluster_thumbnail
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
+from le_beta_vis.frontend.widgets.EnergyClusterWidget import (
+    EnergyClusterWidget,
+)
 
 THUMBNAIL_SIZE = 64
 
@@ -141,7 +142,9 @@ class ClusteredEventWidget(QWidget):
         elif index < self._listWidget.count():
             self._listWidget.setCurrentRow(index)
 
-    def _createEntryWidget(self, index: int, event: ClusteredEventInfo) -> QWidget:
+    def _createEntryWidget(
+        self, index: int, event: ClusteredEventInfo
+    ) -> QWidget:
         """Creates a single list entry with thumbnail and metadata."""
         entry = QWidget()
         entry.setStyleSheet(_Style.ENTRY_WIDGET)
@@ -177,7 +180,8 @@ class ClusteredEventWidget(QWidget):
 
         sigma_label = QLabel(
             self.tr(
-                "\u03c3<sub>x</sub> = {sx:.2f}," " \u03c3<sub>y</sub> = {sy:.2f}"
+                "\u03c3<sub>x</sub> = {sx:.2f},"
+                " \u03c3<sub>y</sub> = {sy:.2f}"
             ).format(sx=event.sigmaX, sy=event.sigmaY)
         )
         metaLayout.addWidget(sigma_label)
@@ -204,42 +208,15 @@ class ClusteredEventWidget(QWidget):
             )
         )
 
-    def _createThumbnailLabel(self, event: ClusteredEventInfo) -> QLabel:
-        """Generates a thumbnail QLabel from cluster data."""
-        label = QLabel()
-        label.setFixedSize(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
-
-        buffer = generate_cluster_thumbnail(event.data, colormap=self._colormap)
-        height, width = buffer.shape[:2]
-
-        if buffer.ndim == 3:
-            bytes_per_line = 3 * width
-            q_img = QImage(
-                buffer.data,
-                width,
-                height,
-                bytes_per_line,
-                QImage.Format_RGB888,
-            )
-        else:
-            q_img = QImage(
-                buffer.data,
-                width,
-                height,
-                width,
-                QImage.Format_Grayscale8,
-            )
-
-        pixmap = QPixmap.fromImage(q_img.copy())
-        pixmap = pixmap.scaled(
-            THUMBNAIL_SIZE,
-            THUMBNAIL_SIZE,
-            Qt.KeepAspectRatio,
-            Qt.SmoothTransformation,
+    def _createThumbnailLabel(
+        self, event: ClusteredEventInfo
+    ) -> EnergyClusterWidget:
+        """Generates a thumbnail widget from cluster data."""
+        widget = EnergyClusterWidget(
+            size=THUMBNAIL_SIZE, parent=self
         )
-        label.setPixmap(pixmap)
-        label.setAlignment(Qt.AlignCenter)
-        return label
+        widget.setCluster(event.data, self._colormap)
+        return widget
 
     def _updateCountLabel(self) -> None:
         """Updates the header showing the count of clusters."""

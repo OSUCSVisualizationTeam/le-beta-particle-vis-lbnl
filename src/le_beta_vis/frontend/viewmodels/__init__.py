@@ -3,3 +3,6 @@
 # pyright: reportUnusedImport=false
 from .RawDataViewModel import ActiveTool, RawDataViewModel
 from .HistoricalViewModel import HistoricalViewModel
+from .HistoricalEventInspectorViewModel import (
+    HistoricalEventInspectorViewModel,
+)
