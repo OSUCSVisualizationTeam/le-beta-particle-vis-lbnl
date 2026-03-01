@@ -14,6 +14,7 @@ from le_beta_vis.common.ClusterExtractor import (
 )
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
+from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.RoiRect import RoiRect
 from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
 
@@ -654,6 +655,11 @@ class RawDataViewModel:
         return self._magnificationFactor
 
     @property
+    def physics_manager(self) -> PhysicsConversionManager:
+        """Returns the physics conversion manager instance."""
+        return self._physics_manager
+
+    @property
     def kevConversionFactor(self) -> float:
         return self._physics_manager.kev_conversion_factor
 
@@ -669,6 +675,13 @@ class RawDataViewModel:
         if not self._rois or self.activeRawData is None:
             return None
         return self._rois[-1].extract_raw_data(self.activeRawData)
+
+    @property
+    def selectedRoiBoundingBox(self) -> Optional[BoundingBox]:
+        """Returns the bounding box of the current ROI, or None."""
+        if not self._rois:
+            return None
+        return self._rois[-1].geometry()
 
     @property
     def pointerHoverInfo(

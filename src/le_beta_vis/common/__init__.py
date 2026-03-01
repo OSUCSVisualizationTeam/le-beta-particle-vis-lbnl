@@ -12,6 +12,8 @@ from .Cluster import Cluster
 from .ParticleType import ParticleType, classify_particle, CLASSIFICATION_THRESHOLD
 from .EventRepository import EventRepository
 from .MockEventRepository import MockEventRepository
+from .HistogramDataModel import HistogramDataModel
+from .ROIStatistics import ROIStatistics
 from .HistogramRenderer import HistogramRenderer, MatplotlibHistogramRenderer
 from .MockClusterExtractor import MockClusterExtractor
 from .LBNLClassicalClusterExtractor import LBNLClassicalClusterExtractor
