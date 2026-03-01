@@ -109,14 +109,15 @@ class EventPersistence():
             # Reassemble JSON as dict for storage in object
             try:
                 self.cluster_to_store = {
-                        "data": np.array(request.get("data")),
-                        "bounding_box": request.get("bounding_box"),
-                        "sigmaX": request.get("sigmaX"),
-                        "sigmaY": request.get("sigmaY"),
-                        "total_energy": request.get("total_energy"),
-                        "total_pixels": request.get("total_pixels"),
-                        "fits_id": request.get("fits_id"),
-                        "classification": request.get("classification")
+                        "data": np.array(request["data"]),
+                        "bounding_box": request["bounding_box"],
+                        "hdu_id": request["hdu_id"],
+                        "sigmaX": request["sigmaX"],
+                        "sigmaY": request["sigmaY"],
+                        "total_energy": request["total_energy"],
+                        "total_pixels": request["total_pixels"],
+                        "fits_id": request["fits_id"],
+                        "classification": request["classification"]
                 }
                 response = self.store_cluster()
                 socket.send_json({"result": "failure", "cluster_id": response})
@@ -126,15 +127,16 @@ class EventPersistence():
         elif request.get("Action") == "Retrieval":
             try:
                 self.retrieval_clusters = {
-                        "data": np.array(request.get("data")),
-                        "cluster_id": request.get("cluster_id"),
-                        "bounding_box": request.get("bounding_box"),
-                        "sigmaX": request.get("sigmaX"),
-                        "sigmaY": request.get("sigmaY"),
-                        "total_energy": request.get("total_energy"),
-                        "total_pixels": request.get("total_pixels"),
-                        "fits_id": request.get("fits_id"),
-                        "classification": request.get("classification")
+                        "data": np.array(request["data"]),
+                        "cluster_id": request["cluster_id"],
+                        "hdu_id": request["hdu_id"],
+                        "bounding_box": request["bounding_box"],
+                        "sigmaX": request["sigmaX"],
+                        "sigmaY": request["sigmaY"],
+                        "total_energy": request["total_energy"],
+                        "total_pixels": request["total_pixels"],
+                        "fits_id": request["fits_id"],
+                        "classification": request["classification"]
                 }
                 response = self.retrieve_clusters()
                 socket.send_json(response)
