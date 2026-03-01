@@ -3,6 +3,7 @@
 Replaces the static ``QLabel`` + matplotlib PNG approach with a
 native Qt ``PlotWidget`` that supports hover tooltips.
 """
+
 from __future__ import annotations
 
 import logging
@@ -34,9 +35,7 @@ _TOOLTIP_OFFSET_Y = -28
 
 
 class _Style:
-    PLACEHOLDER = (
-        "color: #999999; font-style: italic; padding: 20px;"
-    )
+    PLACEHOLDER = "color: #999999; font-style: italic; padding: 20px;"
     TOOLTIP = (
         "background-color: rgba(44,62,80,220);"
         "color: #ffffff;"
@@ -44,6 +43,26 @@ class _Style:
         "border-radius: 3px;"
         "font-size: 11px;"
     )
+
+
+_SUPERSCRIPTS = str.maketrans("0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
+
+
+def _format_value(value: float, bin_width: float) -> str:
+    """Format a value with precision adapted to the bin width."""
+    if bin_width <= 0:
+        return f"{value:.2f}"
+    decimals = max(2, -int(np.floor(np.log10(bin_width))) + 1)
+    decimals = min(decimals, 10)
+    return f"{value:.{decimals}f}"
+
+
+def _log_tick_label(exp: int) -> str:
+    """Convert an integer exponent to a Unicode superscript label.
+
+    Example: ``3`` → ``"10³"``, ``12`` → ``"10¹²"``.
+    """
+    return f"10{str(exp).translate(_SUPERSCRIPTS)}"
 
 
 class InteractiveHistogramWidget(QWidget):
@@ -57,6 +76,8 @@ class InteractiveHistogramWidget(QWidget):
         super().__init__(parent)
         self._model: Optional[HistogramDataModel] = None
         self._bar_item: Optional[pg.BarGraphItem] = None
+        self._logarithmicBars = False
+        self._display_heights: Optional[np.ndarray] = None
         self._initUI()
 
     # --- Public API ---
@@ -77,6 +98,12 @@ class InteractiveHistogramWidget(QWidget):
         """Configures the message shown when no data is available."""
         self._placeholder.setText(text)
 
+    def setLogarithmicBars(self, useLogScale: bool) -> None:
+        """Configures histogram bars to use a logarithmic scale."""
+        self._logarithmicBars = useLogScale
+        if self._model is not None:
+            self._updateBars(self._model)
+
     # --- UI construction ---
 
     def _initUI(self) -> None:
@@ -88,14 +115,13 @@ class InteractiveHistogramWidget(QWidget):
         layout.addLayout(self._stack)
 
         # Page 0: placeholder label
-        self._placeholder = QLabel(
-            self.tr("Draw an ROI to see energy distribution")
-        )
+        self._placeholder = QLabel(self.tr("Draw an ROI to see energy distribution"))
         self._placeholder.setStyleSheet(_Style.PLACEHOLDER)
         self._placeholder.setAlignment(Qt.AlignCenter)
         self._placeholder.setWordWrap(True)
         self._placeholder.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Expanding,
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding,
         )
         self._stack.addWidget(self._placeholder)
 
@@ -118,9 +144,7 @@ class InteractiveHistogramWidget(QWidget):
         self._tooltip = QLabel(self._plot)
         self._tooltip.setStyleSheet(_Style.TOOLTIP)
         self._tooltip.setVisible(False)
-        self._tooltip.setAttribute(
-            Qt.WidgetAttribute.WA_TransparentForMouseEvents
-        )
+        self._tooltip.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
         # Rate-limited mouse tracking
         self._proxy = pg.SignalProxy(
@@ -136,20 +160,42 @@ class InteractiveHistogramWidget(QWidget):
     def _updateBars(self, model: HistogramDataModel) -> None:
         """Clears the plot and draws new bars from *model*."""
         plot_item = self._plot.getPlotItem()
+        plot_item.setLogMode(x=False, y=False)
         if self._bar_item is not None:
             plot_item.removeItem(self._bar_item)
             self._bar_item = None
+
+        counts = model.counts
+        if self._logarithmicBars:
+            display_heights = np.where(
+                counts > 0, np.log10(counts.astype(float)), 0.0,
+            )
+        else:
+            display_heights = counts.astype(float)
+        self._display_heights = display_heights
 
         brushes = self._buildBrushes(model)
         self._bar_item = pg.BarGraphItem(
             x=model.bin_centers,
             width=model.bin_widths * 0.95,
-            height=model.counts,
+            height=display_heights,
             brushes=brushes,
             pen=pg.mkPen(_DEFAULT_EDGE_COLOR, width=0.8),
         )
         plot_item.addItem(self._bar_item)
         self._plot.setLabel("bottom", model.x_label, color=_AXIS_FG)
+
+        y_axis = plot_item.getAxis("left")
+        if self._logarithmicBars:
+            max_exp = int(np.ceil(display_heights.max())) if display_heights.max() > 0 else 1
+            ticks = [
+                [(i, _log_tick_label(i)) for i in range(max_exp + 1)]
+            ]
+            y_axis.setTicks(ticks)
+            self._plot.setLabel("left", "Count (log\u2081\u2080)", color=_AXIS_FG)
+        else:
+            y_axis.setTicks(None)
+            self._plot.setLabel("left", "Count", color=_AXIS_FG)
 
     @staticmethod
     def _buildBrushes(
@@ -162,7 +208,8 @@ class InteractiveHistogramWidget(QWidget):
 
         try:
             cmap = pg.colormap.get(
-                model.colormap, source="matplotlib",
+                model.colormap,
+                source="matplotlib",
             )
         except Exception:
             logger.warning(
@@ -203,15 +250,23 @@ class InteractiveHistogramWidget(QWidget):
             return
 
         count = self._model.counts[idx]
-        if y_val < 0 or y_val > count:
+        bar_top = (
+            self._display_heights[idx]
+            if self._display_heights is not None
+            else count
+        )
+        if y_val < 0 or y_val > bar_top:
             self._tooltip.setVisible(False)
             return
 
         lo_edge = edges[idx]
         hi_edge = edges[idx + 1]
+        bin_w = hi_edge - lo_edge
+        unit_suffix = f" {self._model.x_unit}" if self._model.x_unit else ""
         self._tooltip.setText(
             f"Count: {count}\n"
-            f"Range: {lo_edge:.2f} \u2013 {hi_edge:.2f}"
+            f"Range: {_format_value(lo_edge, bin_w)} \u2013 "
+            f"{_format_value(hi_edge, bin_w)}{unit_suffix}"
         )
         self._tooltip.adjustSize()
 
@@ -220,10 +275,8 @@ class InteractiveHistogramWidget(QWidget):
         tx = int(scene_pos.x()) + _TOOLTIP_OFFSET_X
         ty = int(scene_pos.y()) + _TOOLTIP_OFFSET_Y
         # Clamp inside widget bounds
-        tx = max(0, min(tx, self._plot.width()
-                        - self._tooltip.width()))
-        ty = max(0, min(ty, self._plot.height()
-                        - self._tooltip.height()))
+        tx = max(0, min(tx, self._plot.width() - self._tooltip.width()))
+        ty = max(0, min(ty, self._plot.height() - self._tooltip.height()))
         self._tooltip.move(tx, ty)
         self._tooltip.setVisible(True)
 

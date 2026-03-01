@@ -85,7 +85,6 @@ class HistoricalEventInspector(QWidget):
         # Histogram
         self._createHistogramSection(detail)
 
-        detail.addStretch()
         self._detailWidget.setVisible(False)
         self._layout.addWidget(self._detailWidget)
 
@@ -127,7 +126,6 @@ class HistoricalEventInspector(QWidget):
             self.tr("Select an event to see energy distribution")
         )
         self._histogram.setMinimumHeight(50)
-        self._histogram.setMaximumHeight(300)
         parent.addWidget(self._histogram, 1)
 
     # --- Public interface ---
@@ -174,10 +172,14 @@ class HistoricalEventInspector(QWidget):
         x_label = self._vm.formatHistogramXLabel(cluster)
         if self._vm.physics and self._vm.displayKeV:
             hist_data = self._vm.physics.adu_to_kev(hist_data)
+            x_unit = "keV"
+        else:
+            x_unit = "ADU"
 
         model = HistogramDataModel.from_pixel_data(
             hist_data,
             _HISTOGRAM_BINS,
             x_label,
+            x_unit=x_unit,
         )
         self._histogram.setData(model)

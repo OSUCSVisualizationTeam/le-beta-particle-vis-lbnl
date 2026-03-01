@@ -72,7 +72,7 @@ class ROIInfoWidget(QWidget):
 
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(2)
+        grid.setSpacing(4)
 
         rows = [
             ("max_energy", self.tr("Max Energy:")),
@@ -103,6 +103,7 @@ class ROIInfoWidget(QWidget):
         self._histogram.setPlaceholderText(
             self.tr("Draw an ROI to see energy distribution")
         )
+        self._histogram.setLogarithmicBars(True)
         parent_layout.addWidget(self._histogram, 1)
 
     # --- ViewModel bindings ---
@@ -162,14 +163,17 @@ class ROIInfoWidget(QWidget):
         if self._vm.displayEnergyInKev:
             data = self._vm.physics_manager.adu_to_kev(data)
             x_label = "Energy (keV)"
+            x_unit = "keV"
         else:
             x_label = "Energy (ADU)"
+            x_unit = "ADU"
 
         model = HistogramDataModel.from_pixel_data(
             data,
             _HISTOGRAM_BINS,
             x_label,
             colormap_str,
+            x_unit=x_unit,
         )
         self._histogram.setData(model)
 

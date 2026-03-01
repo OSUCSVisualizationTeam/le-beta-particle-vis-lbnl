@@ -23,12 +23,15 @@ class HistogramDataModel:
         x_label: Label for the horizontal axis.
         colormap: Optional matplotlib colormap name for bar
             colouring.  ``None`` means a solid default colour.
+        x_unit: Optional unit suffix for tooltip display
+            (e.g. ``"keV"``, ``"ADU"``).  ``None`` omits the unit.
     """
 
     counts: np.ndarray
     bin_edges: np.ndarray
     x_label: str
     colormap: Optional[str] = None
+    x_unit: Optional[str] = None
 
     @property
     def bin_centers(self) -> np.ndarray:
@@ -46,6 +49,7 @@ class HistogramDataModel:
         bins: int,
         x_label: str,
         colormap: Optional[str] = None,
+        x_unit: Optional[str] = None,
     ) -> Optional[HistogramDataModel]:
         """Builds a model from raw pixel data.
 
@@ -58,6 +62,7 @@ class HistogramDataModel:
             bins: Number of histogram bins.
             x_label: Axis label (e.g. ``"Energy (keV)"``).
             colormap: Optional matplotlib colormap name.
+            x_unit: Optional unit suffix for tooltip display.
 
         Returns:
             A populated ``HistogramDataModel``, or ``None`` if
@@ -73,4 +78,5 @@ class HistogramDataModel:
             bin_edges=bin_edges,
             x_label=x_label,
             colormap=colormap,
+            x_unit=x_unit,
         )
