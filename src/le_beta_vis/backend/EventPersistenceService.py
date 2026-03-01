@@ -57,12 +57,12 @@ class EventPersistence():
                     if EPS_is_active == False:
                         cluster_socket.send_json({"Error": "Server is stopped."})
                     else:
-                        self.cluster_event(request)
+                        self.cluster_event(request, cluster_socket)
 
                 if fits_socket in sockets:
                     request = fits_socket.recv_json()
                     if EPS_is_active == False:
-                        cluster_socket.send_json({"Error": "Server is stopped."})
+                        fits_socket.send_json({"Error": "Server is stopped."})
                     else:
                         self.fits_event(request, fits_socket)
 
@@ -78,7 +78,7 @@ class EventPersistence():
                         EPS_is_active = True
                         command_socket.send_json({"Action": "Server started"})
                     else:
-                        command_socket.send_json({"Arror": "Invalid request"})
+                        command_socket.send_json({"Error": "Invalid request"})
 
             except zmq.ZMQError as err:
                 print(f"ERROR: {err}")
@@ -109,32 +109,32 @@ class EventPersistence():
             # Reassemble JSON as dict for storage in object
             try:
                 self.cluster_to_store = {
-                        "data": np.array(request["data"]),
-                        "bounding_box": request["bounding_box"],
-                        "sigmaX": request["sigmaX"],
-                        "sigmaY": request["sigmaY"],
-                        "total_energy": request["total_energy"],
-                        "total_pixels": request["total_pixels"],
-                        "fits_id": request["fits_id"],
-                        "classification": request["classification"]
+                        "data": np.array(request.get("data")),
+                        "bounding_box": request.get("bounding_box"),
+                        "sigmaX": request.get("sigmaX"),
+                        "sigmaY": request.get("sigmaY"),
+                        "total_energy": request.get("total_energy"),
+                        "total_pixels": request.get("total_pixels"),
+                        "fits_id": request.get("fits_id"),
+                        "classification": request.get("classification")
                 }
                 response = self.store_cluster()
-                socket.send_json(response)
+                socket.send_json({"result": "failure", "cluster_id": response})
             except KeyError as err:
                 socket.send_json({"result": "failure", "cluster_id": None, "error": err})
 
         elif request.get("Action") == "Retrieval":
             try:
                 self.retrieval_clusters = {
-                        "data": np.array(request["data"]),
-                        "cluster_id": request["cluster_id"],
-                        "bounding_box": request["bounding_box"],
-                        "sigmaX": request["sigmaX"],
-                        "sigmaY": request["sigmaY"],
-                        "total_energy": request["total_energy"],
-                        "total_pixels": request["total_pixels"],
-                        "fits_id": request["fits_id"],
-                        "classification": request["classification"]
+                        "data": np.array(request.get("data")),
+                        "cluster_id": request.get("cluster_id"),
+                        "bounding_box": request.get("bounding_box"),
+                        "sigmaX": request.get("sigmaX"),
+                        "sigmaY": request.get("sigmaY"),
+                        "total_energy": request.get("total_energy"),
+                        "total_pixels": request.get("total_pixels"),
+                        "fits_id": request.get("fits_id"),
+                        "classification": request.get("classification")
                 }
                 response = self.retrieve_clusters()
                 socket.send_json(response)
@@ -147,26 +147,26 @@ class EventPersistence():
             # Reassemble JSON as dict for storage in object
             try:
                 self.fits_to_store = {
-                        "filename": request["filename"],
-                        "date": request["date"],
-                        "minimum": request["minimum"],
-                        "maximum": request["maximum"],
-                        "exposure_time": request["exposure_time"]
+                        "filename": request.get("filename"),
+                        "date": request.get("date"),
+                        "minimum": request.get("minimum"),
+                        "maximum": request.get("maximum"),
+                        "exposure_time": request.get("exposure_time")
                     }
                 response = self.store_fits()
-                socket.send_json(response)
+                socket.send_json({"result": "success", "fits_id": response})
             except KeyError as err:
                 socket.send_json({"result": "failure", "fits_id": None, "error": err})
 
         elif request.get("Action") == "Retrieval":
             try:
                 self.retrieval_fits = {
-                        "filename": request["filename"],
-                        "fits_id": request["fits_id"],
-                        "date": request["date"],
-                        "minimum": request["minimum"],
-                        "maximum": request["maximum"],
-                        "exposure_time": request["exposure_time"]
+                        "filename": request.get("filename"),
+                        "fits_id": request.get("fits_id"),
+                        "date": request.get("date"),
+                        "minimum": request.get("minimum"),
+                        "maximum": request.get("maximum"),
+                        "exposure_time": request.get("exposure_time")
                     }
                 response = self.retrieve_fits()
                 socket.send_json(response)
@@ -214,8 +214,8 @@ class EventPersistence():
             cursor = self.conn.cursor()
             proc_args = (self.cluster_to_store["fits_id"], self.cluster_to_store["data"],
                          self.cluster_to_store["hdu_id"],
-                         self.cluster_to_store["bounding_box"].top, self.cluster_to_store["bounding_box"].left,
-                         self.cluster_to_store["bounding_box"].bottom, self.cluster_to_store["bounding_box"].right,
+                         self.cluster_to_store["bounding_box"]["top"], self.cluster_to_store["bounding_box"]["left"],
+                         self.cluster_to_store["bounding_box"]["bottom"], self.cluster_to_store["bounding_box"]["right"],
                          self.cluster_to_store["total_energy"],
                          self.cluster_to_store["sigmaX"], self.cluster_to_store["sigmaY"],
                          self.cluster_to_store["classification"],
@@ -277,7 +277,7 @@ class EventPersistence():
                 select_args.append("exposure_time = %s")
                 select_argv.append(exposure_time)
 
-            select_query += "WHERE " + " AND ".join(select_args)
+            select_query += " WHERE " + " AND ".join(select_args)
 
             cursor.execute(select_query, tuple(select_argv))
                 # saving results into a list of tuples
@@ -340,8 +340,9 @@ class EventPersistence():
                 select_argv.append(total_pixels)
             if classification:
                 select_args.append("classification = %s")
+                select_argv.append(classification)
 
-            select_query += "WHERE " + " AND ".join(select_args)
+            select_query += " WHERE " + " AND ".join(select_args)
 
             cursor.execute(select_query, tuple(select_argv))
                 # saving results into a list of tuples
