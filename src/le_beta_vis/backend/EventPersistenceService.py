@@ -208,6 +208,7 @@ class EventPersistence():
 
         except mysql.connector.Error as err:
             print(f"Could not connect: {err}")
+            return err
 
     def store_cluster(self) -> int:
         try:

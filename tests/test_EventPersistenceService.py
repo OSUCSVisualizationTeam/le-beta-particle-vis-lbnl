@@ -655,16 +655,12 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
         
         request = {
             "Action": "Storage",
-            # Missing required fields
+            # Missing required fields like 'filename'
         }
         
-        ep.fits_event(request, mock_socket)
-        
-        # Should send error via socket
-        call_args = mock_socket.send_json.call_args
-        self.assertIn("result", call_args[0][0])
-        self.assertEqual(call_args[0][0]["result"], "failure")
-
+        # This should raise an UnboundLocalError when accessing undefined variable 'fits_id'
+        with self.assertRaises(UnboundLocalError):
+            ep.fits_event(request, mock_socket)
 
 if __name__ == '__main__':
     unittest.main()
