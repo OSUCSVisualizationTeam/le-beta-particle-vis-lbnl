@@ -1,6 +1,7 @@
 from typing import List, Callable, Optional
 from enum import Enum
 from le_beta_vis.common.ConfigurationService import ConfigurationService
+from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
 from le_beta_vis.common.HistogramRenderer import (
     HistogramRenderer,
     MatplotlibHistogramRenderer,
@@ -51,6 +52,7 @@ class HistoricalViewModel:
         self._events: List[Cluster] = []
         self._selectedIndex: int = -1
         self._loading: bool = False
+        self._query_filter: Optional[ClusterQueryFilter] = None
 
         # Callbacks
         self._on_mode_changed_callbacks: List[
@@ -147,15 +149,35 @@ class HistoricalViewModel:
         )
         self.setMode(new_mode)
 
+    def setQueryFilter(
+        self, query_filter: Optional[ClusterQueryFilter]
+    ) -> None:
+        """Sets filter criteria for the next ``loadEvents`` call.
+
+        Args:
+            query_filter: Filter to apply, or ``None`` to clear.
+        """
+        self._query_filter = query_filter
+
     def loadEvents(self) -> None:
         """Fetches events from the repository and notifies observers.
 
-        Sets loading state before/after the fetch.  On success
-        the events list is replaced and any selection is cleared.
+        Sets loading state before/after the fetch.  When a query
+        filter is set, ``query_clusters`` is attempted first; if the
+        repository does not implement it, falls back to
+        ``fetch_events``.
         """
         self._setLoading(True)
         try:
-            self._events = self._repository.fetch_events()
+            if self._query_filter is not None:
+                try:
+                    self._events = self._repository.query_clusters(
+                        self._query_filter
+                    )
+                except NotImplementedError:
+                    self._events = self._repository.fetch_events()
+            else:
+                self._events = self._repository.fetch_events()
             self._selectedIndex = 0 if self._events else -1
         finally:
             self._setLoading(False)

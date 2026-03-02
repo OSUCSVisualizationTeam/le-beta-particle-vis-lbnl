@@ -1,9 +1,10 @@
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
 from .BoundingBox import BoundingBox
 from .Cluster import Cluster
+from .EPSDataClasses import ClusterQueryFilter
 from .EventRepository import EventRepository
 
 
@@ -80,3 +81,42 @@ class MockEventRepository(EventRepository):
             )
             clusters.append(cluster)
         return clusters
+
+    def query_clusters(
+        self, query_filter: Optional[ClusterQueryFilter] = None
+    ) -> List[Cluster]:
+        """Returns synthetic clusters, optionally filtered.
+
+        Applies Python-side filtering to match EPS behaviour.
+        """
+        clusters = self.fetch_events()
+        if query_filter is None:
+            return clusters
+        return [c for c in clusters if self._matches(c, query_filter)]
+
+    @staticmethod
+    def _matches(
+        cluster: Cluster, qf: ClusterQueryFilter
+    ) -> bool:
+        """Returns True if *cluster* satisfies all filter criteria."""
+        if qf.cluster_id is not None and cluster.clusterId != qf.cluster_id:
+            return False
+        if qf.fits_id is not None and cluster.fitsId != qf.fits_id:
+            return False
+        if qf.min_sigma_x is not None and cluster.sigmaX < qf.min_sigma_x:
+            return False
+        if qf.min_sigma_y is not None and cluster.sigmaY < qf.min_sigma_y:
+            return False
+        if (
+            qf.min_total_energy is not None
+            and cluster.energy < qf.min_total_energy
+        ):
+            return False
+        if (
+            qf.min_total_pixels is not None
+            and cluster.pixelCount < qf.min_total_pixels
+        ):
+            return False
+        if qf.classification is not None:
+            return False
+        return True
