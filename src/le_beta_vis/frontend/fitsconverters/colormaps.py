@@ -37,21 +37,81 @@ def get_cv2_colormap_id(name: str) -> int:
     return mapping.get(name, cv2.COLORMAP_VIRIDIS)
 
 
-def generate_gradient_pixmap(name: str, width: int = 20, height: int = 256):
+def generate_gradient_array(
+    name: str,
+    vmin_ratio: float = 0.0,
+    vmax_ratio: float = 1.0,
+    width: int = 20,
+    height: int = 256,
+) -> np.ndarray:
     """
-    Generates a vertical gradient QPixmap for the specified colormap.
-    Used for UI widgets (legends/sliders).
-    PySide6 is imported lazily to keep this module headless-safe.
+    Generate a vertical gradient as an RGB uint8 NumPy array.
+
+    The full colormap is compressed between ``vmin_ratio`` and
+    ``vmax_ratio``.  Rows above ``vmax_ratio`` are filled with the
+    top-end color; rows below ``vmin_ratio`` with the bottom-end color.
+
+    :param name: Colormap name (member of ``Colormap``).
+    :param vmin_ratio: Lower bound of the active range as a 0-1 ratio.
+    :param vmax_ratio: Upper bound of the active range as a 0-1 ratio.
+    :param width: Pixel width of the output array.
+    :param height: Pixel height of the output array.
+    :returns: ``(height, width, 3)`` RGB ``uint8`` array.
     """
     import cv2
-    from PySide6.QtGui import QImage, QPixmap
 
-    ramp = np.linspace(255, 0, height, dtype=np.uint8)
-    ramp = np.tile(ramp[:, np.newaxis], (1, width))
+    # Clamp to [0, 1] and ensure vmin <= vmax
+    vmin_ratio = float(np.clip(vmin_ratio, 0.0, 1.0))
+    vmax_ratio = float(np.clip(vmax_ratio, 0.0, 1.0))
+    if vmin_ratio > vmax_ratio:
+        vmin_ratio, vmax_ratio = vmax_ratio, vmin_ratio
+
+    # positions: 1.0 at top row, 0.0 at bottom row
+    positions = np.linspace(1.0, 0.0, height)
+
+    span = vmax_ratio - vmin_ratio
+    if span < 1e-9:
+        # Degenerate: single color at the given ratio
+        gray_val = int(np.clip(vmin_ratio * 255, 0, 255))
+        gray = np.full((height, width), gray_val, dtype=np.uint8)
+    else:
+        normalized = np.clip(
+            (positions - vmin_ratio) / span, 0.0, 1.0
+        )
+        gray_values = (normalized * 255).astype(np.uint8)
+        gray = np.tile(gray_values[:, np.newaxis], (1, width))
 
     cmap_id = get_cv2_colormap_id(name)
-    color_img = cv2.applyColorMap(ramp, cmap_id)
+    color_img = cv2.applyColorMap(gray, cmap_id)
     color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+    return color_img
+
+
+def generate_gradient_pixmap(
+    name: str,
+    vmin_ratio: float = 0.0,
+    vmax_ratio: float = 1.0,
+    width: int = 20,
+    height: int = 256,
+):
+    """
+    Generate a vertical gradient QPixmap for the specified colormap.
+
+    Delegates to ``generate_gradient_array`` for the pixel data, then
+    wraps the result in a ``QPixmap``.  PySide6 is imported lazily to
+    keep this module headless-safe.
+
+    :param name: Colormap name (member of ``Colormap``).
+    :param vmin_ratio: Lower bound of the active range as a 0-1 ratio.
+    :param vmax_ratio: Upper bound of the active range as a 0-1 ratio.
+    :param width: Pixel width of the output pixmap.
+    :param height: Pixel height of the output pixmap.
+    """
+    from PySide6.QtGui import QImage, QPixmap
+
+    color_img = generate_gradient_array(
+        name, vmin_ratio, vmax_ratio, width, height
+    )
 
     h, w, ch = color_img.shape
     bytes_per_line = ch * w
