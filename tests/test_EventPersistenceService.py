@@ -582,12 +582,9 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
         }
         
         ep.cluster_event(request, mock_socket)
-        
-        # Should send error via socket
-        call_args = mock_socket.send_json.call_args
-        self.assertIn("result", call_args[0][0])
-        self.assertEqual(call_args[0][0]["result"], "failure")
-
+        mock_socket.send_json.assert_called_once()
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "failure")
 
 class TestEventPersistenceFitsEvent(unittest.TestCase):
     """Test cases for fits_event method"""
@@ -657,10 +654,10 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
             "Action": "Storage",
             # Missing required fields like 'filename'
         }
-        
-        # This should raise an UnboundLocalError when accessing undefined variable 'fits_id'
-        with self.assertRaises(UnboundLocalError):
-            ep.fits_event(request, mock_socket)
+        ep.fits_event(request, mock_socket)
+        mock_socket.send_json.assert_called_once()
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "failure")
 
 if __name__ == '__main__':
     unittest.main()

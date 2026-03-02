@@ -161,8 +161,11 @@ class EventPersistence():
                         "classification": request.get("classification")
                 }
                 response = self.store_cluster()
-                socket.send_json({"result": "failure", "cluster_id": response})
-            except KeyError as err:
+                if response:
+                    socket.send_json({"result": "success", "cluster_id": response})
+                else:
+                    raise FailedProcException
+            except FailedProcException as err:
                 socket.send_json({"result": "failure", "cluster_id": None, "error": err})
 
         elif request.get("Action") == "Retrieval":
@@ -197,8 +200,11 @@ class EventPersistence():
                         "exposure_time": request.get("exposure_time")
                     }
                 response = self.store_fits()
-                socket.send_json({"result": "success", "fits_id": response})
-            except KeyError as err:
+                if response:
+                    socket.send_json({"result": "success", "fits_id": response})
+                else:
+                    raise FailedProcException
+            except FailedProcException as err:
                 socket.send_json({"result": "failure", "fits_id": None, "error": err})
 
         elif request.get("Action") == "Retrieval":
@@ -266,6 +272,7 @@ class EventPersistence():
             proc_args = (filename, date, minimum, maximum, exposure_time, (0, 'INT'))
             cursor.callproc("insert_fits", proc_args)
 
+            fits_id = None
             for result in cursor.stored_results():
                 id = result.fetchone()[0]
                 if id > 0:
@@ -278,7 +285,6 @@ class EventPersistence():
             # Commit results and close connection
             self.conn.commit()
             cursor.close()
-
             return fits_id
 
         except mysql.connector.Error as err:
@@ -286,20 +292,29 @@ class EventPersistence():
             return err
 
     def store_cluster(self) -> int:
+        """Uses the persistent EPS DB connection to call the stored procedure insert_cluster on the database
+            with the values from the request.
+        """
         try:
             if not self.conn:
                 self.conn = self.db_connect()
             cursor = self.conn.cursor()
+            bounding_box = (self.cluster_to_store.get("bounding_box") or {})
+            box_top = bounding_box.get("top")
+            box_left = bounding_box.get("left")
+            box_bottom = bounding_box.get("bottom")
+            box_right = bounding_box.get("right")
+
             proc_args = (self.cluster_to_store["fits_id"], self.cluster_to_store["data"],
                          self.cluster_to_store["hdu_id"],
-                         self.cluster_to_store["bounding_box"]["top"], self.cluster_to_store["bounding_box"]["left"],
-                         self.cluster_to_store["bounding_box"]["bottom"], self.cluster_to_store["bounding_box"]["right"],
+                         box_top, box_left, box_bottom, box_right,
                          self.cluster_to_store["total_energy"],
                          self.cluster_to_store["sigmaX"], self.cluster_to_store["sigmaY"],
                          self.cluster_to_store["classification"],
                          self.cluster_to_store["total_pixels"] ,(0, 'INT'))
             cursor.callproc("insert_cluster", proc_args)
 
+            cluster_id = None
             for result in cursor.stored_results():
                 id = result.fetchone()[0]
                 if id > 0:
