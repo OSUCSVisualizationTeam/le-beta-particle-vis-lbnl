@@ -1,7 +1,7 @@
-# Citation for Unit Tests: Verifies cluster selection state and callbacks in RawDataViewModel
-# Date: 23/02/2026
+# Citation for Unit Tests: Verifies RawDataViewModel cluster selection logic, results management, and clustering tool state.
+# Date: 28/02/2026
 # Adapted from Claude Code:
-# "Identify headless test cases for the clustered event widget to avoid Qt dependencies in CI."
+# Write headless PyTest unit tests for RawDataViewModel covering cluster selection state changes, clearing results on ROI clearing, and cluster thumbnail configuration without Qt dependencies.
 
 import threading
 from unittest.mock import MagicMock
@@ -241,9 +241,9 @@ def test_export_no_selection_no_error(view_model):
 # --- Cluster display properties ---
 
 
-def test_cluster_thumbnail_colormap_disabled_by_default(view_model):
-    """clusterThumbnailColormap returns None with default config."""
-    assert view_model.clusterThumbnailColormap is None
+def test_cluster_thumbnail_colormap_enabled_by_default(view_model):
+    """clusterThumbnailColormap returns active colormap with default config."""
+    assert view_model.clusterThumbnailColormap is not None
 
 
 def test_cluster_thumbnail_colormap_enabled(view_model):

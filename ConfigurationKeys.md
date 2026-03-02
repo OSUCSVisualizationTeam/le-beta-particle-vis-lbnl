@@ -26,7 +26,7 @@ This document serves as the authoritative registry for all configuration keys us
 | **gui:raw_analysis** | `show_tool_hints` | Boolean | `true` | Show inline usage hints on interactive tools (e.g., magnifier keyboard shortcuts). |
 | **gui:raw_analysis** | `box_select_color` | String | `#00BFFF` | CSS color for the box selection ROI rectangle border and fill. |
 | **gui:raw_analysis** | `box_select_border_width` | Integer | `2` | Border width (in pixels) for the box selection ROI rectangle. |
-| **gui:raw_analysis** | `cluster_thumbnail_use_colormap` | Boolean | `false` | When enabled, cluster thumbnails use the active colormap via OpenCVBasedConverter instead of grayscale. |
+| **gui:raw_analysis** | `cluster_thumbnail_use_colormap` | Boolean | `true` | When enabled, cluster thumbnails use the active colormap via OpenCVBasedConverter instead of grayscale. |
 | **gui:raw_analysis** | `display_energy_in_kev` | Boolean | `true` | Display cluster energy in keV. When false, displays raw ADU values. |
 | **gui:raw_analysis** | `clustering_timeout_seconds` | Integer | `300` | Maximum time (in seconds) before a running cluster extraction is aborted. A warning dialog is shown on timeout. |
 | **gui:window** | `default_width` | Integer | `1024` | Default initial width of the application window. |

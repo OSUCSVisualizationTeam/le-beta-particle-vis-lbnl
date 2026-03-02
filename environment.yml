@@ -8,6 +8,7 @@ dependencies:
   - matplotlib
   - numpy<2
   - pyside6
+  - pyqtgraph
   - superqt
   - coverage
   - pytest

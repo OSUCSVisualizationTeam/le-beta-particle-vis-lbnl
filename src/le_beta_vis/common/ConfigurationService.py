@@ -52,7 +52,7 @@ class MockConfigurationService(ConfigurationService):
             "gui:raw_analysis:magnifier_move_step": 1,
             "gui:raw_analysis:show_tool_hints": True,
             # Clustering Display
-            "gui:raw_analysis:cluster_thumbnail_use_colormap": False,
+            "gui:raw_analysis:cluster_thumbnail_use_colormap": True,
             "gui:raw_analysis:display_energy_in_kev": True,
             "gui:raw_analysis:clustering_timeout_seconds": 300,
             # Box Selection Tool

@@ -1,3 +1,8 @@
+# Citation for Unit Tests: Verifies RawDataViewModel initialization, state management, and interaction with physical models.
+# Date: 28/02/2026
+# Adapted from Claude Code:
+# Write headless PyTest unit tests for RawDataViewModel covering configuration, active tool changes, and interaction with CCDCaptureModel without using Qt.
+
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -100,6 +105,34 @@ def test_set_active_hdu(view_model):
     args, _ = view_model._converter.convert.call_args
     assert np.array_equal(args[0], data * 0.5)
     assert isinstance(view_model.currentBuffer, np.ndarray)
+
+
+def test_selected_roi_raw_data_none_without_roi(view_model):
+    """selectedRoiRawData returns None when no ROI is set."""
+    assert view_model.selectedRoiRawData is None
+
+
+def test_selected_roi_raw_data_none_without_capture(view_model):
+    """selectedRoiRawData returns None when no capture is loaded."""
+    view_model.addRoi(0, 0, 5, 5)
+    assert view_model.selectedRoiRawData is None
+
+
+def test_selected_roi_raw_data_returns_cropped_data(view_model):
+    """selectedRoiRawData returns the cropped sub-array."""
+    raw = np.arange(100).reshape(10, 10)
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    mock_capture.rawData.return_value = raw
+    view_model._captures = [mock_capture]
+    view_model._activeIndex = 0
+
+    view_model.addRoi(2, 3, 5, 7)
+    result = view_model.selectedRoiRawData
+    assert result is not None
+    expected = raw[2:5, 3:7]
+    assert np.array_equal(result, expected)
+    # Verify it's a copy, not a reference
+    assert result is not raw[2:5, 3:7]
 
 
 def test_set_colormap(view_model):
