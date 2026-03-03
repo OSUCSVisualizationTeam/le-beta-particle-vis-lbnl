@@ -13,6 +13,7 @@ from le_beta_vis.common.MockEventRepository import (
 )
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.BoundingBox import BoundingBox
+from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
 
 
 def test_returns_list_of_clusters():
@@ -92,3 +93,70 @@ def test_cluster_id_unique():
     events = repo.fetch_events()
     ids = [e.clusterId for e in events]
     assert len(ids) == len(set(ids))
+
+
+# -------------------------------------------------------------------
+# query_clusters filtering
+# -------------------------------------------------------------------
+
+def test_query_clusters_none_returns_all():
+    """query_clusters(None) should return the same as fetch_events."""
+    repo = MockEventRepository()
+    assert len(repo.query_clusters(None)) == len(repo.fetch_events())
+
+
+def test_query_clusters_by_fits_id():
+    """Filtering by fits_id should only return matching clusters."""
+    repo = MockEventRepository()
+    qf = ClusterQueryFilter(fits_id=1)
+    results = repo.query_clusters(qf)
+    assert len(results) > 0
+    for c in results:
+        assert c.fitsId == 1
+
+
+def test_query_clusters_by_cluster_id():
+    """Filtering by cluster_id should return exactly one cluster."""
+    repo = MockEventRepository()
+    qf = ClusterQueryFilter(cluster_id=1)
+    results = repo.query_clusters(qf)
+    assert len(results) == 1
+    assert results[0].clusterId == 1
+
+
+def test_query_clusters_by_min_energy():
+    """Filtering by min_total_energy should exclude low-energy clusters."""
+    repo = MockEventRepository()
+    threshold = 5000.0
+    qf = ClusterQueryFilter(min_total_energy=threshold)
+    results = repo.query_clusters(qf)
+    assert len(results) > 0
+    for c in results:
+        assert c.energy >= threshold
+
+
+def test_query_clusters_by_min_pixels():
+    """Filtering by min_total_pixels should exclude small clusters."""
+    repo = MockEventRepository()
+    qf = ClusterQueryFilter(min_total_pixels=50)
+    results = repo.query_clusters(qf)
+    assert len(results) > 0
+    for c in results:
+        assert c.pixelCount >= 50
+
+
+def test_query_clusters_multiple_filters():
+    """Multiple filters should be AND-combined."""
+    repo = MockEventRepository()
+    qf = ClusterQueryFilter(fits_id=1, min_total_energy=2000.0)
+    results = repo.query_clusters(qf)
+    for c in results:
+        assert c.fitsId == 1
+        assert c.energy >= 2000.0
+
+
+def test_query_clusters_no_match_returns_empty():
+    """A filter that matches nothing should return an empty list."""
+    repo = MockEventRepository()
+    qf = ClusterQueryFilter(cluster_id=9999)
+    assert repo.query_clusters(qf) == []

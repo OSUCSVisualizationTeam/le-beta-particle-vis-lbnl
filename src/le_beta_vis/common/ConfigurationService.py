@@ -80,6 +80,11 @@ class MockConfigurationService(ConfigurationService):
             "gui:export:image_format": "png",
             # Pipeline and Ingress
             "pipeline:ingress:polling_location": "~/Google\ Drive\/My\ Drive/FITS",
+            # Event Persistence Service (EPS)
+            "eps:cluster_ipc": "ipc:///tmp/EPCCluster.ipc",
+            "eps:fits_ipc": "ipc:///tmp/EPCFits.ipc",
+            "eps:command_ipc": "ipc:///tmp/EPCCommand.ipc",
+            "eps:timeout_ms": 5000,
         }
 
     def get(self, key: str, default: Any = None) -> Any:

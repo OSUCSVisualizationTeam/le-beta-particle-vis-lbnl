@@ -45,3 +45,7 @@ This document serves as the authoritative registry for all configuration keys us
 | **gui:inspector** | `histogram_bins` | Integer | `50` | Number of bins to use when generating energy distribution histograms for selected events. |
 | **gui:export** | `default_path` | String | `~/Data` | Default file system path presented in the "Save As" dialog. |
 | **gui:export** | `image_format` | String | `png` | Preferred file format for exporting plots and images. |
+| **eps** | `cluster_ipc` | String | `ipc:///tmp/EPCCluster.ipc` | ZMQ IPC address for the EPS cluster socket. |
+| **eps** | `fits_ipc` | String | `ipc:///tmp/EPCFits.ipc` | ZMQ IPC address for the EPS FITS socket. |
+| **eps** | `command_ipc` | String | `ipc:///tmp/EPCCommand.ipc` | ZMQ IPC address for the EPS command socket. |
+| **eps** | `timeout_ms` | Integer | `5000` | Timeout in milliseconds for ZMQ send/receive operations against the EPS. |

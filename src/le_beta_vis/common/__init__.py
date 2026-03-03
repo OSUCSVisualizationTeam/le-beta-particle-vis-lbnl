@@ -2,7 +2,10 @@
 # pylint: disable=unused-import
 # pyright: reportUnusedImport=false
 from .ConfigurationService import ConfigurationService, MockConfigurationService
-from .PhysicsConversionManager import PhysicsConversionManager, PhysicsConversionManagerImpl
+from .PhysicsConversionManager import (
+    PhysicsConversionManager,
+    PhysicsConversionManagerImpl,
+)
 from .CCDCaptureModel import CCDCaptureModel
 from .RegionOfInterest import RegionOfInterest
 from .RoiRect import RoiRect
@@ -10,8 +13,19 @@ from .BoundingBox import BoundingBox
 from .ClusterExtractor import ClusterExtractor, ClusteredEventInfo
 from .Cluster import Cluster
 from .ParticleType import ParticleType, classify_particle, CLASSIFICATION_THRESHOLD
+from .EPSDataClasses import (
+    ClusterQueryFilter,
+    ClusterStoreRequest,
+    ClassificationUpdateRequest,
+    FitsQueryFilter,
+    EPSClusterRecord,
+    EPSFitsRecord,
+)
 from .EventRepository import EventRepository
 from .MockEventRepository import MockEventRepository
+from .NoOpEventRepository import NoOpEventRepository
+
+# from .ZMQBasedEventRepository import ZMQBasedEventRepository
 from .HistogramDataModel import HistogramDataModel
 from .ROIStatistics import ROIStatistics
 from .HistogramRenderer import HistogramRenderer, MatplotlibHistogramRenderer
