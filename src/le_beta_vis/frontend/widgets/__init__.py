@@ -10,3 +10,7 @@ from .ClusteringProgressOverlay import ClusteringProgressOverlay
 from .ClusteredEventWidget import ClusteredEventWidget
 from .EnergyClusterWidget import EnergyClusterWidget
 from .InteractiveHistogramWidget import InteractiveHistogramWidget
+from .HistoricalFilterBar import HistoricalFilterBar
+from .HistoricalAdvancedFilterDialog import (
+    HistoricalAdvancedFilterDialog,
+)
