@@ -1,7 +1,9 @@
-# Citation for Unit Tests: Tests for LBNLClassicalClusterExtractor (cluster_sigma wrapper) with mocking.
+# Citation for Unit Tests: Tests for LBNLClassicalClusterExtractor (cluster_sigma wrapper) with
+# mocking.
 # Date: 21/02/2026
 # Adapted from Claude Code:
-# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the
+# most relevant scenarios
 
 """Tests for LBNLClassicalClusterExtractor (cluster_sigma wrapper).
 
@@ -29,29 +31,32 @@ _SIGMA = 4.0
 _PED = 100
 _KEV = 0.01
 
+
 class MockPhysicsManager(PhysicsConversionManager):
     def __init__(self, factor: float, ped_width: int):
         self._factor = factor
         self._ped_width = ped_width
-    
+
     @property
     def kev_conversion_factor(self) -> float:
         return self._factor
-    
+
     @property
     def pedestal_width(self) -> int:
         return self._ped_width
-    
+
     def calculate_threshold(self, sigma: float) -> float:
         return sigma * self._ped_width
-    
+
     def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         return value * self._factor
+
 
 def _make_extractor() -> LBNLClassicalClusterExtractor:
     physics = MockPhysicsManager(factor=_KEV, ped_width=_PED)
     return LBNLClassicalClusterExtractor(
-        sigma_multiplier=_SIGMA, physics_manager=physics,
+        sigma_multiplier=_SIGMA,
+        physics_manager=physics,
     )
 
 
@@ -149,7 +154,7 @@ class TestLBNLClassicalClusterExtractor:
             return (1.0, 1.0, 500.0)
 
         with patch(
-            'mlccd_diffusion.help_functions.cluster_sigma',
+            "mlccd_diffusion.help_functions.cluster_sigma",
             _synced_cs,
         ):
             extractor.extract(data, bbox, lambda e: called.extend(e))
@@ -213,13 +218,13 @@ class TestLBNLClassicalClusterExtractor:
     def test_multiple_clusters_returned(self, mock_cs):
         """Two well-separated clusters are both returned."""
         mock_cs.side_effect = [
-            (1.0, 1.0, 800.0),   # first (brightest)
-            (0.5, 0.5, 500.0),   # second
-            (0.0, 0.0, 0.0),     # done
+            (1.0, 1.0, 800.0),  # first (brightest)
+            (0.5, 0.5, 500.0),  # second
+            (0.0, 0.0, 0.0),  # done
         ]
         data = np.zeros((30, 30), dtype=np.float64)
-        data[5, 5] = 800     # cluster A
-        data[25, 25] = 500   # cluster B (well-separated)
+        data[5, 5] = 800  # cluster A
+        data[25, 25] = 500  # cluster B (well-separated)
         bbox = BoundingBox(0, 0, 30, 30)
         results = _run_extract(_make_extractor(), data, bbox)
         assert len(results) == 2
@@ -276,7 +281,9 @@ class TestLBNLClassicalClusterExtractor:
             done.set()
 
         extractor.extract(
-            data, bbox, cb,
+            data,
+            bbox,
+            cb,
             progress_callback=lambda v: progress_values.append(v),
         )
         assert done.wait(timeout=5)

@@ -1,7 +1,9 @@
-# Citation for Unit Tests: Tests for ClusterExtractorFactory ensuring correct implementation selection.
+# Citation for Unit Tests: Tests for ClusterExtractorFactory ensuring correct implementation
+# selection.
 # Date: 21/02/2026
 # Adapted from Claude Code:
-# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the
+# most relevant scenarios
 
 """Tests for ClusterExtractorFactory."""
 
@@ -27,9 +29,11 @@ def _config_with_method(method: str) -> MockConfigurationService:
     config.set("gui:raw_analysis:cluster_extractor_method", method)
     return config
 
+
 def _create(config):
     physics_manager = PhysicsConversionManagerImpl(config)
     return create_cluster_extractor(config, physics_manager)
+
 
 class TestClusterExtractorFactory:
     def test_default_returns_lbnl_classical(self):

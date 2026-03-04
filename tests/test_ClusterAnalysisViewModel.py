@@ -1,7 +1,8 @@
 # Citation for Unit Tests: Verifies ClusterAnalysisViewModel delegation to parent RawDataViewModel.
 # Date: 28/02/2026
 # Adapted from Claude Code:
-# Write headless PyTest unit tests for ClusterAnalysisViewModel verifying properties and callbacks are correctly forwarded to its parent RawDataViewModel.
+# Write headless PyTest unit tests for ClusterAnalysisViewModel verifying properties and callbacks
+# are correctly forwarded to its parent RawDataViewModel.
 
 """Tests for ClusterAnalysisViewModel delegation.
 
@@ -20,9 +21,6 @@ from le_beta_vis.common.ConfigurationService import (
 )
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManagerImpl,
-)
-from le_beta_vis.frontend.viewmodels.ClusterAnalysisViewModel import (
-    ClusterAnalysisViewModel,
 )
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     RawDataViewModel,
@@ -54,10 +52,7 @@ def test_clustering_threshold(facade, parent_vm):
 
 def test_is_clustering_available(facade, parent_vm):
     """isClusteringAvailable delegates to parent."""
-    assert (
-        facade.isClusteringAvailable
-        == parent_vm.isClusteringAvailable
-    )
+    assert facade.isClusteringAvailable == parent_vm.isClusteringAvailable
 
 
 def test_clustering_state(facade, parent_vm):
@@ -82,10 +77,7 @@ def test_clustering_error(facade, parent_vm):
 
 def test_cluster_thumbnail_colormap(facade, parent_vm):
     """clusterThumbnailColormap delegates to parent."""
-    assert (
-        facade.clusterThumbnailColormap
-        == parent_vm.clusterThumbnailColormap
-    )
+    assert facade.clusterThumbnailColormap == parent_vm.clusterThumbnailColormap
 
 
 def test_display_energy_in_kev(facade, parent_vm):
@@ -100,10 +92,7 @@ def test_kev_conversion(facade, parent_vm):
 
 def test_selected_cluster_index(facade, parent_vm):
     """selectedClusterIndex delegates to parent."""
-    assert (
-        facade.selectedClusterIndex
-        == parent_vm.selectedClusterIndex
-    )
+    assert facade.selectedClusterIndex == parent_vm.selectedClusterIndex
 
 
 # --- Method delegation ---
@@ -142,9 +131,7 @@ def test_export_selected_cluster(facade):
 def test_add_clustering_state_changed_callback(facade, parent_vm):
     """Callback registered via facade fires on parent state change."""
     called = []
-    facade.add_clustering_state_changed_callback(
-        lambda: called.append(True)
-    )
+    facade.add_clustering_state_changed_callback(lambda: called.append(True))
     parent_vm._notify_clustering_state_changed()
     assert called
 
@@ -152,9 +139,7 @@ def test_add_clustering_state_changed_callback(facade, parent_vm):
 def test_add_clustering_completed_callback(facade, parent_vm):
     """Callback registered via facade fires on parent completion."""
     called = []
-    facade.add_clustering_completed_callback(
-        lambda: called.append(True)
-    )
+    facade.add_clustering_completed_callback(lambda: called.append(True))
     parent_vm._notify_clustering_completed()
     assert called
 
@@ -162,9 +147,7 @@ def test_add_clustering_completed_callback(facade, parent_vm):
 def test_add_clustering_error_callback(facade, parent_vm):
     """Callback registered via facade fires on parent error."""
     called = []
-    facade.add_clustering_error_callback(
-        lambda: called.append(True)
-    )
+    facade.add_clustering_error_callback(lambda: called.append(True))
     parent_vm._notify_clustering_error()
     assert called
 
@@ -172,9 +155,7 @@ def test_add_clustering_error_callback(facade, parent_vm):
 def test_add_clustering_progress_callback(facade, parent_vm):
     """Callback registered via facade fires on parent progress."""
     called = []
-    facade.add_clustering_progress_callback(
-        lambda: called.append(True)
-    )
+    facade.add_clustering_progress_callback(lambda: called.append(True))
     parent_vm._notify_clustering_progress()
     assert called
 
@@ -182,9 +163,7 @@ def test_add_clustering_progress_callback(facade, parent_vm):
 def test_add_selected_cluster_changed_callback(facade, parent_vm):
     """Callback registered via facade fires on selection change."""
     called = []
-    facade.add_selected_cluster_changed_callback(
-        lambda: called.append(True)
-    )
+    facade.add_selected_cluster_changed_callback(lambda: called.append(True))
     parent_vm._notify_selected_cluster_changed()
     assert called
 
@@ -192,9 +171,7 @@ def test_add_selected_cluster_changed_callback(facade, parent_vm):
 def test_add_active_tool_changed_callback(facade, parent_vm):
     """Callback registered via facade fires on tool change."""
     called = []
-    facade.add_active_tool_changed_callback(
-        lambda: called.append(True)
-    )
+    facade.add_active_tool_changed_callback(lambda: called.append(True))
     parent_vm._notify_active_tool_changed()
     assert called
 
@@ -202,8 +179,6 @@ def test_add_active_tool_changed_callback(facade, parent_vm):
 def test_add_roi_changed_callback(facade, parent_vm):
     """Callback registered via facade fires on ROI change."""
     called = []
-    facade.add_roi_changed_callback(
-        lambda: called.append(True)
-    )
+    facade.add_roi_changed_callback(lambda: called.append(True))
     parent_vm._notify_roi_changed()
     assert called
