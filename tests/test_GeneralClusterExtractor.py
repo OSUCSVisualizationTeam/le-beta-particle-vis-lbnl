@@ -1,7 +1,9 @@
-# Citation for Unit Tests: Tests for GeneralClusterExtractor covering filtering and progress reporting.
+# Citation for Unit Tests: Tests for GeneralClusterExtractor covering filtering and progress
+# reporting.
 # Date: 21/02/2026
 # Adapted from Claude Code:
-# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the most relevant scenarios
+# Analyze the ClusterExtractor logic and implementations, derive suitable test cases to cover the
+# most relevant scenarios
 
 """Tests for GeneralClusterExtractor.
 
@@ -24,35 +26,38 @@ from le_beta_vis.common.GeneralClusterExtractor import (
 )
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 
-_gce_mod = sys.modules['le_beta_vis.common.GeneralClusterExtractor']
+_gce_mod = sys.modules["le_beta_vis.common.GeneralClusterExtractor"]
 
 _SIGMA = 4.0
 _PED = 100
 _KEV = 0.01
 
+
 class MockPhysicsManager(PhysicsConversionManager):
     def __init__(self, factor: float, ped_width: int):
         self._factor = factor
         self._ped_width = ped_width
-    
+
     @property
     def kev_conversion_factor(self) -> float:
         return self._factor
-    
+
     @property
     def pedestal_width(self) -> int:
         return self._ped_width
-    
+
     def calculate_threshold(self, sigma: float) -> float:
         return sigma * self._ped_width
-    
+
     def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         return value * self._factor
+
 
 def _make_extractor() -> GeneralClusterExtractor:
     physics = MockPhysicsManager(factor=_KEV, ped_width=_PED)
     return GeneralClusterExtractor(
-        sigma_multiplier=_SIGMA, physics_manager=physics,
+        sigma_multiplier=_SIGMA,
+        physics_manager=physics,
     )
 
 
@@ -72,6 +77,7 @@ def _run_extract(extractor, data, bbox, **kwargs):
 
 class TestGeneralClusterExtractor:
     """Tests for GeneralClusterExtractor."""
+
     def test_no_clusters_returns_empty_list(self):
         data = np.zeros((20, 20), dtype=np.float64)
         bbox = BoundingBox(0, 0, 20, 20)
@@ -124,9 +130,7 @@ class TestGeneralClusterExtractor:
             data[10, 10 + i] = 500
         bbox = BoundingBox(0, 0, 20, 20)
         # Set minimum to 30 keV — should filter out
-        results = _run_extract(
-            _make_extractor(), data, bbox, energyMinimum=30.0
-        )
+        results = _run_extract(_make_extractor(), data, bbox, energyMinimum=30.0)
         assert results == []
 
     def test_energy_maximum_param(self):
@@ -136,9 +140,7 @@ class TestGeneralClusterExtractor:
             data[10, 10 + i] = 500
         bbox = BoundingBox(0, 0, 20, 20)
         # Set maximum to 10 keV — should filter out
-        results = _run_extract(
-            _make_extractor(), data, bbox, energyMaximum=10.0
-        )
+        results = _run_extract(_make_extractor(), data, bbox, energyMaximum=10.0)
         assert results == []
 
     def test_center_coords_global_frame(self):
@@ -170,7 +172,7 @@ class TestGeneralClusterExtractor:
             time.sleep(0.1)
             return original_label(*args, **kwargs)
 
-        with patch.object(_gce_mod, 'label', _synced_label):
+        with patch.object(_gce_mod, "label", _synced_label):
             extractor.extract(data, bbox, lambda e: called.extend(e))
             worker_started.wait(timeout=2)
             extractor.cancel()
@@ -196,7 +198,9 @@ class TestGeneralClusterExtractor:
 
         extractor = _make_extractor()
         extractor.extract(
-            data, bbox, on_done,
+            data,
+            bbox,
+            on_done,
             progress_callback=lambda v: progress_values.append(v),
         )
         assert done.wait(timeout=5), "Extraction timed out"
@@ -213,7 +217,10 @@ class TestGeneralClusterExtractor:
             data[10, 10 + i] = 500
         bbox = BoundingBox(0, 0, 20, 20)
         results = _run_extract(
-            _make_extractor(), data, bbox, progress_callback=None,
+            _make_extractor(),
+            data,
+            bbox,
+            progress_callback=None,
         )
         assert len(results) == 1
 
