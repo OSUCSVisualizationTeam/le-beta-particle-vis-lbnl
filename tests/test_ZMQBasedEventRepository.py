@@ -23,8 +23,7 @@ from le_beta_vis.common.EPSDataClasses import (
     EPSClusterRecord,
 )
 from le_beta_vis.common.ZMQBasedEventRepository import (
-    ZMQBasedEventRepository,
-    _parse_data,
+    ZMQBasedEventRepository
 )
 
 
@@ -355,35 +354,6 @@ class TestMapToCluster:
         assert cluster.data.shape == (2, 2)
         np.testing.assert_array_almost_equal(cluster.data, arr.reshape(2, 2))
 
-
-# -------------------------------------------------------------------
-# _parse_data helper
-# -------------------------------------------------------------------
-
-
-class TestParseData:
-
-    def test_list_perfect_square(self):
-        arr = _parse_data([1, 2, 3, 4])
-        assert arr.shape == (2, 2)
-
-    def test_list_non_square(self):
-        arr = _parse_data([1, 2, 3])
-        assert arr.shape == (1, 3)
-
-    def test_empty_list(self):
-        arr = _parse_data([])
-        assert arr.shape == (0, 0)
-
-    def test_bytes_input(self):
-        data = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float64)
-        arr = _parse_data(data.tobytes())
-        assert arr.shape == (2, 2)
-
-    def test_already_2d(self):
-        data = np.array([[1, 2], [3, 4]], dtype=np.float64)
-        arr = _parse_data(data)
-        assert arr.shape == (2, 2)
 
 
 # -------------------------------------------------------------------
