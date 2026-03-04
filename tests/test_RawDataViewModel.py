@@ -1,7 +1,9 @@
-# Citation for Unit Tests: Verifies RawDataViewModel initialization, state management, and interaction with physical models.
+# Citation for Unit Tests: Verifies RawDataViewModel initialization, state management, and
+# interaction with physical models.
 # Date: 28/02/2026
 # Adapted from Claude Code:
-# Write headless PyTest unit tests for RawDataViewModel covering configuration, active tool changes, and interaction with CCDCaptureModel without using Qt.
+# Write headless PyTest unit tests for RawDataViewModel covering configuration, active tool changes,
+# and interaction with CCDCaptureModel without using Qt.
 
 import sys
 from unittest.mock import MagicMock, patch
@@ -12,7 +14,10 @@ import pytest
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
-from le_beta_vis.frontend.viewmodels.RawDataViewModel import RawDataViewModel
+from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
+    ActiveTool,
+    RawDataViewModel,
+)
 
 
 @pytest.fixture
@@ -179,3 +184,95 @@ def test_zoom_logic(view_model):
     view_model.resetZoom()
     assert view_model.scale == 1.0
     mock_cb.assert_called_once()
+
+
+def test_default_tool_is_box_select(view_model):
+    """Default active tool should be BOX_SELECT (ROI)."""
+    assert view_model.activeTool == ActiveTool.BOX_SELECT
+    assert view_model.isBoxSelectActive is True
+
+
+def test_toggle_magnifier(view_model):
+    """toggleMagnifier toggles between MAGNIFIER and BOX_SELECT."""
+    assert view_model.activeTool == ActiveTool.BOX_SELECT
+
+    view_model.toggleMagnifier()
+    assert view_model.activeTool == ActiveTool.MAGNIFIER
+    assert view_model.isMagnifierActive is True
+
+    view_model.toggleMagnifier()
+    assert view_model.activeTool == ActiveTool.BOX_SELECT
+    assert view_model.isBoxSelectActive is True
+
+
+def test_toggle_magnifier_notifies(view_model):
+    """toggleMagnifier fires the active_tool_changed callback."""
+    cb = MagicMock()
+    view_model.add_active_tool_changed_callback(cb)
+
+    view_model.toggleMagnifier()
+    assert cb.call_count == 1
+
+    view_model.toggleMagnifier()
+    assert cb.call_count == 2
+
+
+def test_clustering_available_with_magnifier_active(view_model):
+    """isClusteringAvailable should be True regardless of active tool."""
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    mock_capture.rawData.return_value = np.zeros((10, 10))
+    view_model._captures = [mock_capture]
+    view_model._activeIndex = 0
+    view_model._clusterExtractor = MagicMock()
+    view_model.addRoi(0, 0, 5, 5)
+
+    # Available with default BOX_SELECT
+    assert view_model.isClusteringAvailable is True
+
+    # Still available with MAGNIFIER
+    view_model.setActiveTool(ActiveTool.MAGNIFIER)
+    assert view_model.isClusteringAvailable is True
+
+
+def test_pointer_hover_position(view_model):
+    """setPointerHoverPosition stores the position and notifies."""
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    raw = np.ones((10, 10))
+    mock_capture.rawData.return_value = raw
+    view_model._captures = [mock_capture]
+    view_model._activeIndex = 0
+    view_model._image_bounds = (10, 10)
+
+    cb = MagicMock()
+    view_model.add_pointer_hover_changed_callback(cb)
+
+    view_model.setPointerHoverPosition(3, 7)
+    assert cb.call_count == 1
+
+    info = view_model.pointerHoverInfo
+    assert info is not None
+    row, col, kev = info
+    assert row == 3
+    assert col == 7
+
+
+def test_clear_pointer_hover(view_model):
+    """clearPointerHover resets hover info to None."""
+    view_model._image_bounds = (10, 10)
+    view_model.setPointerHoverPosition(5, 5)
+
+    cb = MagicMock()
+    view_model.add_pointer_hover_changed_callback(cb)
+
+    view_model.clearPointerHover()
+    assert cb.call_count == 1
+    assert view_model.pointerHoverInfo is None
+
+
+def test_clear_pointer_hover_noop_when_already_none(view_model):
+    """clearPointerHover is a no-op when hover is already None."""
+    cb = MagicMock()
+    view_model.add_pointer_hover_changed_callback(cb)
+
+    view_model.clearPointerHover()
+    cb.assert_not_called()

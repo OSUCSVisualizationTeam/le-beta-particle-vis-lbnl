@@ -1,16 +1,14 @@
 import numpy as np
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
+from le_beta_vis.common.BoundingBox import BoundingBox
 import mysql.connector
 from astropy.io import fits
 from scipy.ndimage import label, maximum_position
 import numpy as np
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 import zmq
-
-load_dotenv()
 
 class ProcessFile():
     """
@@ -20,51 +18,40 @@ class ProcessFile():
         self.kev = config_service.get(key = "global:physics:kev_conversion") # Will be adjusted for real config service
         self.ped_width = config_service.get(key = "global:physics:ped_width")
         self.db = config_service.get(key = "global:db:connection_string")
+        self.fits_name = file
         self.capture = CCDCaptureModel.load(file)
         self.clusters = []
         self.fits_id = None
+        self.process_context = zmq.Context()
 
     def store_fits(self):
         """
         Stores ingested fits file into the fits_file table in the database.
         """
-        # This will most likely need to be reworked with the configuration service to pull accurate values
-        # Pending decision on storing db logins
-        try:
-            conn = mysql.connector.connect(
-                host="localhost",
-                user=os.environ.get("DB_USER"),
-                password=os.environ.get("DB_PASS"),
-                database=os.environ.get("DB_NAME")
-            )
-            cursor = conn.cursor()
-            date = self.capture[0].captureDate()
-            minimum = min(self.capture[0].info.min, self.capture[1].info.min, self.capture[2].info.min, self.capture[3].info.min)
-            maximum = max(self.capture[0].info.max, self.capture[1].info.max, self.capture[2].info.max, self.capture[3].info.max) 
-            exposure_time = self.capture[0].exposureDuration()
-            proc_args = (date, minimum, maximum, exposure_time, (0, 'INT'))
-            cursor.callproc("insert_fits", proc_args)
-
-            for result in cursor.stored_results():
-                id = result.fetchone()[0]
-                if id > 0:
-                    self.fits_id = id
-                else:
-                    raise FailedProcException
-            
-            # Commit results and close connection
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-        except mysql.connector.Error as err:
-            print(f"Could not connect: {err}")
+        socket = self.process_context.socket(zmq.REQ)
+        socket.connect("ipc:///tmp/EPCFits.ipc")
+        # Form JSON request with fits data, send to endpoint and grab response
+        request = {
+        "Action": "storage",
+        "filename": self.fits_name,
+        "date": self.capture[0].captureDate(),
+        "minimum": min(self.capture[0].info.min, self.capture[1].info.min, self.capture[2].info.min, self.capture[3].info.min),
+        "maximum": max(self.capture[0].info.max, self.capture[1].info.max, self.capture[2].info.max, self.capture[3].info.max),
+        "exposure_time": self.capture[0].exposureDuration()
+        }
+        socket.send_json(request)
+        response = socket.recv_json()
+        socket.close()
+        if response["result"] == "success":
+            self.fits_id = response["fits_id"]
+        else:
+            print(f"There was an issue communicating with the EPS. Due to {response['error']}")
 
     def cluster_fits(self):
         """
         Iterates through HDUs, creating clusters from each
         """
-        for hdu in self.capture:
+        for hdu_index, hdu in enumerate(self.capture):
             data = hdu.rawData()
             # Label as a cluster if the data passes the four sigma threshold comparison to the background noise
             labeled_array, num_features = label(data > 4 * self.ped_width) # 4 sigma threshold
@@ -102,6 +89,7 @@ class ProcessFile():
                 # Extract a cluster centered at the maximum position, with and without background noise
                 # pixels_around_cluster_with_noise = data[y_start:y_end, x_start:x_end]
                 pixels_around_cluster_wo_noise = cluster_image[y_start:y_end, x_start:x_end]
+                bounding_box = BoundingBox(y_end, x_start, y_start, x_end)
 
                 # Calculate weighted mean sigma
                 sigma_x, sigma_y = self.calc_sigmas(pixels_around_cluster_wo_noise)
@@ -111,8 +99,8 @@ class ProcessFile():
                 cluster_sigma_y = sigma_y
                 cluster_energy = np.sum(pixels_around_cluster_wo_noise)
                 cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
-                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, cluster_sigma_x, 
-                                             cluster_sigma_y, cluster_energy, cluster_pixels, 
+                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, hdu_index, bounding_box, cluster_sigma_x,
+                                             cluster_sigma_y, cluster_energy, cluster_pixels,
                                              self.fits_id))
 
     def calc_sigmas(self, dtrack):
@@ -127,12 +115,42 @@ class ProcessFile():
         sigma_y = np.sqrt(np.sum(dtrack * (y - mean_y)**2) / sum_weights)
         return sigma_x, sigma_y
 
+    def store_clusters(self):
+        """
+        Stores ingested clusters into the clusters table in the database.
+        """
+        socket = self.process_context.socket(zmq.REQ)
+        socket.connect("ipc:///tmp/EPCCluster.ipc")
+        # Form JSON request with cluster data, send to endpoint and grab response
+        for cluster in self.clusters:
+            request = {
+                "Action": "Storage",
+                "data": cluster.data,
+                "hdu_id": cluster.hdu,
+                "bounding_box": cluster.bounding_box,
+                "sigmaX": cluster.sigmaX, "sigmaY": cluster.sigmaY,
+                "total_energy": cluster.total_energy,
+                "total_pixels": cluster.total_pixels,
+                "fits_id": self.fits_id,
+                "classification": cluster.classification
+            }
+            socket.send_json(request)
+            response = socket.recv_json()
+            if response["result"] == "success":
+                cluster.cluster_id = response["cluster_id"]
+            else:
+                print(f"There was an issue communicating with the EPS. Due to {response['error']}")
+                # kill loop here, can include logging and exceptions to try and restart the service later
+                break
+
 class Cluster():
     """
     Cluster class with methods for classification and storage
     """
     def __init__(self,
                  data: np.ndarray,
+                 hdu: int,
+                 bounding_box: BoundingBox,
                  sigmaX: float,
                  sigmaY: float,
                  energy: float,
@@ -140,15 +158,15 @@ class Cluster():
                  fits_id: int
                  ):
         self.data = data
+        self.hdu = hdu
+        self.bounding_box = bounding_box
         self.sigmaX = sigmaX
         self.sigmaY = sigmaY
         self.total_energy = energy
         self.total_pixels = pixels
         self.fits_id = fits_id
         self.cluster_id = None
-        self.cnn_classification = 0
-        self.nrg_classificaiton = 0
-        self.bdt_classificaiton = 0
+        self.classification = None
         # debug
         # print(f"Sigma x: {self.sigmaX}\nSigma Y: {self.sigmaY}\nEnergy: {self.total_energy}\n Pixels: {self.total_pixels}")
 
@@ -165,70 +183,4 @@ class Cluster():
             #self.nrg_classification = classifications["NRG"]
             #self.bdt_classification = classifications["BDT"]
 
-    def store_clusters(self):
-        """
-        Stores ingested clusters into the clusters table in the database.
-        """
-        # This will most likely need to be reworked with the configuration service to pull accurate values
-        # Pending decision on storing db logins and 
-        try:
-            conn = mysql.connector.connect(
-                host="localhost",
-                user=os.environ.get("DB_USER"),
-                password=os.environ.get("DB_PASS"),
-                database=os.environ.get("DB_NAME")
-            )
-            cursor = conn.cursor()
-            proc_args = (self.fits_id, self.data, self.total_energy, 
-                         self.sigmaX, self.sigmaY, 
-                         0., 0., 0., # Placeholder zeroes for ML classifications
-                         self.total_pixels ,(0, 'INT'))
-            cursor.callproc("insert_cluster", proc_args)
 
-            for result in cursor.stored_results():
-                id = result.fetchone()[0]
-                if id > 0:
-                    self.cluster_id = id
-                else:
-                    raise FailedProcException
-            
-            # Commit results and close connection
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-        except mysql.connector.Error as err:
-            print(f"Could not connect: {err}")
-
-    def store_classifications(self):
-        """
-        Stores classifications of cluster into the database with the cluster ID. 
-        """
-        try:
-            conn = mysql.connector.connect(
-                host="localhost",
-                user=os.environ.get("DB_USER"),
-                password=os.environ.get("DB_PASS"),
-                database=os.environ.get("DB_NAME")
-            )
-            cursor = conn.cursor()
-            proc_args = (self.cnn_classification, self.nrg_classification, self.bdt_classification, 
-                         self.cluster_id)
-            cursor.callproc("insert_classification", proc_args)
-            
-            # Commit results and close connection, DB will catch if it fails in the procedure and rollback changes
-            # Can expand on reporting with FailedProcException
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-        except mysql.connector.Error as err:
-            print(f"Could not connect: {err}")
-
-class FailedProcException(Exception):
-    """
-    Subclassed exception to handle failed procedure calls in the database
-    """
-    def __init__(self, message="There was an issue running the stored procedure."):
-        super().__init__(message)
-        self.message = message

@@ -7,3 +7,4 @@ from .HistoricalViewModel import HistoricalViewModel
 from .HistoricalEventInspectorViewModel import (
     HistoricalEventInspectorViewModel,
 )
+from .HistoricalFilterBarViewModel import HistoricalFilterBarViewModel

@@ -55,6 +55,9 @@ class _Style:
 class GradientBar(QLabel):
     """
     Vertical bar displaying a colormap gradient pixmap.
+
+    The gradient is compressed between ``vmin_ratio`` and ``vmax_ratio``
+    so that the colormap visually matches the active slider range.
     """
 
     def __init__(self, parent=None):
@@ -62,11 +65,30 @@ class GradientBar(QLabel):
         self.setScaledContents(True)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumHeight(20)  # Prevent collapse to 0 height
+        self._colormap_name: str = "viridis"
+        self._vmin_ratio: float = 0.0
+        self._vmax_ratio: float = 1.0
         # Default gradient
         self.setColormap("viridis")
 
-    def setColormap(self, name: str):
-        pixmap = generate_gradient_pixmap(name)
+    def setColormap(self, name: str) -> None:
+        """Update the colormap and re-render the gradient."""
+        self._colormap_name = name
+        self._updatePixmap()
+
+    def updateRatios(self, vmin_ratio: float, vmax_ratio: float) -> None:
+        """Update the visible gradient compression range."""
+        self._vmin_ratio = vmin_ratio
+        self._vmax_ratio = vmax_ratio
+        self._updatePixmap()
+
+    def _updatePixmap(self) -> None:
+        """Re-render the gradient pixmap from current state."""
+        pixmap = generate_gradient_pixmap(
+            self._colormap_name,
+            self._vmin_ratio,
+            self._vmax_ratio,
+        )
         if not pixmap.isNull():
             self.setPixmap(pixmap)
 
@@ -243,6 +265,8 @@ class VerticalRangeControl(QWidget):
         self.slider.setValue((s_min, s_max))
         self.slider.blockSignals(False)
 
+        self._updateGradientRatios()
+
         self.blockSignals(False)
 
     def setColormap(self, name: str):
@@ -252,6 +276,15 @@ class VerticalRangeControl(QWidget):
         :param name: The name of the colormap to display (e.g., 'viridis').
         """
         self.gradient.setColormap(name)
+
+    def _updateGradientRatios(self) -> None:
+        """Recompute and apply gradient compression ratios."""
+        span = self._abs_max - self._abs_min
+        if span <= 0:
+            return
+        vmin_ratio = (self.spinMin.value() - self._abs_min) / span
+        vmax_ratio = (self.spinMax.value() - self._abs_min) / span
+        self.gradient.updateRatios(vmin_ratio, vmax_ratio)
 
     def _onSliderChanged(self, values: Tuple[int, int]):
         vmin = self._from_slider(values[0])
@@ -264,6 +297,7 @@ class VerticalRangeControl(QWidget):
         self.spinMin.blockSignals(False)
         self.spinMax.blockSignals(False)
 
+        self._updateGradientRatios()
         self.rangeChanged.emit(vmin, vmax)
 
     def _onSpinBoxChanged(self):
@@ -282,6 +316,7 @@ class VerticalRangeControl(QWidget):
         self.slider.setValue((s_min, s_max))
         self.slider.blockSignals(False)
 
+        self._updateGradientRatios()
         self.rangeChanged.emit(vmin, vmax)
 
     def _to_slider(self, val: float) -> int:

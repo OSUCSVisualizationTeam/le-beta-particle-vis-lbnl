@@ -1,1 +1,0 @@
-../../../src/le_beta_vis/common/BoundingBox.py

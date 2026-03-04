@@ -1,9 +1,10 @@
-# Citation for Unit Tests: Verifies RawDataViewModel cluster selection logic, results management, and clustering tool state.
+# Citation for Unit Tests: Verifies RawDataViewModel cluster selection logic, results management,
+# and clustering tool state.
 # Date: 28/02/2026
 # Adapted from Claude Code:
-# Write headless PyTest unit tests for RawDataViewModel covering cluster selection state changes, clearing results on ROI clearing, and cluster thumbnail configuration without Qt dependencies.
+# Write headless PyTest unit tests for RawDataViewModel covering cluster selection state changes,
+# clearing results on ROI clearing, and cluster thumbnail configuration without Qt dependencies.
 
-import threading
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -26,9 +27,7 @@ def view_model():
     physics_manager = PhysicsConversionManagerImpl(config)
     vm = RawDataViewModel(config, physics_manager)
     vm._converter = MagicMock()
-    vm._converter.convert.return_value = np.zeros(
-        (10, 10, 3), dtype=np.uint8
-    )
+    vm._converter.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
 
     def mock_request():
         vm._render_worker_logic()
@@ -40,12 +39,8 @@ def view_model():
 def _setup_for_clustering(vm):
     """Helper: load mock data, set tool, add ROI, set extractor."""
     mock_capture = MagicMock()
-    mock_capture.rawData.return_value = np.arange(
-        100, dtype=float
-    ).reshape(10, 10)
-    mock_capture.info.return_value = MagicMock(
-        rows=10, cols=10, min=0, max=99
-    )
+    mock_capture.rawData.return_value = np.arange(100, dtype=float).reshape(10, 10)
+    mock_capture.info.return_value = MagicMock(rows=10, cols=10, min=0, max=99)
     vm._captures = [mock_capture]
     vm._activeIndex = 0
     vm._image_bounds = (10, 10)
@@ -56,7 +51,10 @@ def _setup_for_clustering(vm):
 
 
 def _make_cluster(
-    cx: int = 5, cy: int = 5, energy: float = 100.0, pixels: int = 10,
+    cx: int = 5,
+    cy: int = 5,
+    energy: float = 100.0,
+    pixels: int = 10,
 ) -> ClusteredEventInfo:
     """Create a minimal ClusteredEventInfo for testing."""
     return ClusteredEventInfo(
@@ -248,9 +246,7 @@ def test_cluster_thumbnail_colormap_enabled_by_default(view_model):
 
 def test_cluster_thumbnail_colormap_enabled(view_model):
     """clusterThumbnailColormap returns active colormap when enabled."""
-    view_model._config.set(
-        "gui:raw_analysis:cluster_thumbnail_use_colormap", True
-    )
+    view_model._config.set("gui:raw_analysis:cluster_thumbnail_use_colormap", True)
     result = view_model.clusterThumbnailColormap
     assert result is not None
     assert result.value == "viridis"
@@ -263,9 +259,7 @@ def test_display_energy_in_kev_default_true(view_model):
 
 def test_display_energy_in_kev_disabled(view_model):
     """displayEnergyInKev returns False when config is set."""
-    view_model._config.set(
-        "gui:raw_analysis:display_energy_in_kev", False
-    )
+    view_model._config.set("gui:raw_analysis:display_energy_in_kev", False)
     assert view_model.displayEnergyInKev is False
 
 

@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 class ActiveTool(str, Enum):
     """Enumeration of interactive tools available in the Raw Data View."""
 
-    POINTER = "pointer"
     MAGNIFIER = "magnifier"
     BOX_SELECT = "box_select"
 
@@ -72,7 +71,7 @@ class RawDataViewModel:
         self._scale: float = 1.0
 
         # Tool State
-        self._activeTool: ActiveTool = ActiveTool.POINTER
+        self._activeTool: ActiveTool = ActiveTool.BOX_SELECT
         self._magnificationFactor: float = self._config.get(
             "gui:raw_analysis:magnifier_default_factor", 3.0
         )
@@ -196,12 +195,12 @@ class RawDataViewModel:
 
     def toggleMagnifier(self) -> None:
         """
-        Toggles between the Magnifier tool and the Pointer tool.
-        If the magnifier is active, switches to Pointer; otherwise
+        Toggles between the Magnifier tool and the ROI (Box Select) tool.
+        If the magnifier is active, switches to Box Select; otherwise
         switches to Magnifier.
         """
         if self._activeTool == ActiveTool.MAGNIFIER:
-            self.setActiveTool(ActiveTool.POINTER)
+            self.setActiveTool(ActiveTool.BOX_SELECT)
         else:
             self.setActiveTool(ActiveTool.MAGNIFIER)
 
@@ -357,12 +356,11 @@ class RawDataViewModel:
     def isClusteringAvailable(self) -> bool:
         """Returns True when extraction can be triggered.
 
-        Requires: extractor set, BOX_SELECT tool active, at least
-        one ROI, state IDLE, and raw data loaded.
+        Requires: extractor set, at least one ROI, state IDLE,
+        and raw data loaded.
         """
         return (
             self._clusterExtractor is not None
-            and self._activeTool == ActiveTool.BOX_SELECT
             and len(self._rois) > 0
             and self._clusteringState == ClusteringState.IDLE
             and self.activeRawData is not None
@@ -641,10 +639,6 @@ class RawDataViewModel:
     @property
     def activeTool(self) -> ActiveTool:
         return self._activeTool
-
-    @property
-    def isPointerActive(self) -> bool:
-        return self._activeTool == ActiveTool.POINTER
 
     @property
     def isMagnifierActive(self) -> bool:
