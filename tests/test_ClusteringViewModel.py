@@ -7,31 +7,36 @@ import pytest
 
 from le_beta_vis.common.ConfigurationService import MockConfigurationService
 from le_beta_vis.common.MockClusterExtractor import MockClusterExtractor
-from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager, PhysicsConversionManagerImpl
+from le_beta_vis.common.PhysicsConversionManager import (
+    PhysicsConversionManager,
+    PhysicsConversionManagerImpl,
+)
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     ClusteringState,
     RawDataViewModel,
 )
 
+
 class MockPhysicsManager(PhysicsConversionManager):
     def __init__(self, factor: float, ped_width: int):
         self._factor = factor
         self._ped_width = ped_width
-    
+
     @property
     def kev_conversion_factor(self) -> float:
         return self._factor
-    
+
     @property
     def pedestal_width(self) -> int:
         return self._ped_width
-    
+
     def calculate_threshold(self, sigma: float) -> float:
         return sigma * self._ped_width
-    
+
     def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         return value * self._factor
+
 
 @pytest.fixture
 def view_model():
@@ -39,9 +44,7 @@ def view_model():
     physics_manager = PhysicsConversionManagerImpl(config)
     vm = RawDataViewModel(config, physics_manager)
     vm._converter = MagicMock()
-    vm._converter.convert.return_value = np.zeros(
-        (10, 10, 3), dtype=np.uint8
-    )
+    vm._converter.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
 
     def mock_request():
         vm._render_worker_logic()
@@ -53,12 +56,8 @@ def view_model():
 def _setup_for_clustering(vm):
     """Helper: load mock data, set tool, add ROI, set extractor."""
     mock_capture = MagicMock()
-    mock_capture.rawData.return_value = np.arange(
-        100, dtype=float
-    ).reshape(10, 10)
-    mock_capture.info.return_value = MagicMock(
-        rows=10, cols=10, min=0, max=99
-    )
+    mock_capture.rawData.return_value = np.arange(100, dtype=float).reshape(10, 10)
+    mock_capture.info.return_value = MagicMock(rows=10, cols=10, min=0, max=99)
     vm._captures = [mock_capture]
     vm._activeIndex = 0
     vm._image_bounds = (10, 10)
@@ -84,9 +83,7 @@ def test_clustering_unavailable_no_roi(view_model):
 
 def test_clustering_unavailable_no_data(view_model):
     """False when no raw data is loaded."""
-    view_model.setClusterExtractor(
-        MockClusterExtractor(delay_seconds=0.01)
-    )
+    view_model.setClusterExtractor(MockClusterExtractor(delay_seconds=0.01))
     view_model.setActiveTool(ActiveTool.BOX_SELECT)
     view_model.addRoi(0, 0, 5, 5)
     assert view_model.isClusteringAvailable is False
@@ -182,6 +179,7 @@ def test_cancel_prevents_completed_callback(view_model):
     view_model.cancelClustering()
 
     import time
+
     time.sleep(0.1)
     cb.assert_not_called()
 
@@ -195,9 +193,7 @@ def test_timeout_fires_error_callback(view_model):
     slow = MockClusterExtractor(delay_seconds=5.0)
     _setup_for_clustering(view_model)
     view_model.setClusterExtractor(slow)
-    view_model._config.set(
-        "gui:raw_analysis:clustering_timeout_seconds", 0.1
-    )
+    view_model._config.set("gui:raw_analysis:clustering_timeout_seconds", 0.1)
 
     error_fired = threading.Event()
     view_model.add_clustering_error_callback(lambda: error_fired.set())
@@ -214,9 +210,7 @@ def test_timeout_cancels_extractor(view_model):
     slow = MockClusterExtractor(delay_seconds=5.0)
     _setup_for_clustering(view_model)
     view_model.setClusterExtractor(slow)
-    view_model._config.set(
-        "gui:raw_analysis:clustering_timeout_seconds", 0.1
-    )
+    view_model._config.set("gui:raw_analysis:clustering_timeout_seconds", 0.1)
 
     done = threading.Event()
     view_model.add_clustering_error_callback(lambda: done.set())
@@ -230,9 +224,7 @@ def test_timeout_cancels_extractor(view_model):
 def test_successful_completion_cancels_timer(view_model):
     """Successful extraction cancels the timeout timer."""
     _setup_for_clustering(view_model)
-    view_model._config.set(
-        "gui:raw_analysis:clustering_timeout_seconds", 60
-    )
+    view_model._config.set("gui:raw_analysis:clustering_timeout_seconds", 60)
 
     done = threading.Event()
     view_model.add_clustering_completed_callback(lambda: done.set())
@@ -276,7 +268,8 @@ def test_progress_callback_fires(view_model):
     # Use GeneralClusterExtractor since it actually reports progress
     physics = MockPhysicsManager(factor=0.01, ped_width=100)
     extractor = GeneralClusterExtractor(
-        sigma_multiplier=4.0, physics_manager=physics,
+        sigma_multiplier=4.0,
+        physics_manager=physics,
     )
     _setup_for_clustering(view_model)
 
@@ -286,9 +279,7 @@ def test_progress_callback_fires(view_model):
         data[10, 10 + i] = 500
     mock_capture = MagicMock()
     mock_capture.rawData.return_value = data
-    mock_capture.info.return_value = MagicMock(
-        rows=20, cols=20, min=0, max=500
-    )
+    mock_capture.info.return_value = MagicMock(rows=20, cols=20, min=0, max=500)
     view_model._captures = [mock_capture]
     view_model._image_bounds = (20, 20)
     view_model.clearRois()
@@ -296,9 +287,7 @@ def test_progress_callback_fires(view_model):
     view_model.setClusterExtractor(extractor)
 
     progress_fired = threading.Event()
-    view_model.add_clustering_progress_callback(
-        lambda: progress_fired.set()
-    )
+    view_model.add_clustering_progress_callback(lambda: progress_fired.set())
 
     done = threading.Event()
     view_model.add_clustering_completed_callback(lambda: done.set())

@@ -1,7 +1,9 @@
-# Citation for Unit Tests: Verifies RawDataViewModel initialization, state management, and interaction with physical models.
+# Citation for Unit Tests: Verifies RawDataViewModel initialization, state management, and
+# interaction with physical models.
 # Date: 28/02/2026
 # Adapted from Claude Code:
-# Write headless PyTest unit tests for RawDataViewModel covering configuration, active tool changes, and interaction with CCDCaptureModel without using Qt.
+# Write headless PyTest unit tests for RawDataViewModel covering configuration, active tool changes,
+# and interaction with CCDCaptureModel without using Qt.
 
 import sys
 from unittest.mock import MagicMock, patch
