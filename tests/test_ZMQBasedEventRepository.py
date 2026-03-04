@@ -21,6 +21,7 @@ from le_beta_vis.common.EPSDataClasses import (
     ClusterQueryFilter,
     ClusterStoreRequest,
     EPSClusterRecord,
+    FitsQueryFilter,
 )
 from le_beta_vis.common.ZMQBasedEventRepository import (
     ZMQBasedEventRepository
@@ -64,6 +65,7 @@ class TestQueryClusters:
                     "fits_id": 1,
                     "hdu_id": 0,
                     "cluster_id": 10,
+                    "bounding_box": {"top": 10, "left": 20, "bottom": 30, "right": 40},
                     "data": [1.0, 2.0, 3.0, 4.0],
                     "total_energy": 500.0,
                     "sigmaX": 1.5,
@@ -211,7 +213,7 @@ class TestQueryFits:
             }
         )
         repo = _make_repo(ctx)
-        records = repo.query_fits(fits_id=5)
+        records = repo.query_fits(FitsQueryFilter(fits_id=5))
         assert len(records) == 1
         assert records[0].fits_id == 5
         assert records[0].filename == "a.fits"
@@ -234,6 +236,7 @@ class TestMapToCluster:
             fits_id=1,
             hdu_id=0,
             cluster_id=1,
+            bounding_box={"top": 0, "left": 0, "bottom": 2, "right": 2},
             data=[1.0, 2.0, 3.0, 4.0],
             total_energy=10.0,
             sigma_x=1.0,
@@ -250,6 +253,7 @@ class TestMapToCluster:
             fits_id=1,
             hdu_id=0,
             cluster_id=1,
+            bounding_box={"top": 0, "left": 0, "bottom": 1, "right": 3},
             data=[1.0, 2.0, 3.0],
             total_energy=6.0,
             sigma_x=1.0,
@@ -268,6 +272,7 @@ class TestMapToCluster:
             fits_id=1,
             hdu_id=0,
             cluster_id=1,
+            bounding_box={"top": 1, "left": 2, "bottom": 2, "right": 3},
             data=data,
             total_energy=99.0,
             sigma_x=1.0,
@@ -286,6 +291,7 @@ class TestMapToCluster:
             fits_id=1,
             hdu_id=0,
             cluster_id=1,
+            bounding_box={"top": 0, "left": 0, "bottom": 4, "right": 4},
             data=data,
             total_energy=120.0,
             sigma_x=1.0,
@@ -306,6 +312,7 @@ class TestMapToCluster:
             fits_id=1,
             hdu_id=0,
             cluster_id=1,
+            bounding_box={"top": 0, "left": 0, "bottom": 2, "right": 2},
             data=[1.0, 4.0, 9.0, 16.0],
             total_energy=30.0,
             sigma_x=1.0,
@@ -324,6 +331,7 @@ class TestMapToCluster:
             fits_id=1,
             hdu_id=0,
             cluster_id=1,
+            bounding_box={"top": 0, "left": 0, "bottom": 0, "right": 0},
             data=[],
             total_energy=0.0,
             sigma_x=0.0,
@@ -342,6 +350,7 @@ class TestMapToCluster:
             fits_id=1,
             hdu_id=0,
             cluster_id=1,
+            bounding_box={"top": 0, "left": 0, "bottom": 2, "right": 2},
             data=raw_bytes,
             total_energy=30.0,
             sigma_x=1.0,
