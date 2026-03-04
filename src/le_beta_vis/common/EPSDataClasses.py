@@ -30,8 +30,11 @@ class ClusterQueryFilter:
     min_total_energy: Optional[float] = None
     min_total_pixels: Optional[int] = None
     classification: Optional[str] = None
-    # TODO: Can we query by date or file? If so, we need to add the filter here and check if EPS
-    # provides the capability
+    # TODO: Date-based filtering — the UI already collects
+    # start/end datetimes via HistoricalFilterBarViewModel
+    # (start_datetime / end_datetime).  When the EPS supports
+    # date-range queries, add start_date and end_date fields
+    # here and populate them in build_filter().
 
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS Cluster socket."""
