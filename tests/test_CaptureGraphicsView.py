@@ -1,8 +1,8 @@
 import sys
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from le_beta_vis.frontend.widgets.CaptureGraphicsView import (
@@ -119,3 +119,56 @@ def test_no_magnification_when_inactive(view):
     """Test +/- keys do not emit delta when inactive."""
     emitted = _send_key_and_capture_mag(view, Qt.Key_Plus)
     assert emitted == []
+
+
+# --- Box select interaction model ---
+
+def test_left_click_starts_pan_in_box_select(view):
+    """Left click (no Shift) sets _panStart, not _boxSelectStart."""
+    view.setBoxSelectActive(True)
+    event = QMouseEvent(
+        QMouseEvent.MouseButtonPress,
+        QPointF(100, 100),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+    view.mousePressEvent(event)
+    assert view._panStart is not None
+    assert view._panOrigin is not None
+    assert view._boxSelectStart is None
+
+
+def test_shift_left_click_starts_box_select(view):
+    """Shift+Left click sets _boxSelectStart, not _panStart."""
+    view.setBoxSelectActive(True)
+    event = QMouseEvent(
+        QMouseEvent.MouseButtonPress,
+        QPointF(100, 100),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.ShiftModifier,
+    )
+    view.mousePressEvent(event)
+    assert view._boxSelectStart is not None
+    assert view._panStart is None
+
+
+def test_box_select_default_cursor_is_arrow(view):
+    """Default cursor in box select mode is ArrowCursor."""
+    view.setBoxSelectActive(True)
+    assert view.viewport().cursor().shape() == Qt.ArrowCursor
+
+
+def test_left_click_no_action_when_inactive(view):
+    """Left click does nothing when box select mode is off."""
+    event = QMouseEvent(
+        QMouseEvent.MouseButtonPress,
+        QPointF(100, 100),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+    view.mousePressEvent(event)
+    assert view._panStart is None
+    assert view._boxSelectStart is None

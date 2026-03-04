@@ -26,9 +26,9 @@ def view_model():
     return vm
 
 
-def test_initial_active_tool_is_pointer(view_model):
-    """Test that the initial active tool is POINTER."""
-    assert view_model.activeTool == ActiveTool.POINTER
+def test_initial_active_tool_is_box_select(view_model):
+    """Test that the initial active tool is BOX_SELECT."""
+    assert view_model.activeTool == ActiveTool.BOX_SELECT
     assert view_model.isMagnifierActive is False
 
 
@@ -46,7 +46,7 @@ def test_set_active_tool_same_tool_no_callback(view_model):
     """Test that setting the same tool does not fire callback."""
     cb = MagicMock()
     view_model.add_active_tool_changed_callback(cb)
-    view_model.setActiveTool(ActiveTool.POINTER)
+    view_model.setActiveTool(ActiveTool.BOX_SELECT)
     cb.assert_not_called()
 
 
@@ -65,10 +65,10 @@ def test_toggle_magnifier_on(view_model):
 
 
 def test_toggle_magnifier_off(view_model):
-    """Test toggleMagnifier deactivates back to pointer."""
+    """Test toggleMagnifier deactivates back to box select."""
     view_model.toggleMagnifier()
     view_model.toggleMagnifier()
-    assert view_model.activeTool == ActiveTool.POINTER
+    assert view_model.activeTool == ActiveTool.BOX_SELECT
     assert view_model.isMagnifierActive is False
 
 
