@@ -42,6 +42,7 @@ class Cluster(ClusteredEventInfo):
         cnnClassification: float = 0.0,
         nrgClassification: float = 0.0,
         bdtClassification: float = 0.0,
+        classification: str = "UNCLASSIFIED",
     ):
         super().__init__(
             boundingBox=boundingBox,
@@ -58,3 +59,4 @@ class Cluster(ClusteredEventInfo):
         self.cnnClassification = cnnClassification
         self.nrgClassification = nrgClassification
         self.bdtClassification = bdtClassification
+        self.classification = classification

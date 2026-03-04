@@ -8,6 +8,7 @@ is down — they return empty/default values and log warnings.
 import json
 import logging
 import math
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -16,6 +17,7 @@ import zmq
 from .BoundingBox import BoundingBox
 from .Cluster import Cluster
 from .ConfigurationService import ConfigurationService
+from .CCDCaptureModel import CCDCaptureModel
 from .EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
@@ -23,6 +25,7 @@ from .EPSDataClasses import (
     EPSClusterRecord,
     EPSFitsRecord,
     FitsQueryFilter,
+    FitsClusterQueryFilter,
 )
 from .EventRepository import EventRepository
 
@@ -80,7 +83,8 @@ class ZMQBasedEventRepository(EventRepository):
         clusters: List[Cluster] = []
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            cluster = self._map_to_cluster(record)
+            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[0].filename
+            cluster = self._map_to_cluster(record, filename)
             if cluster is not None:
                 clusters.append(cluster)
         return clusters
@@ -111,10 +115,12 @@ class ZMQBasedEventRepository(EventRepository):
             return False
         return True
 
-    def query_fits(self, fits_id: Optional[int] = None) -> List[EPSFitsRecord]:
+    def query_fits(self, query_filter: Optional[FitsQueryFilter] = None) -> List[EPSFitsRecord]:
         """Sends a retrieval request to the EPS FITS socket."""
-        qf = FitsQueryFilter(fits_id=fits_id)
-        request = qf.to_eps_dict()
+        if query_filter is not None:
+            request = query_filter.to_eps_dict()
+        else:
+            request = {"Action": "Retrieval"}
         response = self._send_fits(request)
         if response is None:
             return []
@@ -126,7 +132,33 @@ class ZMQBasedEventRepository(EventRepository):
             return []
         raw_files = response.get("fits", [])
         return [EPSFitsRecord.from_eps_dict(f) for f in raw_files]
-
+    
+    def query_fits_clusters(self, query_filter: Optional[FitsClusterQueryFilter] = None) -> List[EPSFitsRecord]:
+        """Sends a retrieval request to the EPS FITS socket."""
+        if query_filter is not None:
+            request = query_filter.to_eps_dict()
+        else:
+            request = {"Action": "Clusters"}
+        response = self._send_fits(request)
+        if response is None:
+            return []
+        if response.get("result") != "success":
+            logger.warning(
+                "EPS fits query returned failure: %s",
+                response.get("result"),
+            )
+            return []
+        raw_clusters = response.get("clusters", [])
+        clusters: List[Cluster] = []
+        filename = self.query_fits(FitsQueryFilter)
+        for raw in raw_clusters:
+            record = EPSClusterRecord.from_eps_dict(raw)
+            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[0].filename
+            cluster = self._map_to_cluster(record, filename)
+            if cluster is not None:
+                clusters.append(cluster)
+        return clusters
+    
     # ------------------------------------------------------------------
     # Socket helpers
     # ------------------------------------------------------------------
@@ -180,7 +212,7 @@ class ZMQBasedEventRepository(EventRepository):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _map_to_cluster(record: EPSClusterRecord) -> Optional[Cluster]:
+    def _map_to_cluster(record: EPSClusterRecord, filename: str) -> Optional[Cluster]:
         """Converts an ``EPSClusterRecord`` to a domain ``Cluster``.
 
         Handles the gaps between the EPS response and the frontend
@@ -195,20 +227,11 @@ class ZMQBasedEventRepository(EventRepository):
           single string, not per-model floats).
         """
         try:
-            # TODO: Instead of using _parse_data() create a new helper to read from the fits file.
-            # Currently the ClusterRecord does not have a filename string, only a fitsId. Therefore,
-            # we need to find a way to pass the filename as an argument to this function, load it
-            # using CCDCaptureModel and reference the correct HDU, rawData will be the source array.
-            # Then, we slice it using the boundingbox coordinates
-            # The other approach can be as simple as setting arr to None. Then, the
-            # HistoricalViewModel can fill in the blanks from the fits file.
-            # Both approaches require knowing the source file name.
-            # QUESTION: Do we have a query file by fitsId endpoint in EPS?
-            # Approach number 1 allows pre-generating the clusters and thus produces a smooth cluster
-            # thumbnails display. The other approach would be responsible for render and caching.
-            arr = _parse_data(record.data)
+            bbox = BoundingBox(top=record.bounding_box["top"] , left=record.bounding_box["left"], 
+                               bottom=record.bounding_box["bottom"], right=record.bounding_box["right"])
+            hdu_info = CCDCaptureModel.load(Path(filename))[record.hdu_id]
+            arr = hdu_info.rawData()[bbox.top:bbox.bottom, bbox.left:bbox.right]
             rows, cols = arr.shape
-            bbox = BoundingBox(top=0, left=0, bottom=rows, right=cols)
             if arr.size > 0:
                 flat_idx = int(np.argmax(arr))
                 center_y, center_x = divmod(flat_idx, cols)
@@ -225,6 +248,7 @@ class ZMQBasedEventRepository(EventRepository):
                 pixelCount=record.total_pixels,
                 fitsId=record.fits_id,
                 clusterId=record.cluster_id,
+                classification = record.classification,
                 cnnClassification=0.0,
                 nrgClassification=0.0,
                 bdtClassification=0.0,
@@ -236,32 +260,3 @@ class ZMQBasedEventRepository(EventRepository):
                 exc_info=True,
             )
             return None
-
-
-# TODO: We dont need this anymore since the frontend is going to render on-demand from the FITS
-def _parse_data(raw: Any) -> np.ndarray:
-    """Converts EPS data payload to a 2-D numpy array.
-
-    The EPS sends cluster pixel data as either raw bytes (BLOB)
-    or a flat list.  We attempt a square reshape first; if the
-    element count is not a perfect square we fall back to a
-    single-row array.
-    """
-    if isinstance(raw, (bytes, bytearray)):
-        arr = np.frombuffer(raw, dtype=np.float64)
-    else:
-        arr = np.asarray(raw, dtype=np.float64)
-
-    if arr.ndim == 2:
-        return arr
-
-    arr = arr.ravel()
-    n = len(arr)
-    if n == 0:
-        return arr.reshape(0, 0)
-
-    side = int(math.isqrt(n))
-    if side * side == n:
-        return arr.reshape(side, side)
-
-    return arr.reshape(1, n)
