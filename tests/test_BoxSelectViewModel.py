@@ -34,8 +34,8 @@ def view_model():
 
 
 def test_is_box_select_active_initial(view_model):
-    """Test that box select is NOT active by default."""
-    assert view_model.isBoxSelectActive is False
+    """Test that box select is active by default."""
+    assert view_model.isBoxSelectActive is True
 
 
 def test_is_box_select_active_after_switch(view_model):
@@ -47,7 +47,7 @@ def test_is_box_select_active_after_switch(view_model):
 def test_is_box_select_active_after_switch_away(view_model):
     """Test isBoxSelectActive returns False after switching away."""
     view_model.setActiveTool(ActiveTool.BOX_SELECT)
-    view_model.setActiveTool(ActiveTool.POINTER)
+    view_model.setActiveTool(ActiveTool.MAGNIFIER)
     assert view_model.isBoxSelectActive is False
 
 

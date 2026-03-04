@@ -44,11 +44,57 @@ from .MosaicView import MosaicView
 
 class _Style:
     LEFT_TOOLBAR = "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
+    TOP_TOOLBAR = "background-color: #2d2d2d; border-bottom: 1px solid #3d3d3d;"
     LEFT_TOOLBAR_BUTTON = "font-weight: bold; color: #ffffff;"
     LEFT_TOOLBAR_DIVIDER = "background-color: #555555;"
     ZOOM_IN = "font-size: 20px; font-weight: bold; color: #ffffff;"
     ZOOM_OUT = "font-size: 20px; font-weight: bold; color: #ffffff;"
-    GRAPHICS_VIEW = "background-color: #000; border: none;"
+    GRAPHICS_VIEW = """
+        QGraphicsView {
+            background-color: #000;
+            border: none;
+        }
+        QScrollBar:vertical {
+            width: 12px;
+            background: transparent;
+            margin: 0px;
+        }
+        QScrollBar::handle:vertical {
+            background: rgba(100, 100, 100, 165);
+            min-height: 30px;
+            border-radius: 6px;
+            margin: 2px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: rgba(150, 150, 150, 200);
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+            background: transparent;
+        }
+        QScrollBar:horizontal {
+            height: 12px;
+            background: transparent;
+            margin: 0px;
+        }
+        QScrollBar::handle:horizontal {
+            background: rgba(100, 100, 100, 165);
+            min-width: 30px;
+            border-radius: 6px;
+            margin: 2px;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background: rgba(150, 150, 150, 200);
+        }
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0px;
+        }
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+            background: transparent;
+        }
+    """
     STATUS_BAR = (
         "background-color: #1e1e1e; color: #cccccc;"
         " font-size: 12px; padding-left: 8px;"
@@ -111,46 +157,43 @@ class RawDataView(QWidget):
         self.leftToolbar.setStyleSheet(_Style.LEFT_TOOLBAR)
         layout = QVBoxLayout(self.leftToolbar)
         layout.setContentsMargins(5, 10, 5, 10)
-        layout.setSpacing(10)
-        layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
-
-        btn_size = QSize(40, 40)
-        tool_btn_style = _Style.LEFT_TOOLBAR_BUTTON
-
-        self._setupToolButtons(layout, btn_size, tool_btn_style)
-
-        layout.addWidget(self._createDivider(), 0, Qt.AlignHCenter)
-
-        self._setupZoomButtons(layout, btn_size)
-
-        layout.addWidget(self._createDivider(), 0, Qt.AlignHCenter)
-        layout.addSpacing(10)
+        layout.setSpacing(0)
 
         self.rangeControl = VerticalRangeControl(abs_min=0.0, abs_max=1.0)
         self.rangeControl.setVisible(False)
         self.rangeControl.rangeChanged.connect(self.onRangeChanged)
-        layout.addWidget(self.rangeControl, 0, Qt.AlignHCenter)
+        layout.addWidget(self.rangeControl, 1)
 
         self.bodyLayout.addWidget(self.leftToolbar)
 
-    def _setupToolButtons(self, layout: QVBoxLayout, btn_size: QSize, style: str):
-        """Creates the Pointer, Magnifier, and Box Select tool buttons."""
+    def _setupTopToolbar(self):
+        """Creates the horizontal top toolbar with tool and zoom buttons."""
+        self.topToolbar = QFrame()
+        self.topToolbar.setFixedHeight(46)
+        self.topToolbar.setStyleSheet(_Style.TOP_TOOLBAR)
+        layout = QHBoxLayout(self.topToolbar)
+        layout.setContentsMargins(8, 3, 8, 3)
+        layout.setSpacing(4)
+
+        btn_size = QSize(36, 36)
+        style = _Style.LEFT_TOOLBAR_BUTTON
+
         self._toolButtonGroup = QButtonGroup(self)
         self._toolButtonGroup.setExclusive(True)
 
-        # Pointer
-        self.btnPointer = QToolButton()
-        self.btnPointer.setIcon(self._createPointerIcon())
-        self.btnPointer.setToolTip(self.tr("Pointer: Select and Pan"))
-        self.btnPointer.setCheckable(True)
-        self.btnPointer.setChecked(True)
-        self.btnPointer.setFixedSize(btn_size)
-        self.btnPointer.setStyleSheet(style)
-        self.btnPointer.clicked.connect(
-            lambda: self.viewModel.setActiveTool(ActiveTool.POINTER)
+        # ROI (Box Select) — default tool
+        self.btnBoxSelect = QToolButton()
+        self.btnBoxSelect.setIcon(self._createBoxSelectIcon())
+        self.btnBoxSelect.setToolTip(self.tr("Region Of Interest"))
+        self.btnBoxSelect.setCheckable(True)
+        self.btnBoxSelect.setChecked(True)
+        self.btnBoxSelect.setFixedSize(btn_size)
+        self.btnBoxSelect.setStyleSheet(style)
+        self.btnBoxSelect.clicked.connect(
+            lambda: self.viewModel.setActiveTool(ActiveTool.BOX_SELECT)
         )
-        self._toolButtonGroup.addButton(self.btnPointer)
-        layout.addWidget(self.btnPointer, 0, Qt.AlignHCenter)
+        self._toolButtonGroup.addButton(self.btnBoxSelect)
+        layout.addWidget(self.btnBoxSelect)
 
         # Magnifier
         self.btnMagnifier = QToolButton()
@@ -163,45 +206,42 @@ class RawDataView(QWidget):
             lambda: self.viewModel.setActiveTool(ActiveTool.MAGNIFIER)
         )
         self._toolButtonGroup.addButton(self.btnMagnifier)
-        layout.addWidget(self.btnMagnifier, 0, Qt.AlignHCenter)
+        layout.addWidget(self.btnMagnifier)
 
-        # Box Select
-        self.btnBoxSelect = QToolButton()
-        self.btnBoxSelect.setIcon(self._createBoxSelectIcon())
-        self.btnBoxSelect.setToolTip(self.tr("Region Of Interest"))
-        self.btnBoxSelect.setCheckable(True)
-        self.btnBoxSelect.setFixedSize(btn_size)
-        self.btnBoxSelect.setStyleSheet(style)
-        self.btnBoxSelect.clicked.connect(
-            lambda: self.viewModel.setActiveTool(ActiveTool.BOX_SELECT)
-        )
-        self._toolButtonGroup.addButton(self.btnBoxSelect)
-        layout.addWidget(self.btnBoxSelect, 0, Qt.AlignHCenter)
+        # Separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setFrameShadow(QFrame.Sunken)
+        sep.setStyleSheet(_Style.LEFT_TOOLBAR_DIVIDER)
+        sep.setFixedHeight(28)
+        layout.addWidget(sep)
 
-    def _createPointerIcon(self) -> QIcon:
-        """Creates a crosshair/target icon for the Pointer tool."""
-        icon = QIcon.fromTheme("crosshairs")
-        if not icon.isNull():
-            return icon
+        # Zoom buttons
+        self.btnZoomIn = QToolButton()
+        self.btnZoomIn.setText("+")
+        self.btnZoomIn.setToolTip(self.tr("Zoom In"))
+        self.btnZoomIn.setFixedSize(btn_size)
+        self.btnZoomIn.setStyleSheet(_Style.ZOOM_IN)
+        self.btnZoomIn.clicked.connect(self.viewModel.zoomIn)
+        layout.addWidget(self.btnZoomIn)
 
-        size = 40
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        pen = QPen(QColor("#ffffff"))
-        pen.setWidth(2)
-        painter.setPen(pen)
-        cx, cy = size // 2, size // 2
-        r = 10
-        painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
-        arm = 6
-        painter.drawLine(cx, cy - r - arm, cx, cy - r)
-        painter.drawLine(cx, cy + r, cx, cy + r + arm)
-        painter.drawLine(cx - r - arm, cy, cx - r, cy)
-        painter.drawLine(cx + r, cy, cx + r + arm, cy)
-        painter.end()
-        return QIcon(pixmap)
+        self.btnZoomReset = QToolButton()
+        self.btnZoomReset.setText("1x")
+        self.btnZoomReset.setToolTip(self.tr("Reset Zoom (1:1)"))
+        self.btnZoomReset.setFixedSize(btn_size)
+        self.btnZoomReset.setStyleSheet(style)
+        self.btnZoomReset.clicked.connect(self.viewModel.resetZoom)
+        layout.addWidget(self.btnZoomReset)
+
+        self.btnZoomOut = QToolButton()
+        self.btnZoomOut.setText("-")
+        self.btnZoomOut.setToolTip(self.tr("Zoom Out"))
+        self.btnZoomOut.setFixedSize(btn_size)
+        self.btnZoomOut.setStyleSheet(_Style.ZOOM_OUT)
+        self.btnZoomOut.clicked.connect(self.viewModel.zoomOut)
+        layout.addWidget(self.btnZoomOut)
+
+        layout.addStretch()
 
     def _createMagnifierIcon(self) -> QIcon:
         """Creates a magnifier icon from theme or painted fallback."""
@@ -248,48 +288,15 @@ class RawDataView(QWidget):
         painter.end()
         return QIcon(pixmap)
 
-    def _setupZoomButtons(self, layout: QVBoxLayout, btn_size: QSize):
-        """Creates the Zoom In, Reset, and Zoom Out buttons."""
-        # Zoom In
-        self.btnZoomIn = QToolButton()
-        self.btnZoomIn.setText("+")
-        self.btnZoomIn.setToolTip(self.tr("Zoom In"))
-        self.btnZoomIn.setFixedSize(btn_size)
-        self.btnZoomIn.setStyleSheet(_Style.ZOOM_IN)
-        self.btnZoomIn.clicked.connect(self.viewModel.zoomIn)
-        layout.addWidget(self.btnZoomIn, 0, Qt.AlignHCenter)
-
-        # Reset Zoom
-        self.btnZoomReset = QToolButton()
-        self.btnZoomReset.setText("1x")
-        self.btnZoomReset.setToolTip(self.tr("Reset Zoom (1:1)"))
-        self.btnZoomReset.setFixedSize(btn_size)
-        self.btnZoomReset.setStyleSheet(_Style.LEFT_TOOLBAR_BUTTON)
-        self.btnZoomReset.clicked.connect(self.viewModel.resetZoom)
-        layout.addWidget(self.btnZoomReset, 0, Qt.AlignHCenter)
-
-        # Zoom Out
-        self.btnZoomOut = QToolButton()
-        self.btnZoomOut.setText("-")
-        self.btnZoomOut.setToolTip(self.tr("Zoom Out"))
-        self.btnZoomOut.setFixedSize(btn_size)
-        self.btnZoomOut.setStyleSheet(_Style.ZOOM_OUT)
-        self.btnZoomOut.clicked.connect(self.viewModel.zoomOut)
-        layout.addWidget(self.btnZoomOut, 0, Qt.AlignHCenter)
-
-    def _createDivider(self) -> QFrame:
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setFrameShadow(QFrame.Sunken)
-        line.setStyleSheet(_Style.LEFT_TOOLBAR_DIVIDER)
-        line.setFixedWidth(80)
-        return line
-
     def _setupCenterImageArea(self):
         centerContainer = QWidget()
         centerLayout = QVBoxLayout(centerContainer)
         centerLayout.setContentsMargins(0, 0, 0, 0)
         centerLayout.setSpacing(0)
+
+        # Top toolbar (tool + zoom buttons)
+        self._setupTopToolbar()
+        centerLayout.addWidget(self.topToolbar)
 
         self.scene = QGraphicsScene()
         self.graphicsView = CaptureGraphicsView()
@@ -325,14 +332,33 @@ class RawDataView(QWidget):
 
         centerLayout.addWidget(self.graphicsView)
 
-        # Status bar for pointer pixel inspection
-        self._statusLabel = QLabel()
-        self._statusLabel.setFixedHeight(24)
-        self._statusLabel.setStyleSheet(_Style.STATUS_BAR)
-        centerLayout.addWidget(self._statusLabel)
+        # Status bar: pixel info (left) + tool hint (right)
+        statusBar = QWidget()
+        statusBar.setFixedHeight(24)
+        statusBar.setStyleSheet(_Style.STATUS_BAR)
+        statusBarLayout = QHBoxLayout(statusBar)
+        statusBarLayout.setContentsMargins(0, 0, 0, 0)
+        statusBarLayout.setSpacing(0)
 
-        # Activate pointer mode by default
-        self.graphicsView.setPointerActive(True)
+        self._statusLabel = QLabel()
+        statusBarLayout.addWidget(self._statusLabel, 1)
+
+        self._hintLabel = QLabel()
+        self._hintLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self._hintLabel.setStyleSheet("padding-right: 8px;")
+        self._hintLabel.setMinimumWidth(220)
+        self._hintLabel.setVisible(False)
+        statusBarLayout.addWidget(self._hintLabel)
+
+        centerLayout.addWidget(statusBar)
+
+        # Activate ROI (box select) mode by default
+        self.graphicsView.setBoxSelectActive(True)
+
+        # Show hint for the default tool (box select)
+        if self.viewModel.showToolHints:
+            self._hintLabel.setText(self.tr("\u21e7 Shift + drag to select ROI"))
+            self._hintLabel.setVisible(True)
 
         # Clustering progress overlay (starts hidden)
         self._clusteringOverlay = ClusteringProgressOverlay(centerContainer)
@@ -581,21 +607,24 @@ class RawDataView(QWidget):
     def _updateActiveTool(self):
         """Syncs toolbar button states, cursor modes, and overlays."""
         tool = self.viewModel.activeTool
-        self.btnPointer.setChecked(tool == ActiveTool.POINTER)
         self.btnMagnifier.setChecked(tool == ActiveTool.MAGNIFIER)
         self.btnBoxSelect.setChecked(tool == ActiveTool.BOX_SELECT)
 
-        pointerActive = self.viewModel.isPointerActive
         magnifierActive = self.viewModel.isMagnifierActive
         boxSelectActive = self.viewModel.isBoxSelectActive
 
-        self.graphicsView.setPointerActive(pointerActive)
         self.graphicsView.setMagnifierActive(magnifierActive)
         self.graphicsView.setBoxSelectActive(boxSelectActive)
         self._magnifierItem.setVisible(magnifierActive)
 
-        if not pointerActive:
+        if not boxSelectActive:
             self.viewModel.clearPointerHover()
+
+        if boxSelectActive and self.viewModel.showToolHints:
+            self._hintLabel.setText(self.tr("\u21e7 Shift + drag to select ROI"))
+            self._hintLabel.setVisible(True)
+        else:
+            self._hintLabel.setVisible(False)
 
         if magnifierActive:
             self.graphicsView.setFocus()
@@ -610,7 +639,7 @@ class RawDataView(QWidget):
         """Routes mouse hover to the active tool in the ViewModel."""
         if self.viewModel.isMagnifierActive:
             self.viewModel.setMagnifierPosition(row, col)
-        elif self.viewModel.isPointerActive:
+        else:
             self.viewModel.setPointerHoverPosition(row, col)
 
     @Slot(int, int)
@@ -714,6 +743,7 @@ class RawDataView(QWidget):
 
     def _setInteractionEnabled(self, enabled: bool) -> None:
         """Enables or disables interactive controls."""
+        self.topToolbar.setEnabled(enabled)
         self.leftToolbar.setEnabled(enabled)
         self.rightSidebar.setEnabled(enabled)
 

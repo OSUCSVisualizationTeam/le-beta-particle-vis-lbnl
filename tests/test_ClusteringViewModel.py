@@ -64,7 +64,6 @@ def _setup_for_clustering(vm):
     vm._image_bounds = (10, 10)
 
     vm.setClusterExtractor(MockClusterExtractor(delay_seconds=0.01))
-    vm.setActiveTool(ActiveTool.BOX_SELECT)
     vm.addRoi(0, 0, 5, 5)
 
 
@@ -73,13 +72,6 @@ def _setup_for_clustering(vm):
 
 def test_clustering_unavailable_no_extractor(view_model):
     """False when no extractor is set."""
-    assert view_model.isClusteringAvailable is False
-
-
-def test_clustering_unavailable_wrong_tool(view_model):
-    """False when not in BOX_SELECT mode."""
-    _setup_for_clustering(view_model)
-    view_model.setActiveTool(ActiveTool.POINTER)
     assert view_model.isClusteringAvailable is False
 
 
