@@ -60,11 +60,19 @@ class TestClusterFromBoundingBox:
 class TestExtractClusterFromFile:
 
     def _make_temp_fits(self, shapes):
-        """Create a temporary FITS file containing HDUs with given shapes."""
+        """Create a temporary FITS file containing HDUs with given shapes.
+
+        The first HDU is a PrimaryHDU; subsequent HDUs are ImageHDUs.  Each
+        header gets the DATESTART/DATEEND/DATE keywords so that
+        ``CCDCaptureModel.Info`` can be instantiated without KeyErrors.
+        """
         hdus = []
-        for shape in shapes:
+        for idx, shape in enumerate(shapes):
             data = np.arange(np.product(shape)).reshape(shape)
-            hdu = fits.PrimaryHDU(data)
+            hdu = fits.PrimaryHDU(data) if idx == 0 else fits.ImageHDU(data)
+            hdu.header["DATESTART"] = "2025-01-01T00:00:00"
+            hdu.header["DATEEND"] = "2025-01-01T00:01:00"
+            hdu.header["DATE"] = "2025-01-01T00:00:30"
             hdus.append(hdu)
         hdul = fits.HDUList(hdus)
         tmp = tempfile.NamedTemporaryFile(suffix=".fits", delete=False)
