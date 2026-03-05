@@ -12,7 +12,7 @@ import pytest
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.MockClusterExtractor import MockClusterExtractor
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (

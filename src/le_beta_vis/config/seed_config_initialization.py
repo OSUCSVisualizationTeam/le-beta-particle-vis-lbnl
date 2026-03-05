@@ -1,9 +1,15 @@
+#
+# LEGACY CONFIGURATION SEEDING INFRASTRUCTURE, NO LONGER USED
+#
 import yaml
 from pathlib import Path
 from le_beta_vis.common.ConfigurationService import ConfigurationService
-from le_beta_vis.common.RedisBackedConfigurationService import RedisBackedConfigurationService
+from le_beta_vis.common.RedisBackedConfigurationService import (
+    RedisBackedConfigurationService,
+)
 
 _DEFAULTS_PATH = Path(__file__).parent / "defaults.yaml"
+
 
 def seed_defaults(service: ConfigurationService | None = None, force: bool = False):
     """
