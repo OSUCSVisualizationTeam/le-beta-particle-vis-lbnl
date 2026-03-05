@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 from .VizFilter import UniformVizFilter
 import numpy as np
+from .BoundingBox import BoundingBox
 
 
 class CCDCaptureModel:
@@ -139,3 +140,47 @@ class CCDCaptureModel:
         newModel = CCDCaptureModel(self.__data.copy())
         newModel.__info = deepcopy(self.__info)
         return newModel
+
+    def clusterFromBoundingBox(self, bounding_box: BoundingBox) -> np.ndarray:
+        """Extracts and slices the data of the CCDCaptureModel by the bounding box
+            Args:
+                bounding_box: A bounding box object with top, bottom, left, and right values to slice
+        """
+        bbox = bounding_box
+        rows = self.info().rows
+        cols = self.info().cols
+
+        # check boundary values, negative bottom and right bounding box values are for
+        # uncropped matrices, set to entire display
+        if bbox.top < 0:
+            bbox.top = 0
+        if bbox.left < 0:
+            bbox.left = 0
+        if bbox.bottom < 0:
+            bbox.bottom = rows
+        if bbox.right < 0:
+            bbox.right = cols
+
+        bbox.top = min(bbox.top, rows)
+        bbox.left = min(bbox.left, cols)
+        bbox.bottom = min(bbox.bottom, rows)
+        bbox.right = min(bbox.right, cols)
+    
+        if bbox.top > bbox.bottom or bbox.left > bbox.right:
+            raise ValueError("Invalid BoundingBox")
+
+        return self.__data[bbox.top:bbox.bottom, bbox.left:bbox.right]
+    
+    @staticmethod
+    def extractClusterFromFile(fits_filepath: Path, hdu: int, bounding_box: BoundingBox) -> np.ndarray:
+        """Loads a fits file from the filepath, and calls clusterFromBoundingBox on 
+            the respective HDU.
+            
+            Args:
+                fits_filepath: Filepath of fits file to cluster by bounding box
+                hdu: header data unit that cluster is in
+                bounding_box: bounding box object to slice HDU by    
+        """
+        ccd_model = CCDCaptureModel.load(fits_filepath)
+        result = ccd_model[hdu].clusterFromBoundingBox(bounding_box)
+        return result

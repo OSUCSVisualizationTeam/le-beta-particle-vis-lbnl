@@ -244,7 +244,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=4,
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record)
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
         assert cluster.data.shape == (2, 2)
 
@@ -261,7 +261,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=3,
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record)
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
         assert cluster.data.shape == (1, 3)
 
@@ -280,7 +280,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=9,
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record)
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
         assert cluster.centerX == 2
         assert cluster.centerY == 1
@@ -299,7 +299,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=16,
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record)
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
         bb = cluster.boundingBox
         assert bb.top == 0
@@ -320,7 +320,7 @@ class TestMapToCluster:
             classification="tritium",
             total_pixels=4,
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record)
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
         assert cluster.cnnClassification == 0.0
         assert cluster.nrgClassification == 0.0
@@ -339,7 +339,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=0,
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record)
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
         assert cluster.data.shape == (0, 0)
 
@@ -358,7 +358,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=4,
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record)
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
         assert cluster.data.shape == (2, 2)
         np.testing.assert_array_almost_equal(cluster.data, arr.reshape(2, 2))
