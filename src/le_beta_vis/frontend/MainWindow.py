@@ -1,3 +1,5 @@
+import sys
+
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QWidget, QVBoxLayout, QFileDialog,
 )
@@ -102,6 +104,21 @@ class MainWindow(QMainWindow):
 
         fileMenu.addSeparator()
 
+        # Settings Action
+        if sys.platform == "darwin":
+            settingsAction = QAction(self.tr("&Preferences"), self)
+            settingsAction.setShortcut(QKeySequence("Ctrl+,"))
+            settingsAction.setMenuRole(QAction.MenuRole.PreferencesRole)
+        else:
+            settingsAction = QAction(self.tr("&Settings"), self)
+        settingsAction.setStatusTip(
+            self.tr("Configure application settings")
+        )
+        settingsAction.triggered.connect(self._onOpenSettings)
+        fileMenu.addAction(settingsAction)
+
+        fileMenu.addSeparator()
+
         # Exit Action
         exitAction = QAction(self.tr("E&xit"), self)
         exitAction.setShortcut(QKeySequence.Quit)
@@ -123,6 +140,15 @@ class MainWindow(QMainWindow):
 
         # Sync initial state
         self.onModeChanged(self.historicalViewModel.mode)
+
+    def _onOpenSettings(self):
+        """Open the Settings dialog."""
+        from .viewmodels.SettingsViewModel import SettingsViewModel
+        from .widgets.SettingsDialog import SettingsDialog
+
+        vm = SettingsViewModel(self.viewModel.configService)
+        dialog = SettingsDialog(vm, parent=self)
+        dialog.exec()
 
     def onOpenFile(self):
         """Open a file dialog and load it into the Raw Data view."""

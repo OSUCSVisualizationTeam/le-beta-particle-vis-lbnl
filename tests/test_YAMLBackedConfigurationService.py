@@ -197,6 +197,31 @@ class TestGetMetadata:
 
 
 # ------------------------------------------------------------------
+# reset_to_defaults()
+# ------------------------------------------------------------------
+
+class TestResetToDefaults:
+    def test_reset_restores_all_defaults(self, tmp_path):
+        svc, _ = _make_service(tmp_path)
+        # Trigger lazy load then override a key
+        svc.get("gui:raw_analysis:default_colormap")
+        svc.set("gui:raw_analysis:default_colormap", "plasma")
+        assert svc.get("gui:raw_analysis:default_colormap") == "plasma"
+
+        svc.reset_to_defaults()
+        assert svc.get("gui:raw_analysis:default_colormap") == "viridis"
+
+    def test_reset_persists_to_disk(self, tmp_path):
+        svc, path = _make_service(tmp_path)
+        svc.get("eps:timeout_ms")
+        svc.set("eps:timeout_ms", 9999)
+        svc.reset_to_defaults()
+
+        data = _read_yaml(path)
+        assert data["eps:timeout_ms"] == 5000
+
+
+# ------------------------------------------------------------------
 # Thread safety
 # ------------------------------------------------------------------
 

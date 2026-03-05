@@ -83,3 +83,14 @@ class MockConfigurationService(ConfigurationService):
     def get_description(self, key: str) -> Optional[str]:
         """Return None — the mock carries no key descriptions."""
         return None
+
+    def reset_to_defaults(self) -> None:
+        """No-op reset for the mock service."""
+        pass
+
+    def get_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """Return minimal metadata for testing."""
+        return {
+            k: {"type": type(v).__name__, "default": v, "description": ""}
+            for k, v in self._store.items()
+        }

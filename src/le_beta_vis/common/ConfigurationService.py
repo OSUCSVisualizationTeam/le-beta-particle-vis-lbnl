@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 
 class ConfigurationService(ABC):
@@ -21,4 +21,14 @@ class ConfigurationService(ABC):
     @abstractmethod
     def get_description(self, key: str) -> Optional[str]:
         """Return the human-readable description for *key*, or None."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def reset_to_defaults(self) -> None:
+        """Reset all keys to their bundled default values."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """Return structured metadata for all configuration keys."""
         raise NotImplementedError
