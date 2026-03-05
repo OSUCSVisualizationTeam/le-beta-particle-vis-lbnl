@@ -11,8 +11,8 @@ from typing import (
 
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 
-# (key, display_label, type_str, current_value, default_value, description)
-SettingEntry = Tuple[str, str, str, Any, Any, str]
+# (key, display_label, type_str, current_value, default_value, description, choices)
+SettingEntry = Tuple[str, str, str, Any, Any, str, List[Any]]
 
 # {group: {subgroup: [entries]}}
 GroupedSettings = Dict[str, Dict[str, List[SettingEntry]]]
@@ -114,9 +114,10 @@ class SettingsViewModel:
             current = self.get_current_value(key)
             default = meta.get("default")
             type_str = meta.get("type", "str")
+            choices = meta.get("choices", [])
 
             entry: SettingEntry = (
-                key, leaf, type_str, current, default, desc,
+                key, leaf, type_str, current, default, desc, choices,
             )
             result.setdefault(group, {}).setdefault(
                 subgroup, [],

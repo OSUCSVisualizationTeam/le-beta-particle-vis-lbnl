@@ -8,8 +8,10 @@ only written to disk on Apply.
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -243,9 +245,9 @@ class SettingsDialog(QDialog):
                 form.setSpacing(6)
 
                 for entry in entries:
-                    key, label, type_str, value, _default, desc = entry
+                    key, label, type_str, value, _default, desc, choices = entry
                     row = self._createInputWidget(
-                        key, type_str, value,
+                        key, type_str, value, choices
                     )
                     labelWidget = QLabel(label)
                     labelWidget.setStyleSheet(_Style.LABEL)
@@ -269,7 +271,7 @@ class SettingsDialog(QDialog):
         self._scrollArea.setWidget(content)
 
     def _createInputWidget(
-        self, key: str, type_str: str, value,
+        self, key: str, type_str: str, value, choices: list = None
     ) -> QWidget:
         """Return a type-dispatched input widget for *key*."""
         if type_str == "bool":
@@ -280,6 +282,18 @@ class SettingsDialog(QDialog):
                 lambda checked, k=key: self._vm.set_pending(k, checked),
             )
             return cb
+
+        if type_str == "enum":
+            combo = QComboBox()
+            combo.setStyleSheet(_Style.INPUT)
+            if choices:
+                combo.addItems([str(c) for c in choices])
+            if value is not None:
+                combo.setCurrentText(str(value))
+            combo.currentTextChanged.connect(
+                lambda text, k=key: self._vm.set_pending(k, text),
+            )
+            return combo
 
         if type_str == "int":
             spin = QSpinBox()
@@ -301,6 +315,37 @@ class SettingsDialog(QDialog):
                 lambda v, k=key: self._vm.set_pending(k, v),
             )
             return spin
+
+        if type_str in ("directory_path", "file_path"):
+            container = QWidget()
+            layout = QHBoxLayout(container)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(4)
+            
+            edit = QLineEdit()
+            edit.setStyleSheet(_Style.INPUT)
+            edit.setText(str(value) if value is not None else "")
+            edit.textChanged.connect(
+                lambda text, k=key: self._vm.set_pending(k, text),
+            )
+            layout.addWidget(edit, stretch=1)
+            
+            browseBtn = QPushButton(self.tr("Browse..."))
+            # Re-use clear button style for a small neutral button
+            browseBtn.setStyleSheet(_Style.CLEAR_BTN)
+            
+            def browse(checked=False, edit_widget=edit, t=type_str):
+                current_path = edit_widget.text()
+                if t == "directory_path":
+                    path = QFileDialog.getExistingDirectory(self, self.tr("Select Directory"), current_path)
+                else:
+                    path, _ = QFileDialog.getOpenFileName(self, self.tr("Select File"), current_path)
+                if path:
+                    edit_widget.setText(path)
+                    
+            browseBtn.clicked.connect(browse)
+            layout.addWidget(browseBtn)
+            return container
 
         # Default: str
         edit = QLineEdit()

@@ -22,7 +22,8 @@ _TEST_METADATA: Dict[str, Dict[str, Any]] = {
         "description": "Signal-to-noise ratio for clustering.",
     },
     "gui:raw_analysis:default_colormap": {
-        "type": "str",
+        "type": "enum",
+        "choices": ["viridis", "plasma", "magma"],
         "default": "viridis",
         "description": "Initial colormap for FITS files.",
     },
@@ -165,6 +166,17 @@ class TestGrouping:
         assert len(grouped["GUI"]["Window"]) == 1
         # eps has 1 key
         assert len(grouped["EPS"]["General"]) == 1
+
+    def test_enum_choices_passed(self, vm):
+        grouped = vm.filtered_grouped_settings()
+        entries = grouped["GUI"]["Raw Analysis"]
+        
+        # Find the colormap entry
+        colormap_entry = next(e for e in entries if e[0] == "gui:raw_analysis:default_colormap")
+        
+        # entry tuple: (key, leaf, type_str, current, default, desc, choices)
+        choices = colormap_entry[6]
+        assert choices == ["viridis", "plasma", "magma"]
 
 
 # ------------------------------------------------------------------
