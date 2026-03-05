@@ -442,6 +442,7 @@ class RawDataView(QWidget):
         vmin, vmax = self.viewModel.visualizationRange
         self.rangeControl.setValues(vmin, vmax)
         self.rangeControl.setColormap(self.viewModel.colormap)
+        self.cmapSelector.setCurrentText(self.viewModel.colormap)
 
     def _bindToolCallbacks(self):
         """Wire active tool, magnifier, and pointer hover callbacks."""

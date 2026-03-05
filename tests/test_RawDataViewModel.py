@@ -37,6 +37,16 @@ def view_model():
     return vm
 
 
+def test_initial_colormap_from_config():
+    """Test that RawDataViewModel initializes its colormap from config."""
+    config = MockConfigurationService()
+    config.set("gui:raw_analysis:default_colormap", "plasma")
+    physics_manager = PhysicsConversionManagerImpl(config)
+    
+    vm = RawDataViewModel(config, physics_manager)
+    assert vm.colormap == "plasma"
+
+
 def test_initial_state(view_model):
     """Test the initial state of the ViewModel."""
     assert view_model.activeIndex == -1
