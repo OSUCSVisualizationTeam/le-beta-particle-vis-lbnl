@@ -17,7 +17,7 @@ import zmq
 from .BoundingBox import BoundingBox
 from .Cluster import Cluster
 from .ConfigurationService import ConfigurationService
-from .CCDCaptureModel import extractClusterFromFile
+from .CCDCaptureModel import CCDCaptureModel
 from .EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
@@ -229,7 +229,7 @@ class ZMQBasedEventRepository(EventRepository):
         try:
             bbox = BoundingBox(top=record.bounding_box["top"] , left=record.bounding_box["left"], 
                                bottom=record.bounding_box["bottom"], right=record.bounding_box["right"])
-            arr = extractClusterFromFile(fits_filepath=filename, hdu=record.hdu_id, bounding_box=bbox)
+            arr = CCDCaptureModel.extractClusterFromFile(fits_filepath=filename, hdu=record.hdu_id, bounding_box=bbox)
             rows, cols = arr.shape
             if arr.size > 0:
                 flat_idx = int(np.argmax(arr))
