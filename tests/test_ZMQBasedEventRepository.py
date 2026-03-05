@@ -89,7 +89,7 @@ class TestQueryClusters:
         }])
         repo = _make_repo(ctx)
         # Mock extractClusterFromFile to avoid file I/O
-        with patch('le_beta_vis.common.ZMQBasedEventRepository.CCDCaptureModel.extractClusterFromFile',
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=np.array([[1, 2], [3, 4]])):
             clusters = repo.fetch_events()
 
@@ -257,7 +257,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=4,
         )
-        with patch('le_beta_vis.common.ZMQBasedEventRepository.CCDCaptureModel.extractClusterFromFile',
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=np.array([[1, 2], [3, 4]])):
             cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
@@ -276,7 +276,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=3,
         )
-        with patch('le_beta_vis.common.ZMQBasedEventRepository.CCDCaptureModel.extractClusterFromFile',
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=np.array([[1, 2, 3]])):
             cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
@@ -297,7 +297,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=9,
         )
-        with patch('le_beta_vis.common.ZMQBasedEventRepository.CCDCaptureModel.extractClusterFromFile',
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=np.array([[0,0,0],[0,0,99],[0,0,0]])):
             cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
@@ -318,7 +318,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=16,
         )
-        with patch('le_beta_vis.common.ZMQBasedEventRepository.CCDCaptureModel.extractClusterFromFile',
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=np.arange(16).reshape(4,4)):
             cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
@@ -341,7 +341,7 @@ class TestMapToCluster:
             classification="tritium",
             total_pixels=4,
         )
-        with patch('le_beta_vis.common.ZMQBasedEventRepository.CCDCaptureModel.extractClusterFromFile',
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=np.array([[1,4],[9,16]])):
             cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
@@ -362,7 +362,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=0,
         )
-        with patch('le_beta_vis.common.ZMQBasedEventRepository.CCDCaptureModel.extractClusterFromFile',
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=np.empty((0,0))):
             cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
@@ -383,7 +383,7 @@ class TestMapToCluster:
             classification="",
             total_pixels=4,
         )
-        with patch('le_beta_vis.common.ZMQBasedEventRepository.CCDCaptureModel.extractClusterFromFile',
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=arr.reshape(2,2)):
             cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits")
         assert cluster is not None
