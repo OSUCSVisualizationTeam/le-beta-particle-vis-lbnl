@@ -25,8 +25,7 @@ from .EPSDataClasses import (
 from .EventRepository import EventRepository
 from .MockEventRepository import MockEventRepository
 from .NoOpEventRepository import NoOpEventRepository
-
-# from .ZMQBasedEventRepository import ZMQBasedEventRepository
+from .ZMQBasedEventRepository import ZMQBasedEventRepository
 from .HistogramDataModel import HistogramDataModel
 from .ROIStatistics import ROIStatistics
 from .HistogramRenderer import HistogramRenderer, MatplotlibHistogramRenderer

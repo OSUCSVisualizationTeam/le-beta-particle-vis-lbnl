@@ -10,7 +10,6 @@ import threading
 # Needed for local imports, can be removed later when called by main program
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from le_beta_vis.common.RedisBackedConfigurationService import RedisBackedConfigurationService
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.backend.FileProcessing import ProcessFile
 
@@ -37,20 +36,37 @@ class PollingThread():
 
         self.file_queue = queue.Queue()
         self.handler = EventHandler(self.file_queue)
+        self.stop_event = threading.Event()
+        # Do not call begin here, let PollingRunner manage
 
+    def __call__(self):
+        """Makes PollingThread callable for PollingRunner."""
+        self.begin()
 
     def begin(self):
         """
         Begins polling the configured location with an observer
         """
         self.observer = FileWatcher(self.handler, self.polling_location)
-        self.ingest = threading.Thread(target=file_uploaded, args=(self.file_queue, self.config_service), daemon=True)
-        self.ingest.start()
+        self.ingest_thread = threading.Thread(target=self.file_uploaded, args=(self.file_queue, self.config_service, self.stop_event))
+        self.ingest_thread.start()
 
     def end(self):
         """Kills outstanding worker threads when polling stops."""
+        self.stop_event.set()
         self.observer.stop()
-        self.ingest.stop()
+        self.ingest_thread.join()
+
+    def file_uploaded(self, queue: queue.Queue, config: ConfigurationService, stop_event: threading.Event):
+        while not stop_event.is_set():
+            try:
+                path = queue.get(timeout=1)  # Wait for 1 second
+                file_type = os.path.splitext(path)[1] # return extension of file in queue
+                if file_type.lower() != '.fits':
+                    continue
+                ProcessFile(config_service=config, file=path)
+            except queue.Empty:
+                continue
 
 class EventHandler(FileSystemEventHandler):
     """
@@ -80,19 +96,15 @@ class FileWatcher():
         self.observer.schedule(self.handler, self.path, recursive=False)
         self.observer.start()
 
-def file_uploaded(queue: queue.Queue, config: ConfigurationService):
-    while True:
-        path = queue.get()
-        file_type = os.path.splitext(path)[1] # return extension of file in queue
-        if file_type.lower() != '.fits':
+def file_uploaded(queue: queue.Queue, config: ConfigurationService, stop_event: threading.Event = None):
+    if stop_event is None:
+        stop_event = threading.Event()  # Not set, so loop runs
+    while not stop_event.is_set():
+        try:
+            path = queue.get(timeout=1)  # Wait for 1 second
+            file_type = os.path.splitext(path)[1] # return extension of file in queue
+            if file_type.lower() != '.fits':
+                continue
+            ProcessFile(config_service=config, file=path)
+        except queue.Empty:
             continue
-        ProcessFile(config_service=config, file=path)
-
-if __name__ == "__main__":
-    polling = PollingThread(RedisBackedConfigurationService())
-    polling.begin()
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        polling.end()

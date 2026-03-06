@@ -25,16 +25,15 @@ class ClusterQueryFilter:
     cluster_id: Optional[int] = None
     fits_id: Optional[int] = None
     hdu_id: Optional[int] = None
+    bounding_box: Optional[dict] = None
+    date_start: Optional[str] = None
+    date_end: Optional[str] = None
     min_sigma_x: Optional[float] = None
     min_sigma_y: Optional[float] = None
     min_total_energy: Optional[float] = None
     min_total_pixels: Optional[int] = None
     classification: Optional[str] = None
-    # TODO: Date-based filtering — the UI already collects
-    # start/end datetimes via HistoricalFilterBarViewModel
-    # (start_datetime / end_datetime).  When the EPS supports
-    # date-range queries, add start_date and end_date fields
-    # here and populate them in build_filter().
+    
 
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS Cluster socket."""
@@ -45,6 +44,12 @@ class ClusterQueryFilter:
             d["fits_id"] = self.fits_id
         if self.hdu_id is not None:
             d["hdu_id"] = self.hdu_id
+        if self.date_start is not None and self.date_end is not None:
+                d["date"] = {}
+                d["date"]["start"] = self.date_start
+                d["date"]["end"] = self.date_end
+        if self.bounding_box is not None:
+            d["bounding_box"] = self.bounding_box
         if self.min_sigma_x is not None:
             d["sigmaX"] = self.min_sigma_x
         if self.min_sigma_y is not None:
@@ -56,15 +61,15 @@ class ClusterQueryFilter:
         if self.classification is not None:
             d["classification"] = self.classification
         return d
-
-
+    
 @dataclass(frozen=True)
 class FitsQueryFilter:
     """Filter criteria for an EPS FITS Retrieval request."""
 
     fits_id: Optional[int] = None
     filename: Optional[str] = None
-    date: Optional[str] = None
+    date_start: Optional[str] = None
+    date_end: Optional[str] = None
     minimum: Optional[float] = None
     maximum: Optional[float] = None
     exposure_time: Optional[float] = None
@@ -76,8 +81,41 @@ class FitsQueryFilter:
             d["fits_id"] = self.fits_id
         if self.filename is not None:
             d["filename"] = self.filename
-        if self.date is not None:
-            d["date"] = self.date
+        if self.date_start is not None and self.date_end is not None:
+                d["date"] = {}
+                d["date"]["start"] = self.date_start
+                d["date"]["end"] = self.date_end
+        if self.minimum is not None:
+            d["minimum"] = self.minimum
+        if self.maximum is not None:
+            d["maximum"] = self.maximum
+        if self.exposure_time is not None:
+            d["exposure_time"] = self.exposure_time
+        return d
+
+@dataclass(frozen=True)
+class FitsClusterQueryFilter:
+    """Filter criteria for an EPS FITS Clusters Retrieval request."""
+
+    fits_id: Optional[int] = None
+    filename: Optional[str] = None
+    date_start: Optional[str] = None
+    date_end: Optional[str] = None
+    minimum: Optional[float] = None
+    maximum: Optional[float] = None
+    exposure_time: Optional[float] = None
+
+    def to_eps_dict(self) -> Dict[str, Any]:
+        """Builds the JSON dict expected by the EPS FITS socket."""
+        d: Dict[str, Any] = {"Action": "Clusters"}
+        if self.fits_id is not None:
+            d["fits_id"] = self.fits_id
+        if self.filename is not None:
+            d["filename"] = self.filename
+        if self.date_start is not None and self.date_end is not None:
+                d["date"] = {}
+                d["date"]["start"] = self.date_start
+                d["date"]["end"] = self.date_end
         if self.minimum is not None:
             d["minimum"] = self.minimum
         if self.maximum is not None:
@@ -145,6 +183,7 @@ class EPSClusterRecord:
     fits_id: int
     hdu_id: int
     cluster_id: int
+    bounding_box: dict
     data: Any
     total_energy: float
     sigma_x: float
@@ -159,6 +198,7 @@ class EPSClusterRecord:
             fits_id=d.get("fits_id", 0),
             hdu_id=d.get("hdu_id", 0),
             cluster_id=d.get("cluster_id", 0),
+            bounding_box=d.get("bounding_box"),
             data=d.get("data", []),
             total_energy=float(d.get("total_energy", 0.0)),
             sigma_x=float(d.get("sigmaX", 0.0)),

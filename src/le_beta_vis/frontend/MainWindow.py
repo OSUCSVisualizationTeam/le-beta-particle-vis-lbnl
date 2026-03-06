@@ -13,7 +13,13 @@ from le_beta_vis.common.ClusterExtractorFactory import (
     create_cluster_extractor,
 )
 from le_beta_vis.common.MockEventRepository import (
-    MockEventRepository,
+    MockEventRepository, 
+)
+from le_beta_vis.common.ZMQBasedEventRepository import (
+    ZMQBasedEventRepository,
+)
+from le_beta_vis.common.ConfigurationService import(
+    MockConfigurationService,
 )
 from pathlib import Path
 
@@ -64,7 +70,7 @@ class MainWindow(QMainWindow):
         self.historicalViewModel = HistoricalViewModel(
             self.viewModel.configService,
             self.viewModel.physicsManager,
-            MockEventRepository(),
+            ZMQBasedEventRepository(MockConfigurationService()),
         )
 
         # Initialize Child Views
