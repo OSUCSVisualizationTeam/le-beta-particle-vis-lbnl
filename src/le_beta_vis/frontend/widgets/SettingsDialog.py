@@ -160,7 +160,7 @@ class SettingsDialog(QDialog):
         self._debounce_timer_id: int = 0
 
         self.setWindowTitle(self.tr("Settings"))
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(700, 500)
         self.setStyleSheet(_Style.DIALOG)
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowContextHelpButtonHint
@@ -242,6 +242,9 @@ class SettingsDialog(QDialog):
 
                 form = QFormLayout()
                 form.setLabelAlignment(Qt.AlignRight)
+                form.setFieldGrowthPolicy(
+                    QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+                )
                 form.setSpacing(6)
 
                 for entry in entries:
@@ -252,7 +255,9 @@ class SettingsDialog(QDialog):
                     labelWidget = QLabel(label)
                     labelWidget.setStyleSheet(_Style.LABEL)
 
-                    container = QVBoxLayout()
+                    wrapper = QWidget()
+                    container = QVBoxLayout(wrapper)
+                    container.setContentsMargins(0, 0, 0, 0)
                     container.setSpacing(2)
                     container.addWidget(row)
                     if desc:
@@ -261,7 +266,7 @@ class SettingsDialog(QDialog):
                         descLabel.setWordWrap(True)
                         container.addWidget(descLabel)
 
-                    form.addRow(labelWidget, container)
+                    form.addRow(labelWidget, wrapper)
 
                 groupLayout.addLayout(form)
 

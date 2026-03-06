@@ -101,6 +101,24 @@ class _Style:
     )
     RIGHT_SIDEBAR = """
         QFrame { background-color: #f0f0f0; border-left: 1px solid #ccc; }
+        QWidget { background-color: #f0f0f0; }
+        QTabWidget::pane {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+        QTabBar::tab {
+            background-color: #e0e0e0;
+            color: #000000;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+        }
+        QTabBar::tab:selected {
+            background-color: #f0f0f0;
+        }
         QGroupBox { color: #000000; }
         QGroupBox::title { color: #000000; }
         QLabel { color: #000000; background: transparent; }
