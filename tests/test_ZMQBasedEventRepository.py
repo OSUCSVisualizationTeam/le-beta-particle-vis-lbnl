@@ -15,7 +15,7 @@ import zmq
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
