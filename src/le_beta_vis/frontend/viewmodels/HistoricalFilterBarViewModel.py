@@ -232,9 +232,6 @@ class HistoricalFilterBarViewModel:
             else:
                 energy_adu = self._min_total_energy
 
-        # TODO: Wire start_datetime / end_datetime into the
-        # ClusterQueryFilter once the EPS supports date-based
-        # filtering — see EPSDataClasses.py TODO.
         if self._time_preset != self._default_time_preset:
             logger.info(
                 "Time preset '%s' selected but date filtering is "
@@ -246,6 +243,8 @@ class HistoricalFilterBarViewModel:
             cluster_id=self._cluster_id,
             fits_id=self._fits_id,
             hdu_id=self._hdu_id,
+            date_start = self.start_datetime,
+            date_end = self.end_datetime,
             min_sigma_x=self._min_sigma_x,
             min_sigma_y=self._min_sigma_y,
             min_total_energy=energy_adu,

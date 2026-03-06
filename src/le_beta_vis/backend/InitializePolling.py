@@ -10,7 +10,6 @@ import threading
 # Needed for local imports, can be removed later when called by main program
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from le_beta_vis.common.RedisBackedConfigurationService import RedisBackedConfigurationService
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.backend.FileProcessing import ProcessFile
 
@@ -37,15 +36,14 @@ class PollingThread():
 
         self.file_queue = queue.Queue()
         self.handler = EventHandler(self.file_queue)
-
+        self.begin()
 
     def begin(self):
         """
         Begins polling the configured location with an observer
         """
         self.observer = FileWatcher(self.handler, self.polling_location)
-        self.ingest = threading.Thread(target=file_uploaded, args=(self.file_queue, self.config_service), daemon=True)
-        self.ingest.start()
+        self.ingest = file_uploaded(self.file_queue, self.config_service)
 
     def end(self):
         """Kills outstanding worker threads when polling stops."""
@@ -87,12 +85,3 @@ def file_uploaded(queue: queue.Queue, config: ConfigurationService):
         if file_type.lower() != '.fits':
             continue
         ProcessFile(config_service=config, file=path)
-
-if __name__ == "__main__":
-    polling = PollingThread(RedisBackedConfigurationService())
-    polling.begin()
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        polling.end()

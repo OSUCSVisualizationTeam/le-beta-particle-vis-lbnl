@@ -59,6 +59,7 @@ class EventPersistence():
                         "data": None,
                         "cluster_id": None,
                         "bounding_box": None,
+                        "date": None,
                         "hdu_id": None,
                         "sigmaX": None,
                         "sigmaY": None,
@@ -174,6 +175,7 @@ class EventPersistence():
                         "data": np.array(request.get("data")),
                         "cluster_id": request.get("cluster_id"),
                         "bounding_box": request.get("bounding_box"),
+                        "date": request.get("date"),
                         "hdu_id": request.get("hdu_id"),
                         "sigmaX": request.get("sigmaX"),
                         "sigmaY": request.get("sigmaY"),
@@ -347,7 +349,6 @@ class EventPersistence():
             minimum = self.retrieval_fits["minimum"]
             maximum = self.retrieval_fits["maximum"]
             exposure_time = self.retrieval_fits["exposure_time"]
-
             select_query = "SELECT * FROM fits_files"
             select_args = []
             select_argv = []
@@ -358,8 +359,11 @@ class EventPersistence():
                 select_args.append("fitsID = %s")
                 select_argv.append(fits_id)
             if date:
-                select_args.append("date = %s")
-                select_argv.append(date)
+                if date.get("start") and date.get("end"):
+                    select_args.append("date BETWEEN %s AND %s")
+                else:
+                    select_args.append("date = %s")
+                    select_argv.extend(date["start"], date["end"])
             if minimum:
                 select_args.append("minimum = %s")
                 select_argv.append(minimum)
@@ -393,6 +397,7 @@ class EventPersistence():
             data = self.retrieval_clusters["data"]
             hdu = self.retrieval_clusters["hdu_id"]
             cluster_id = self.retrieval_clusters["cluster_id"]
+            date = self.retrieval_clusters["date"]
             bounding_box = self.retrieval_clusters["bounding_box"]
             fits_id = self.retrieval_clusters["fits_id"]
             sigmaX = self.retrieval_clusters["sigmaX"]
@@ -413,6 +418,11 @@ class EventPersistence():
             if bounding_box:
                 select_args.extend(["top = %s", "left = %s", "bottom = %s", "right = %s"])
                 select_argv.extend([bounding_box["top"], bounding_box["left"], bounding_box["bottom"], bounding_box["right"]])
+            if date:
+                if date.get("start") and date.get("end"):
+                    select_query += " INNER JOIN fits_files ON clusters.fitsFile = fits_files.fitsID"
+                    select_args.append("fits_files.date BETWEEN %s AND %s")
+                    select_argv.extend(date["start"], date["end"])
             if fits_id:
                 if type(fits_id) == list:
                     #If searching multiple fits files, set up parameters and append tuples to arg values
