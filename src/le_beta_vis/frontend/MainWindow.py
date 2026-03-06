@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QWidget, QVBoxLayout, QFileDialog,
 )
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from .viewmodels.MainViewModel import MainViewModel
 from .views.RawDataView import RawDataView
 from .views.HistoricalView import HistoricalView
@@ -15,6 +15,7 @@ from le_beta_vis.common.ClusterExtractorFactory import (
 from le_beta_vis.common.MockEventRepository import (
     MockEventRepository,
 )
+from pathlib import Path
 
 
 class MainWindow(QMainWindow):
@@ -25,6 +26,12 @@ class MainWindow(QMainWindow):
 
         # self.tr() marks the string for translation
         self.setWindowTitle(self.tr("LE Beta Particle Visualization"))
+
+        icon_path = (
+            Path(__file__).resolve().parent.parent
+            / "resources" / "icons" / "lbnl-logo.png"
+        )
+        self.setWindowIcon(QIcon(str(icon_path)))
 
         # Window Geometry
         self.setMinimumSize(960, 600)
