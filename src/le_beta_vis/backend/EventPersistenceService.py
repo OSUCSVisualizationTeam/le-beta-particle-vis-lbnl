@@ -1,5 +1,5 @@
 import mysql.connector
-from le_beta_vis.common.RedisBackedConfigurationService import RedisBackedConfigurationService
+from le_beta_vis.common.YAMLBackedConfigurationService import YAMLBackedConfigurationService
 import os
 import zmq
 import numpy as np
@@ -21,7 +21,7 @@ class EventPersistence():
     It is responsible for the storage and retrieval of FITS and cluster information
     """
     def __init__(self):
-        self.config = RedisBackedConfigurationService()
+        self.config = YAMLBackedConfigurationService()
         self.db_host="localhost"
         self.db_user=os.environ.get("DB_USER")
         self.db_password=os.environ.get("DB_PASS")

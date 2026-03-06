@@ -1,4 +1,4 @@
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from mock_configuration_service import MockConfigurationService
 
 
 def test_mock_configuration_service_defaults():
@@ -32,3 +32,10 @@ def test_mock_configuration_service_set_get():
 
     # Get value
     assert service.get(key) == value
+
+
+def test_mock_configuration_service_get_description_returns_none():
+    """get_description() always returns None for the mock."""
+    service = MockConfigurationService()
+    assert service.get_description("gui:raw_analysis:default_colormap") is None
+    assert service.get_description("nonexistent:key") is None

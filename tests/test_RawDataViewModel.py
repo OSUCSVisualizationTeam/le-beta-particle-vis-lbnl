@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,

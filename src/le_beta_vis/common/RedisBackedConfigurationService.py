@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import redis
 from dotenv import load_dotenv
@@ -74,6 +74,10 @@ class RedisBackedConfigurationService(ConfigurationService):
     }
 
     def __init__(self):
+        raise NotImplementedError(
+            "RedisBackedConfigurationService is deprecated. "
+            "Use YAMLBackedConfigurationService instead."
+        )
         load_dotenv()  # Explicit, controlled — runs only when the class is instantiated
 
         host = os.getenv("REDIS_HOST", "127.0.0.1")
@@ -112,6 +116,10 @@ class RedisBackedConfigurationService(ConfigurationService):
         'true'/'false'; all other types are stored via str().
         """
         self._client.set(key, self._serialize(value))
+
+    def get_description(self, key: str) -> Optional[str]:
+        """Return None — Redis backend has no description metadata."""
+        return None
 
     # ------------------------------------------------------------------
     # Internal helpers

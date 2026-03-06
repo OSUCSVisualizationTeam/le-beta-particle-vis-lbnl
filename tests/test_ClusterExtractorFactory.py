@@ -7,7 +7,7 @@
 
 """Tests for ClusterExtractorFactory."""
 
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.ClusterExtractorFactory import (
     create_cluster_extractor,
 )

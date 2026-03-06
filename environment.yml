@@ -16,6 +16,7 @@ dependencies:
   - flake8
   - scikit-image
   - pip
+  - pyyaml
   - redis-py
   - watchdog
   - mysql-connector-python

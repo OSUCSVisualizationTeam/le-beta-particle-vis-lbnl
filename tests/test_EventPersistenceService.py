@@ -41,7 +41,7 @@ class TestFailedProcException(unittest.TestCase):
 class TestEventPersistenceInitialization(unittest.TestCase):
     """Test cases for EventPersistence initialization"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
@@ -64,7 +64,7 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.mysql.connector.connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     def test_db_connect_success(self, mock_config, mock_init_server, mock_mysql_connect):
         """Test successful database connection"""
         mock_connection = MagicMock()
@@ -84,7 +84,7 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.mysql.connector.connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     def test_db_connect_failure(self, mock_config, mock_init_server, mock_mysql_connect):
         """Test database connection failure"""
         import mysql.connector
@@ -99,7 +99,7 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
 class TestEventPersistenceStoreFits(unittest.TestCase):
     """Test cases for store_fits method"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -133,7 +133,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
         mock_connection.commit.assert_called_once()
         mock_cursor.close.assert_called_once()
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -164,7 +164,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
 
         self.assertIsNone(ep.conn)
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_store_fits_reconnect_on_no_connection(self, mock_init_server, mock_config):
@@ -195,7 +195,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
 class TestEventPersistenceStoreClusters(unittest.TestCase):
     """Test cases for store_cluster method"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -239,7 +239,7 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
         mock_cursor.callproc.assert_called_once()
         mock_connection.commit.assert_called_once()
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -283,7 +283,7 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
 class TestEventPersistenceRetrieveFits(unittest.TestCase):
     """Test cases for retrieve_fits method"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -318,7 +318,7 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
         self.assertEqual(result["fits"][0]["fits_id"], 1)
         self.assertEqual(result["fits"][0]["filename"], "test.fits")
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -352,7 +352,7 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
 class TestEventPersistenceRetrieveClusters(unittest.TestCase):
     """Test cases for retrieve_clusters method"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -396,7 +396,7 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
 class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
     """Test cases for process_retrieval_fits method"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -418,7 +418,7 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
         self.assertEqual(response["fits"][0]["min"], 100)
         self.assertEqual(response["fits"][0]["max"], 5000)
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -432,7 +432,7 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
         self.assertEqual(response["result"], "success")
         self.assertEqual(len(response["fits"]), 0)
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -451,7 +451,7 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
 class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
     """Test cases for process_retrieval_clusters method"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -472,7 +472,7 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
         self.assertEqual(response["clusters"][0]["cluster_id"], 1)
         self.assertEqual(response["clusters"][0]["classification"], "alpha")
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -486,7 +486,7 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
         self.assertEqual(response["result"], "success")
         self.assertEqual(len(response["clusters"]), 0)
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -505,7 +505,7 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
 class TestEventPersistenceClusterEvent(unittest.TestCase):
     """Test cases for cluster_event method"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'store_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
@@ -571,7 +571,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
         self.assertEqual(call_args["result"], "failure")
         self.assertIsNone(call_args["cluster_id"])
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'retrieve_clusters')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
@@ -602,7 +602,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
 
         mock_socket.send_json.assert_called_once()
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
@@ -626,7 +626,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
 class TestEventPersistenceFitsEvent(unittest.TestCase):
     """Test cases for fits_event method"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'store_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
@@ -684,7 +684,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
         self.assertEqual(call_args["result"], "failure")
         self.assertIsNone(call_args["fits_id"])
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'retrieve_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
@@ -738,7 +738,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
 
         mock_socket.send_json.assert_called_once()
 
-    @patch('le_beta_vis.backend.EventPersistenceService.RedisBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})

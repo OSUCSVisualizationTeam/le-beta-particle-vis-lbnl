@@ -5,7 +5,7 @@ from typing import Union
 import numpy as np
 import pytest
 
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.MockClusterExtractor import MockClusterExtractor
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,

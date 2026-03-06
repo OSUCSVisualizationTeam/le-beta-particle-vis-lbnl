@@ -10,7 +10,7 @@ from le_beta_vis.backend.InitializePolling import EventHandler
 from le_beta_vis.backend.InitializePolling import FileWatcher
 from le_beta_vis.backend.InitializePolling import file_uploaded
 from le_beta_vis.backend.PollingRunner import PollingRunner
-from le_beta_vis.common.ConfigurationService import MockConfigurationService
+from mock_configuration_service import MockConfigurationService
 
 @pytest.fixture
 def mock_config():

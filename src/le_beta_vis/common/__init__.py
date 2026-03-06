@@ -1,7 +1,8 @@
 # flake8: noqa
 # pylint: disable=unused-import
 # pyright: reportUnusedImport=false
-from .ConfigurationService import ConfigurationService, MockConfigurationService
+from .ConfigurationService import ConfigurationService
+from .YAMLBackedConfigurationService import YAMLBackedConfigurationService
 from .PhysicsConversionManager import (
     PhysicsConversionManager,
     PhysicsConversionManagerImpl,
