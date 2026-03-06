@@ -14,6 +14,7 @@ import pytest
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
+from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     RawDataViewModel,
@@ -42,7 +43,7 @@ def test_initial_colormap_from_config():
     config = MockConfigurationService()
     config.set("gui:raw_analysis:default_colormap", "plasma")
     physics_manager = PhysicsConversionManagerImpl(config)
-    
+
     vm = RawDataViewModel(config, physics_manager)
     assert vm.colormap == "plasma"
 
@@ -286,3 +287,130 @@ def test_clear_pointer_hover_noop_when_already_none(view_model):
 
     view_model.clearPointerHover()
     cb.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: initial render with real converter (issue: blank FITS)
+# ---------------------------------------------------------------------------
+
+
+def _make_vm_with_real_converter(config):
+    """Helper: build a RawDataViewModel with OpenCVBasedConverter and sync render."""
+    physics = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics)
+    vm._converter = OpenCVBasedConverter()
+
+    def sync_render():
+        vm._render_worker_logic()
+
+    vm._request_render = sync_render
+    return vm
+
+
+def test_loadfile_produces_buffer_with_real_converter():
+    """loadFile with OpenCVBasedConverter must produce a non-None buffer."""
+    config = MockConfigurationService()
+    vm = _make_vm_with_real_converter(config)
+
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    mock_capture.rawData.return_value = np.random.randint(
+        0, 65535, (64, 64), dtype=np.uint16
+    ).astype(np.float64)
+    mock_capture.info.return_value.rows = 64
+    mock_capture.info.return_value.cols = 64
+    mock_capture.info.return_value.min = 0
+    mock_capture.info.return_value.max = 65535
+
+    module = sys.modules["le_beta_vis.frontend.viewmodels.RawDataViewModel"]
+    with patch.object(module, "Path") as MockPath:
+        MockPath.return_value.exists.return_value = True
+        with patch.object(CCDCaptureModel, "load", return_value=[mock_capture]):
+            vm.loadFile("test.fits")
+
+    assert vm.currentBuffer is not None
+    assert vm.currentBuffer.dtype == np.uint8
+    assert len(vm.currentBuffer.shape) == 3
+
+
+def test_render_with_yaml_backed_config(tmp_path):
+    """Render pipeline works with YAMLBackedConfigurationService."""
+    from le_beta_vis.common.YAMLBackedConfigurationService import (
+        YAMLBackedConfigurationService,
+    )
+
+    config = YAMLBackedConfigurationService(yaml_path=tmp_path / "test.yaml")
+    vm = _make_vm_with_real_converter(config)
+
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    mock_capture.rawData.return_value = np.ones((32, 32), dtype=np.float64)
+    mock_capture.info.return_value.rows = 32
+    mock_capture.info.return_value.cols = 32
+    mock_capture.info.return_value.min = 0
+    mock_capture.info.return_value.max = 1
+
+    module = sys.modules["le_beta_vis.frontend.viewmodels.RawDataViewModel"]
+    with patch.object(module, "Path") as MockPath:
+        MockPath.return_value.exists.return_value = True
+        with patch.object(CCDCaptureModel, "load", return_value=[mock_capture]):
+            vm.loadFile("test.fits")
+
+    assert vm.currentBuffer is not None
+
+
+def test_render_with_wide_vis_range():
+    """Render must not throw with vis_range_max=700.0 (user-reported config)."""
+    config = MockConfigurationService()
+    config.set("gui:raw_analysis:vis_range_max", 700.0)
+    config.set("gui:raw_analysis:default_colormap", "inferno")
+    vm = _make_vm_with_real_converter(config)
+
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    mock_capture.rawData.return_value = np.zeros((16, 16), dtype=np.float64)
+    mock_capture.info.return_value.rows = 16
+    mock_capture.info.return_value.cols = 16
+    mock_capture.info.return_value.min = 0
+    mock_capture.info.return_value.max = 0
+
+    vm._captures = [mock_capture]
+    vm._activeIndex = 0
+    vm._render_worker_logic()
+
+    assert vm.currentBuffer is not None
+
+
+def test_render_exception_is_logged():
+    """Exceptions in render are logged via logger.exception."""
+    config = MockConfigurationService()
+    vm = _make_vm_with_real_converter(config)
+
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    mock_capture.rawData.side_effect = RuntimeError("boom")
+    vm._captures = [mock_capture]
+    vm._activeIndex = 0
+
+    module = sys.modules["le_beta_vis.frontend.viewmodels.RawDataViewModel"]
+    with patch.object(module, "logger") as mock_logger:
+        vm._render_worker_logic()
+
+    mock_logger.exception.assert_called_once()
+    assert vm.currentBuffer is None
+
+
+def test_request_render_skips_when_no_data():
+    """_request_render is a no-op when no captures are loaded.
+
+    Prevents stale renders during View initialisation (e.g. colormap
+    selector emitting currentTextChanged) from enqueuing a render that
+    clears the display buffer.
+    """
+    config = MockConfigurationService()
+    vm = _make_vm_with_real_converter(config)
+
+    assert vm._activeIndex == -1
+    assert vm._captures == []
+
+    # Trigger setColormap which calls _request_render internally
+    vm.setColormap("inferno")
+
+    # Queue should be empty — render was skipped
+    assert vm._render_queue.empty()

@@ -566,6 +566,7 @@ class RawDataViewModel:
                     viz_data, self._colormap, self._vrange
                 )
             except Exception:
+                logger.exception("Render failed")
                 self._current_buffer = None
 
         self._notify_image_changed()
