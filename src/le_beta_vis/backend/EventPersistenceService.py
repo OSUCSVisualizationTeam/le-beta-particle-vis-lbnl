@@ -35,7 +35,7 @@ class EventPersistence():
                         "minimum": None,
                         "maximum": None,
                         "exposure_time": None
-                    } 
+                    }
         self.retrieval_fits = {
                         "filename": None,
                         "fits_id": None,
@@ -68,7 +68,7 @@ class EventPersistence():
                         "fits_id": None,
                         "classification": None
                     }
-        
+
         self.db_connect()   # connect to DB before listening loop
         self.initialize_server()
 
@@ -217,13 +217,13 @@ class EventPersistence():
                         "date": request.get("date"),
                         "minimum": request.get("minimum"),
                         "maximum": request.get("maximum"),
-                        "exposure_time": request.get("ex posure_time")
+                        "exposure_time": request.get("exposure_time")
                     }
                 response = self.retrieve_fits()
                 socket.send_json(response)
             except KeyError as err:
                 socket.send_json({"result": "failure", "fits": None, "error": err})
-        
+
         elif request.get("Action") == "Clusters":
             try:
                 self.retrieval_fits = {
@@ -361,9 +361,10 @@ class EventPersistence():
             if date:
                 if date.get("start") and date.get("end"):
                     select_args.append("date BETWEEN %s AND %s")
+                    select_argv.extend([date["start"], date["end"]])
                 else:
                     select_args.append("date = %s")
-                    select_argv.extend(date["start"], date["end"])
+                    select_argv.append(date)
             if minimum:
                 select_args.append("minimum = %s")
                 select_argv.append(minimum)
@@ -422,7 +423,7 @@ class EventPersistence():
                 if date.get("start") and date.get("end"):
                     select_query += " INNER JOIN fits_files ON clusters.fitsFile = fits_files.fitsID"
                     select_args.append("fits_files.date BETWEEN %s AND %s")
-                    select_argv.extend(date["start"], date["end"])
+                    select_argv.extend([date["start"], date["end"]])
             if fits_id:
                 if type(fits_id) == list:
                     #If searching multiple fits files, set up parameters and append tuples to arg values
@@ -463,7 +464,7 @@ class EventPersistence():
         except mysql.connector.Error as err:
             print(f"Could not connect: {err}")
             return err
-    
+
     def process_retrieval_fits(self, results) -> dict:
         """Takes the results from a fits retrieval SELECT statement and formats the EPS response into JSON
 
