@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QStyleFactory,
     QTabWidget,
     QToolButton,
     QVBoxLayout,
@@ -119,7 +120,7 @@ class _Style:
         QTabBar::tab:selected {
             background-color: #f0f0f0;
         }
-        QGroupBox { color: #000000; }
+        QGroupBox { color: #000000; background-color: #f0f0f0; }
         QGroupBox::title { color: #000000; }
         QLabel { color: #000000; background: transparent; }
         QPushButton { color: #000000; }
@@ -386,6 +387,7 @@ class RawDataView(QWidget):
     def _setupRightSidebar(self):
         self.rightSidebar = QFrame()
         self.rightSidebar.setFixedWidth(300)
+        self.rightSidebar.setStyle(QStyleFactory.create("Fusion"))
         self.rightSidebar.setStyleSheet(_Style.RIGHT_SIDEBAR)
         self.rightLayout = QVBoxLayout(self.rightSidebar)
         self.rightLayout.setContentsMargins(10, 10, 10, 10)

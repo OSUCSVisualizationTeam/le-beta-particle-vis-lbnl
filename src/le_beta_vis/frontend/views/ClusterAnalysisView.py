@@ -45,21 +45,22 @@ class ClusterAnalysisView(QWidget):
 
     def _addExtractionSection(self, parent_layout: QVBoxLayout) -> None:
         group = QGroupBox(self.tr("Cluster Extraction"))
-        row = QHBoxLayout(group)
+        vbox = QVBoxLayout(group)
 
+        row = QHBoxLayout()
         row.addWidget(QLabel(self.tr("\u03c3 threshold")))
-
         self._thresholdSpinBox = QDoubleSpinBox()
         self._thresholdSpinBox.setRange(0.1, 100.0)
         self._thresholdSpinBox.setSingleStep(0.5)
         self._thresholdSpinBox.setDecimals(1)
         self._thresholdSpinBox.setValue(self._vm.clusteringThreshold)
         row.addWidget(self._thresholdSpinBox)
+        vbox.addLayout(row)
 
         self._btnRunExtraction = QPushButton(self.tr("Run Extraction"))
         self._btnRunExtraction.setEnabled(False)
         self._btnRunExtraction.clicked.connect(self._vm.triggerClustering)
-        row.addWidget(self._btnRunExtraction)
+        vbox.addWidget(self._btnRunExtraction)
 
         parent_layout.addWidget(group)
 
