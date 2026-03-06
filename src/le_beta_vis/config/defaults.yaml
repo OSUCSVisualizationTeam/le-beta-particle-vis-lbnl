@@ -1,46 +1,349 @@
+# defaults.yaml — Structured configuration metadata registry
+#
+# Each key carries its type, default value, and human-readable description.
+# The YAMLBackedConfigurationService reads this to bootstrap new user configs.
+# The wiki Configuration-Keys.md is synced from this file.
+
+# ---------------------------------------------------------------------------
 # Global / Infrastructure
-global:db:connection_string: "mysql://localhost/le_beta_vis"
-global:db:username: "root"
-global:db:password: "root"
+# ---------------------------------------------------------------------------
 
-global:redis:host: "localhost"
-global:redis:port: 6379
-global:redis:channel_events: "events/new_class"
+global:db:connection_string:
+  type: str
+  default: "mysql://localhost/le_beta_vis"
+  description: >-
+    Database connection URI for the Event Persistence Service.
 
-global:physics:kev_conversion: 1.02857e-5
-global:physics:ped_width: 1400
+global:db:username:
+  type: str
+  default: "root"
+  description: >-
+    Username for database connection.
 
-# GUI
-gui:raw_analysis:default_colormap: "viridis"
-gui:raw_analysis:vis_range_min: 0.0
-gui:raw_analysis:vis_range_max: 20.0
-gui:raw_analysis:filter_gaussian_sigma: 1.5
-gui:raw_analysis:clustering_threshold: 4.0
-gui:raw_analysis:cluster_extractor_method: "lbnl_classical"
-gui:raw_analysis:clustering_timeout_seconds: 300
-gui:raw_analysis:zoom_step_factor: 1.2
-gui:raw_analysis:magnifier_display_size: 127
-gui:raw_analysis:magnifier_default_factor: 3.0
-gui:raw_analysis:magnifier_min_factor: 1.0
-gui:raw_analysis:magnifier_max_factor: 100.0
-gui:raw_analysis:magnifier_factor_step: 0.5
-gui:raw_analysis:magnifier_move_step: 1
-gui:raw_analysis:show_tool_hints: true
-gui:raw_analysis:box_select_color: "#00BFFF"
-gui:raw_analysis:box_select_border_width: 2
+global:db:password:
+  type: str
+  default: "root"
+  description: >-
+    Password for database connection.
 
-gui:window:default_width: 1024
-gui:window:default_height: 700
+global:redis:host:
+  type: str
+  default: "localhost"
+  description: >-
+    Hostname of the Redis server used for Pub/Sub messaging.
 
-gui:mosaic:height: 130
-gui:mosaic:thumbnail_height: 100
-gui:mosaic:scaling_function: "log"
+global:redis:port:
+  type: int
+  default: 6379
+  description: >-
+    Port number of the Redis server.
 
-gui:historical:default_query_hours: 24
-gui:historical:live_update_rate_ms: 1000
-gui:historical:mode: "historical"
+global:redis:channel_events:
+  type: str
+  default: "events/new_class"
+  description: >-
+    Redis channel name for broadcasting new classification events.
 
-gui:inspector:histogram_bins: 50
+global:physics:kev_conversion:
+  type: float
+  default: 1.02857e-5
+  description: >-
+    Constant factor to convert raw charge values (ADU) to energy (keV).
+    Depends on sensor hardware.
 
-gui:export:default_path: "~/Data"
-gui:export:image_format: "png"
+global:physics:ped_width:
+  type: int
+  default: 1400
+  description: >-
+    Pedestal width (background noise level in ADU) used as the base
+    for sigma-threshold clustering.
+
+# ---------------------------------------------------------------------------
+# GUI — Raw Analysis
+# ---------------------------------------------------------------------------
+
+gui:raw_analysis:default_colormap:
+  type: str
+  default: "viridis"
+  description: >-
+    Initial colormap applied when opening a new FITS file.
+    Supported: viridis, plasma, inferno, magma, jet, bone, hot, cool.
+
+gui:raw_analysis:vis_range_min:
+  type: float
+  default: 0.0
+  description: >-
+    Lower bound (in keV) for visualization thresholding.
+    Values below this are clipped.
+
+gui:raw_analysis:vis_range_max:
+  type: float
+  default: 20.0
+  description: >-
+    Upper bound (in keV) for visualization thresholding.
+    Values above this are clipped or normalized.
+
+gui:raw_analysis:filter_gaussian_sigma:
+  type: float
+  default: 1.5
+  description: >-
+    Sigma (radius) value for the interactive Gaussian blur filter.
+
+gui:raw_analysis:clustering_threshold:
+  type: float
+  default: 4.0
+  description: >-
+    Signal-to-noise ratio (sigma multiplier) used for identifying
+    event clusters.
+
+gui:raw_analysis:cluster_extractor_method:
+  type: str
+  default: "lbnl_classical"
+  description: >-
+    Backend algorithm for cluster extraction.
+    Values: mock, lbnl_classical, lbnl_optimized, general.
+
+gui:raw_analysis:clustering_timeout_seconds:
+  type: int
+  default: 300
+  description: >-
+    Maximum time (in seconds) before a running cluster extraction
+    is aborted. A warning dialog is shown on timeout.
+
+gui:raw_analysis:zoom_step_factor:
+  type: float
+  default: 1.2
+  description: >-
+    Factor to multiply/divide scale by when zooming in or out.
+
+gui:raw_analysis:magnifier_display_size:
+  type: int
+  default: 127
+  description: >-
+    Fixed side length (in pixels) of the square magnifier overlay.
+
+gui:raw_analysis:magnifier_default_factor:
+  type: float
+  default: 3.0
+  description: >-
+    Initial magnification factor when the magnifier tool is activated.
+
+gui:raw_analysis:magnifier_min_factor:
+  type: float
+  default: 1.0
+  description: >-
+    Minimum allowed magnification factor for the magnifier tool.
+
+gui:raw_analysis:magnifier_max_factor:
+  type: float
+  default: 100.0
+  description: >-
+    Maximum allowed magnification factor for the magnifier tool.
+
+gui:raw_analysis:magnifier_factor_step:
+  type: float
+  default: 0.5
+  description: >-
+    Increment/decrement step when adjusting magnification
+    via scroll wheel or keyboard.
+
+gui:raw_analysis:magnifier_move_step:
+  type: int
+  default: 1
+  description: >-
+    Pixel step size when moving the magnifier with arrow keys.
+
+gui:raw_analysis:show_tool_hints:
+  type: bool
+  default: true
+  description: >-
+    Show inline usage hints on interactive tools
+    (e.g., magnifier keyboard shortcuts).
+
+gui:raw_analysis:box_select_color:
+  type: str
+  default: "#00BFFF"
+  description: >-
+    CSS color for the box selection ROI rectangle border and fill.
+
+gui:raw_analysis:box_select_border_width:
+  type: int
+  default: 2
+  description: >-
+    Border width (in pixels) for the box selection ROI rectangle.
+
+gui:raw_analysis:cluster_thumbnail_use_colormap:
+  type: bool
+  default: true
+  description: >-
+    When enabled, cluster thumbnails use the active colormap
+    via OpenCVBasedConverter instead of grayscale.
+
+gui:raw_analysis:display_energy_in_kev:
+  type: bool
+  default: true
+  description: >-
+    Display cluster energy in keV. When false, displays raw ADU values.
+
+# ---------------------------------------------------------------------------
+# GUI — Window
+# ---------------------------------------------------------------------------
+
+gui:window:default_width:
+  type: int
+  default: 1024
+  description: >-
+    Default initial width of the application window.
+
+gui:window:default_height:
+  type: int
+  default: 700
+  description: >-
+    Default initial height of the application window.
+
+# ---------------------------------------------------------------------------
+# GUI — Mosaic
+# ---------------------------------------------------------------------------
+
+gui:mosaic:height:
+  type: int
+  default: 130
+  description: >-
+    Fixed height (in pixels) of the Mosaic View container strip.
+
+gui:mosaic:thumbnail_height:
+  type: int
+  default: 100
+  description: >-
+    Height (in pixels) of the individual thumbnail images
+    inside the strip. Width is calculated dynamically.
+
+gui:mosaic:scaling_function:
+  type: str
+  default: "log"
+  description: >-
+    Transfer function used to render thumbnails.
+    Values: linear, log, sqrt.
+
+# ---------------------------------------------------------------------------
+# GUI — Historical Event Analysis
+# ---------------------------------------------------------------------------
+
+gui:historical:default_query_hours:
+  type: int
+  default: 24
+  description: >-
+    Default lookback period (in hours) when opening
+    the Historical Analysis view.
+
+gui:historical:live_update_rate_ms:
+  type: int
+  default: 1000
+  description: >-
+    Refresh rate (in milliseconds) for the live monitoring dashboard.
+
+gui:historical:mode:
+  type: str
+  default: "historical"
+  description: >-
+    Operational mode of the Historical View.
+    Values: live, historical.
+
+gui:historical:classification_threshold:
+  type: float
+  default: 0.75
+  description: >-
+    Min confidence for positive classification in the
+    Historical Analysis grid and inspector.
+
+gui:historical:grid_item_width:
+  type: int
+  default: 140
+  description: >-
+    Width (in pixels) of each event thumbnail cell
+    in the Historical Analysis grid.
+
+gui:historical:grid_item_height:
+  type: int
+  default: 160
+  description: >-
+    Height (in pixels) of each event thumbnail cell
+    in the Historical Analysis grid.
+
+gui:historical:grid_default_columns:
+  type: int
+  default: 2
+  description: >-
+    Default number of visible columns in the event grid.
+
+gui:historical:grid_max_columns:
+  type: int
+  default: 3
+  description: >-
+    Maximum number of visible columns in the event grid.
+
+# ---------------------------------------------------------------------------
+# GUI — Inspector
+# ---------------------------------------------------------------------------
+
+gui:inspector:histogram_bins:
+  type: int
+  default: 50
+  description: >-
+    Number of bins to use when generating energy distribution
+    histograms for selected events.
+
+# ---------------------------------------------------------------------------
+# GUI — Export
+# ---------------------------------------------------------------------------
+
+gui:export:default_path:
+  type: str
+  default: "~/Data"
+  description: >-
+    Default file system path presented in the "Save As" dialog.
+
+gui:export:image_format:
+  type: str
+  default: "png"
+  description: >-
+    Preferred file format for exporting plots and images.
+
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
+
+pipeline:ingress:polling_location:
+  type: str
+  default: "~/Google\\ Drive\\/My\\ Drive/FITS"
+  description: >-
+    File path on local system to poll for new FITS data.
+
+# ---------------------------------------------------------------------------
+# Event Persistence Service (EPS)
+# ---------------------------------------------------------------------------
+
+eps:cluster_ipc:
+  type: str
+  default: "ipc:///tmp/EPCCluster.ipc"
+  description: >-
+    ZMQ IPC address for the EPS cluster socket.
+
+eps:fits_ipc:
+  type: str
+  default: "ipc:///tmp/EPCFits.ipc"
+  description: >-
+    ZMQ IPC address for the EPS FITS socket.
+
+eps:command_ipc:
+  type: str
+  default: "ipc:///tmp/EPCCommand.ipc"
+  description: >-
+    ZMQ IPC address for the EPS command socket.
+
+eps:timeout_ms:
+  type: int
+  default: 5000
+  description: >-
+    Timeout in milliseconds for ZMQ send/receive operations
+    against the EPS.

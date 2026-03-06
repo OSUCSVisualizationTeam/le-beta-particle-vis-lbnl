@@ -10,9 +10,7 @@ Pure Python tests — no QApplication instantiation.
 import pytest
 from unittest.mock import MagicMock
 
-from le_beta_vis.common.ConfigurationService import (
-    MockConfigurationService,
-)
+from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.MockEventRepository import (
     MockEventRepository,
 )

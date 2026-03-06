@@ -9,9 +9,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
-from le_beta_vis.common.ConfigurationService import (
-    MockConfigurationService,
-)
+from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
 from le_beta_vis.common.ParticleType import ParticleType
 from le_beta_vis.frontend.viewmodels.HistoricalFilterBarViewModel import (

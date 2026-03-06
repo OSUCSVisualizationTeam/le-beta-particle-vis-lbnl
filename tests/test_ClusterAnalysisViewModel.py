@@ -16,9 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from le_beta_vis.common.ConfigurationService import (
-    MockConfigurationService,
-)
+from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManagerImpl,
 )
