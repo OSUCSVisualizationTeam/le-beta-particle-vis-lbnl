@@ -8,3 +8,4 @@ from .HistoricalEventInspectorViewModel import (
     HistoricalEventInspectorViewModel,
 )
 from .HistoricalFilterBarViewModel import HistoricalFilterBarViewModel
+from .SettingsViewModel import SettingsViewModel

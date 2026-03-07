@@ -63,7 +63,8 @@ global:physics:ped_width:
 # ---------------------------------------------------------------------------
 
 gui:raw_analysis:default_colormap:
-  type: str
+  type: enum
+  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool"]
   default: "viridis"
   description: >-
     Initial colormap applied when opening a new FITS file.
@@ -97,7 +98,8 @@ gui:raw_analysis:clustering_threshold:
     event clusters.
 
 gui:raw_analysis:cluster_extractor_method:
-  type: str
+  type: enum
+  choices: ["mock", "lbnl_classical", "lbnl_optimized", "general"]
   default: "lbnl_classical"
   description: >-
     Backend algorithm for cluster extraction.
@@ -219,7 +221,8 @@ gui:mosaic:thumbnail_height:
     inside the strip. Width is calculated dynamically.
 
 gui:mosaic:scaling_function:
-  type: str
+  type: enum
+  choices: ["linear", "log", "sqrt"]
   default: "log"
   description: >-
     Transfer function used to render thumbnails.
@@ -243,7 +246,8 @@ gui:historical:live_update_rate_ms:
     Refresh rate (in milliseconds) for the live monitoring dashboard.
 
 gui:historical:mode:
-  type: str
+  type: enum
+  choices: ["live", "historical"]
   default: "historical"
   description: >-
     Operational mode of the Historical View.
@@ -298,7 +302,7 @@ gui:inspector:histogram_bins:
 # ---------------------------------------------------------------------------
 
 gui:export:default_path:
-  type: str
+  type: directory_path
   default: "~/Data"
   description: >-
     Default file system path presented in the "Save As" dialog.
@@ -314,7 +318,7 @@ gui:export:image_format:
 # ---------------------------------------------------------------------------
 
 pipeline:ingress:polling_location:
-  type: str
+  type: directory_path
   default: "~/Google\\ Drive\\/My\\ Drive/FITS"
   description: >-
     File path on local system to poll for new FITS data.

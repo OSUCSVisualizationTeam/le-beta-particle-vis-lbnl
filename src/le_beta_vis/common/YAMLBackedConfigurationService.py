@@ -82,6 +82,12 @@ class YAMLBackedConfigurationService(ConfigurationService):
         """
         return self._load_bundled_defaults_metadata()
 
+    def reset_to_defaults(self) -> None:
+        """Reset all configuration keys to bundled default values."""
+        with self._lock:
+            self._store = self._load_bundled_defaults()
+            self._persist()
+
     # ------------------------------------------------------------------
     # Path resolution
     # ------------------------------------------------------------------

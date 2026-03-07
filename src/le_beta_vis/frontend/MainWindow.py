@@ -1,5 +1,11 @@
+import sys
+
 from PySide6.QtWidgets import (
-    QMainWindow, QTabWidget, QWidget, QVBoxLayout, QFileDialog,
+    QMainWindow,
+    QTabWidget,
+    QWidget,
+    QVBoxLayout,
+    QFileDialog,
 )
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from .viewmodels.MainViewModel import MainViewModel
@@ -7,19 +13,14 @@ from .views.RawDataView import RawDataView
 from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
 from .viewmodels.HistoricalViewModel import (
-    HistoricalViewModel, HistoricalMode,
+    HistoricalViewModel,
+    HistoricalMode,
 )
 from le_beta_vis.common.ClusterExtractorFactory import (
     create_cluster_extractor,
 )
-from le_beta_vis.common.MockEventRepository import (
-    MockEventRepository, 
-)
 from le_beta_vis.common.ZMQBasedEventRepository import (
     ZMQBasedEventRepository,
-)
-from le_beta_vis.common.ConfigurationService import(
-    MockConfigurationService,
 )
 from pathlib import Path
 
@@ -35,18 +36,16 @@ class MainWindow(QMainWindow):
 
         icon_path = (
             Path(__file__).resolve().parent.parent
-            / "resources" / "icons" / "lbnl-logo.png"
+            / "resources"
+            / "icons"
+            / "lbnl-logo.png"
         )
         self.setWindowIcon(QIcon(str(icon_path)))
 
         # Window Geometry
         self.setMinimumSize(960, 600)
-        width = self.viewModel.configService.get(
-            "gui:window:default_width", 1024
-        )
-        height = self.viewModel.configService.get(
-            "gui:window:default_height", 700
-        )
+        width = self.viewModel.configService.get("gui:window:default_width", 1024)
+        height = self.viewModel.configService.get("gui:window:default_height", 700)
         self.resize(width, height)
 
         # Central Widget
@@ -70,7 +69,7 @@ class MainWindow(QMainWindow):
         self.historicalViewModel = HistoricalViewModel(
             self.viewModel.configService,
             self.viewModel.physicsManager,
-            ZMQBasedEventRepository(MockConfigurationService()),
+            ZMQBasedEventRepository(self.viewModel.configService),
         )
 
         # Initialize Child Views
@@ -102,6 +101,19 @@ class MainWindow(QMainWindow):
 
         fileMenu.addSeparator()
 
+        # Settings Action
+        if sys.platform == "darwin":
+            settingsAction = QAction(self.tr("&Preferences"), self)
+            settingsAction.setShortcut(QKeySequence("Ctrl+,"))
+            settingsAction.setMenuRole(QAction.MenuRole.PreferencesRole)
+        else:
+            settingsAction = QAction(self.tr("&Settings"), self)
+        settingsAction.setStatusTip(self.tr("Configure application settings"))
+        settingsAction.triggered.connect(self._onOpenSettings)
+        fileMenu.addAction(settingsAction)
+
+        fileMenu.addSeparator()
+
         # Exit Action
         exitAction = QAction(self.tr("E&xit"), self)
         exitAction.setShortcut(QKeySequence.Quit)
@@ -116,13 +128,20 @@ class MainWindow(QMainWindow):
         self.toggleLiveAction = QAction(self.tr("Switch to Live Mode"), self)
         self.toggleLiveAction.setCheckable(True)
         self.toggleLiveAction.setChecked(False)  # Initial state
-        self.toggleLiveAction.triggered.connect(
-            self.onToggleLiveMode
-        )
+        self.toggleLiveAction.triggered.connect(self.onToggleLiveMode)
         viewMenu.addAction(self.toggleLiveAction)
 
         # Sync initial state
         self.onModeChanged(self.historicalViewModel.mode)
+
+    def _onOpenSettings(self):
+        """Open the Settings dialog."""
+        from .viewmodels.SettingsViewModel import SettingsViewModel
+        from .widgets.SettingsDialog import SettingsDialog
+
+        vm = SettingsViewModel(self.viewModel.configService)
+        dialog = SettingsDialog(vm, parent=self)
+        dialog.exec()
 
     def onOpenFile(self):
         """Open a file dialog and load it into the Raw Data view."""

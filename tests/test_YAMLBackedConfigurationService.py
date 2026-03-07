@@ -101,6 +101,28 @@ class TestTypeCoercion:
         svc, _ = _make_service(tmp_path, initial={"name": "viridis"})
         assert svc.get("name") == "viridis"
 
+    def test_custom_types_coerced_as_strings(self, tmp_path):
+        svc, _ = _make_service(tmp_path, initial={"dir": "~/data", "file": "data.csv", "mode": "live"})
+        # Manually register the custom types
+        svc._type_registry["dir"] = "directory_path"
+        svc._type_registry["file"] = "file_path"
+        svc._type_registry["mode"] = "enum"
+        
+        # Test they load their current values ok
+        assert svc.get("dir") == "~/data"
+        assert svc.get("file") == "data.csv"
+        assert svc.get("mode") == "live"
+        
+        # Test they coerce non-string values correctly through set() + get()
+        svc.set("dir", 1234)
+        assert svc.get("dir") == "1234"
+        
+        svc.set("file", 5678)
+        assert svc.get("file") == "5678"
+        
+        svc.set("mode", 1)
+        assert svc.get("mode") == "1"
+
     def test_yaml_native_types_without_registry(self, tmp_path):
         """Values loaded from YAML that have no registry entry
         should pass through unchanged."""
@@ -194,6 +216,31 @@ class TestGetMetadata:
         assert "default" in entry
         assert "description" in entry
         assert entry["type"] == "float"
+
+
+# ------------------------------------------------------------------
+# reset_to_defaults()
+# ------------------------------------------------------------------
+
+class TestResetToDefaults:
+    def test_reset_restores_all_defaults(self, tmp_path):
+        svc, _ = _make_service(tmp_path)
+        # Trigger lazy load then override a key
+        svc.get("gui:raw_analysis:default_colormap")
+        svc.set("gui:raw_analysis:default_colormap", "plasma")
+        assert svc.get("gui:raw_analysis:default_colormap") == "plasma"
+
+        svc.reset_to_defaults()
+        assert svc.get("gui:raw_analysis:default_colormap") == "viridis"
+
+    def test_reset_persists_to_disk(self, tmp_path):
+        svc, path = _make_service(tmp_path)
+        svc.get("eps:timeout_ms")
+        svc.set("eps:timeout_ms", 9999)
+        svc.reset_to_defaults()
+
+        data = _read_yaml(path)
+        assert data["eps:timeout_ms"] == 5000
 
 
 # ------------------------------------------------------------------

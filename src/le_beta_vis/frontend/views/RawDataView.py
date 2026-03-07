@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QStyleFactory,
     QTabWidget,
     QToolButton,
     QVBoxLayout,
@@ -101,7 +102,25 @@ class _Style:
     )
     RIGHT_SIDEBAR = """
         QFrame { background-color: #f0f0f0; border-left: 1px solid #ccc; }
-        QGroupBox { color: #000000; }
+        QWidget { background-color: #f0f0f0; }
+        QTabWidget::pane {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+        QTabBar::tab {
+            background-color: #e0e0e0;
+            color: #000000;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+        }
+        QTabBar::tab:selected {
+            background-color: #f0f0f0;
+        }
+        QGroupBox { color: #000000; background-color: #f0f0f0; }
         QGroupBox::title { color: #000000; }
         QLabel { color: #000000; background: transparent; }
         QPushButton { color: #000000; }
@@ -368,6 +387,7 @@ class RawDataView(QWidget):
     def _setupRightSidebar(self):
         self.rightSidebar = QFrame()
         self.rightSidebar.setFixedWidth(300)
+        self.rightSidebar.setStyle(QStyleFactory.create("Fusion"))
         self.rightSidebar.setStyleSheet(_Style.RIGHT_SIDEBAR)
         self.rightLayout = QVBoxLayout(self.rightSidebar)
         self.rightLayout.setContentsMargins(10, 10, 10, 10)
@@ -442,6 +462,7 @@ class RawDataView(QWidget):
         vmin, vmax = self.viewModel.visualizationRange
         self.rangeControl.setValues(vmin, vmax)
         self.rangeControl.setColormap(self.viewModel.colormap)
+        self.cmapSelector.setCurrentText(self.viewModel.colormap)
 
     def _bindToolCallbacks(self):
         """Wire active tool, magnifier, and pointer hover callbacks."""

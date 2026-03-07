@@ -14,3 +14,4 @@ from .HistoricalFilterBar import HistoricalFilterBar
 from .HistoricalAdvancedFilterDialog import (
     HistoricalAdvancedFilterDialog,
 )
+from .SettingsDialog import SettingsDialog
