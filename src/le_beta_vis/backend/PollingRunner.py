@@ -6,7 +6,7 @@ from .InitializePolling import PollingThread
 
 logger = logging.getLogger(__name__)
 
-class PollingRunner():
+class PollingRunner:
     """Initializes the File Ingest Service and maintains thread execution."""
     def __init__(self):
         self.thread: Optional[threading.Thread] = None

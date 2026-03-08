@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "src")))
 from PySide6.QtGui import QIcon  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from le_beta_vis.frontend.MainWindow import MainWindow  # noqa: E402
+from le_beta_vis.backend.ServicesManager import ServicesManager
 
 log = logging.getLogger(__name__)
 
@@ -110,8 +111,15 @@ def main():
     # if translator.load(QLocale.system(), "app", "_", "translations"):
     #     app.installTranslator(translator)
 
+    services = ServicesManager()
+    services.start_all()
+
     window = MainWindow()
     window.show()
+
+    def cleanup():
+        services.stop_all()
+    app.aboutToQuit.connect(cleanup)
     sys.exit(app.exec())
 
 

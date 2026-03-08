@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class EPSRunner:
     """Initializes the EventPersistenceService and maintains thread execution."""
     def __init__(self):
-        self.thread = Optional[threading.Thread] = None
+        self.thread: Optional[threading.Thread] = None
         self.running = False
 
     def start(self, EPS: EventPersistence):
