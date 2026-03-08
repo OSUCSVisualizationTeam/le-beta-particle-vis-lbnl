@@ -75,60 +75,69 @@ class EventPersistence():
     def initialize_server(self):
         """Initialize the zmq server endpoint socket to listen for requests"""
         context_manager = zmq.Context()
-        fits_socket = context_manager.socket(zmq.REP)
-        fits_socket.bind(self.config.get("eps:fits_ipc"))    #EPC***.ipc will be the file created for IPC, becomes a pipe on windows
-        cluster_socket = context_manager.socket(zmq.REP)
-        cluster_socket.bind(self.config.get("eps:cluster_ipc"))
-        command_socket = context_manager.socket(zmq.REP)
-        command_socket.bind(self.config.get("eps:command_ipc"))
+        fits_socket = None
+        cluster_socket = None
+        command_socket = None
 
-        socket_poller = zmq.Poller()
-        socket_poller.register(fits_socket, zmq.POLLIN)
-        socket_poller.register(cluster_socket, zmq.POLLIN)
-        socket_poller.register(command_socket, zmq.POLLIN)
 
-        EPS_is_active = True
+        try:
+            fits_socket = context_manager.socket(zmq.REP)
+            fits_socket.bind(self.config.get("eps:fits_ipc"))    #EPC***.ipc will be the file created for IPC, becomes a pipe on windows
+            cluster_socket = context_manager.socket(zmq.REP)
+            cluster_socket.bind(self.config.get("eps:cluster_ipc"))
+            command_socket = context_manager.socket(zmq.REP)
+            command_socket.bind(self.config.get("eps:command_ipc"))
 
-        while True:
-            try:
-                # timeout can be adjusted for performance
-                sockets = dict(socket_poller.poll(timeout=100))
+            socket_poller = zmq.Poller()
+            socket_poller.register(fits_socket, zmq.POLLIN)
+            socket_poller.register(cluster_socket, zmq.POLLIN)
+            socket_poller.register(command_socket, zmq.POLLIN)
 
-                if cluster_socket in sockets:
-                    request = cluster_socket.recv_json()
-                    if EPS_is_active == False:
-                        cluster_socket.send_json({"Error": "Server is stopped."})
-                    else:
-                        self.cluster_event(request, cluster_socket)
+            EPS_is_active = True
 
-                if fits_socket in sockets:
-                    request = fits_socket.recv_json()
-                    if EPS_is_active == False:
-                        fits_socket.send_json({"Error": "Server is stopped."})
-                    else:
-                        self.fits_event(request, fits_socket)
+            while True:
+                try:
+                    # timeout can be adjusted for performance
+                    sockets = dict(socket_poller.poll(timeout=100))
 
-                if command_socket in sockets:
-                    request = command_socket.recv_json()
-                    if request.get("Command") == "Kill":
-                        print("EPS received kill command.")
-                        break
-                    if request.get("Command") == "Stop":
-                        EPS_is_active = False
-                        command_socket.send_json({"Action": "Server stopped"})
-                    if request.get("Command") == "Start" and EPS_is_active == False:
-                        EPS_is_active = True
-                        command_socket.send_json({"Action": "Server started"})
-                    else:
-                        command_socket.send_json({"Error": "Invalid request"})
+                    if cluster_socket in sockets:
+                        request = cluster_socket.recv_json()
+                        if EPS_is_active == False:
+                            cluster_socket.send_json({"Error": "Server is stopped."})
+                        else:
+                            self.cluster_event(request, cluster_socket)
 
-            except zmq.ZMQError as err:
-                print(f"ERROR: {err}")
+                    if fits_socket in sockets:
+                        request = fits_socket.recv_json()
+                        if EPS_is_active == False:
+                            fits_socket.send_json({"Error": "Server is stopped."})
+                        else:
+                            self.fits_event(request, fits_socket)
 
-        cluster_socket.close()
-        fits_socket.close()
-        command_socket.close()
-        context_manager.term()
+                    if command_socket in sockets:
+                        request = command_socket.recv_json()
+                        if request.get("Command") == "Kill":
+                            print("EPS received kill command.")
+                            break
+                        if request.get("Command") == "Stop":
+                            EPS_is_active = False
+                            command_socket.send_json({"Action": "Server stopped"})
+                        if request.get("Command") == "Start" and EPS_is_active == False:
+                            EPS_is_active = True
+                            command_socket.send_json({"Action": "Server started"})
+                        else:
+                            command_socket.send_json({"Error": "Invalid request"})
+
+                except zmq.ZMQError as err:
+                    print(f"ERROR: {err}")
+        finally:
+            if cluster_socket:
+                cluster_socket.close()
+            if fits_socket:
+                fits_socket.close()
+            if command_socket:
+                command_socket.close()
+            context_manager.term()
 
     def db_connect(self):
         """

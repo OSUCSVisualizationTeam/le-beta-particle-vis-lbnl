@@ -6,6 +6,7 @@ import sys
 import queue
 from pathlib import Path
 import threading
+import logging
 
 # Needed for local imports, can be removed later when called by main program
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -13,21 +14,23 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 from le_beta_vis.common.YAMLBackedConfigurationService import YAMLBackedConfigurationService
 from le_beta_vis.backend.FileProcessing import ProcessFile
 
+logger = logging.getLogger(__name__)
+
 class PollingThread():
     """
     Polling thread class for input database, location determined from configuration service.
     Manages starting polls and processing.
     """
-    def __init__(self, config_service: YAMLBackedConfigurationService):
+    def __init__(self):
 
         # Temporary polling location, will be taken from config_service.get("pipeline:ingress:polling_location")
         # Modify this path for testing
-        self.config_service = config_service
-        self.polling_location = Path(config_service.get("pipeline:ingress:polling_location"))
+        self.config_service = YAMLBackedConfigurationService()
+        self.polling_location = Path(self.config_service.get("pipeline:ingress:polling_location"))
 
         # Early exit in polling operations if the path doesn't exist, can add logging here later
         if not os.path.exists(self.polling_location):
-            return
+            logger.error("Configured File Ingest path does not exist. Change in configuration and restart.")
         #Ensure temp and processed dirs are created and set
         # os.makedirs(os.path.join(self.polling_location, "/_temp"), exist_ok=True)
         # os.makedirs(os.path.join(self.polling_location, "/Processed"), exist_ok=True)

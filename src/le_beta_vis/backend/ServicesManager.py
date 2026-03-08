@@ -18,9 +18,8 @@ class ServicesManager:
     def start_all(self):
         """Start EPS and Polling with EPS and Polling threads."""
         try:
-            EPS = EventPersistence()
             polling = PollingThread()
-            self.EPS.start(EPS)
+            self.EPS.start()
             self.Polling.start(polling)
         except Exception as e:
             logger.error(f"There was an issue starting the EPS and file ingest. {e}")

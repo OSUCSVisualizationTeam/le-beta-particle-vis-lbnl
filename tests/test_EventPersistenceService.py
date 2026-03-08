@@ -42,11 +42,18 @@ class TestEventPersistenceInitialization(unittest.TestCase):
     """Test cases for EventPersistence initialization"""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     def test_initialization(self, mock_init_server, mock_db_connect, mock_config):
         """Test EventPersistence initialization"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+
         ep = EventPersistence()
 
         self.assertIsNotNone(ep.config)
@@ -62,13 +69,20 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
     """Test cases for database connection"""
 
     @patch('le_beta_vis.backend.EventPersistenceService.mysql.connector.connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     def test_db_connect_success(self, mock_config, mock_init_server, mock_mysql_connect):
         """Test successful database connection"""
         mock_connection = MagicMock()
         mock_mysql_connect.return_value = mock_connection
+        
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
 
         ep = EventPersistence()
         conn = ep.db_connect()
@@ -82,13 +96,20 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
         self.assertEqual(conn, mock_connection)
 
     @patch('le_beta_vis.backend.EventPersistenceService.mysql.connector.connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     def test_db_connect_failure(self, mock_config, mock_init_server, mock_mysql_connect):
         """Test database connection failure"""
         import mysql.connector
         mock_mysql_connect.side_effect = mysql.connector.Error("Connection failed")
+        
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
 
         ep = EventPersistence()
         with patch('builtins.print') as mock_print:
@@ -102,10 +123,17 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_store_fits_success(self, mock_db_connect, mock_init_server, mock_config):
         """Test successful fits storage"""
         # Setup mocks
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -136,9 +164,16 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_store_fits_failed_proc(self, mock_db_connect, mock_init_server, mock_config):
         """Test fits storage with failed procedure"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -166,9 +201,16 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_store_fits_reconnect_on_no_connection(self, mock_init_server, mock_config):
         """Test that store_fits reconnects if connection is lost"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -198,9 +240,16 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_store_cluster_success(self, mock_db_connect, mock_init_server, mock_config):
         """Test successful cluster storage"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -242,9 +291,16 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_store_cluster_failed_proc(self, mock_db_connect, mock_init_server, mock_config):
         """Test cluster storage with failed procedure"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -286,9 +342,16 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_retrieve_fits_success(self, mock_db_connect, mock_init_server, mock_config):
         """Test successful fits retrieval"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -321,9 +384,16 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_retrieve_fits_with_multiple_filters(self, mock_db_connect, mock_init_server, mock_config):
         """Test fits retrieval with multiple filter parameters"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -355,9 +425,16 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_retrieve_clusters_success(self, mock_db_connect, mock_init_server, mock_config):
         """Test successful clusters retrieval"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -399,9 +476,16 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_process_retrieval_fits_success(self, mock_db_connect, mock_init_server, mock_config):
         """Test processing successful fits retrieval results"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         ep = EventPersistence()
 
         results = [
@@ -421,9 +505,16 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_process_retrieval_fits_empty_results(self, mock_db_connect, mock_init_server, mock_config):
         """Test processing empty fits retrieval results"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         ep = EventPersistence()
 
         results = []
@@ -435,9 +526,16 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_process_retrieval_fits_error(self, mock_db_connect, mock_init_server, mock_config):
         """Test processing fits retrieval with error"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         ep = EventPersistence()
 
         error_msg = "Database error occurred"
@@ -454,9 +552,16 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_process_retrieval_clusters_success(self, mock_db_connect, mock_init_server, mock_config):
         """Test processing successful clusters retrieval results"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         ep = EventPersistence()
 
         results = [
@@ -475,9 +580,16 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_process_retrieval_clusters_empty_results(self, mock_db_connect, mock_init_server, mock_config):
         """Test processing empty clusters retrieval results"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         ep = EventPersistence()
 
         results = []
@@ -489,9 +601,16 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_process_retrieval_clusters_error(self, mock_db_connect, mock_init_server, mock_config):
         """Test processing clusters retrieval with error"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         ep = EventPersistence()
 
         error_msg = "Database error occurred"
@@ -509,9 +628,16 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'store_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_cluster_event_storage_success(self, mock_db_connect, mock_store_cluster, mock_init_server, mock_config):
         """Test cluster event with Storage action"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
         mock_store_cluster.return_value = 42
 
@@ -542,9 +668,16 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'store_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_cluster_event_storage_failure(self, mock_db_connect, mock_store_cluster, mock_init_server, mock_config):
         """Test cluster event with Storage action that fails"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
         mock_store_cluster.return_value = None
 
@@ -575,9 +708,16 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'retrieve_clusters')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_cluster_event_retrieval(self, mock_db_connect, mock_retrieve_clusters, mock_init_server, mock_config):
         """Test cluster event with Retrieval action"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
         mock_retrieve_clusters.return_value = {"result": "success", "clusters": []}
 
@@ -605,9 +745,16 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_cluster_event_missing_required_field(self, mock_db_connect, mock_init_server, mock_config):
         """Test cluster event with missing required field"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
 
         ep = EventPersistence()
@@ -630,9 +777,16 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'store_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_fits_event_storage_success(self, mock_db_connect, mock_store_fits, mock_init_server, mock_config):
         """Test fits event with Storage action"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
         mock_store_fits.return_value = 42
 
@@ -659,9 +813,16 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'store_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_fits_event_storage_failure(self, mock_db_connect, mock_store_fits, mock_init_server, mock_config):
         """Test fits event with Storage action that fails"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
         mock_store_fits.return_value = None
 
@@ -688,9 +849,16 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'retrieve_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_fits_event_retrieval(self, mock_db_connect, mock_retrieve_fits, mock_init_server, mock_config):
         """Test fits event with Retrieval action"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
         mock_retrieve_fits.return_value = {"result": "success", "fits": []}
 
@@ -715,9 +883,16 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch.object(EventPersistence, 'retrieve_fits')
     @patch.object(EventPersistence, 'retrieve_clusters')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_fits_event_clusters(self, mock_db_connect, mock_retrieve_clusters, mock_retrieve_fits, mock_init_server, mock_config):
         """Test fits event with Clusters action"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
         mock_retrieve_fits.return_value = {"result": "success", "fits": [{"fits_id": 1}]}
         mock_retrieve_clusters.return_value = {"result": "success", "clusters": []}
@@ -741,9 +916,16 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    @patch.dict(os.environ, {'DB_USER': 'test_user', 'DB_PASS': 'test_pass', 'DB_NAME': 'test_db'})
     def test_fits_event_missing_required_field(self, mock_db_connect, mock_init_server, mock_config):
         """Test fits event with missing required field"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+        
         mock_socket = MagicMock()
 
         ep = EventPersistence()
