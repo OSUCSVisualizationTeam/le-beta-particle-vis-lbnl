@@ -21,11 +21,11 @@ class PollingThread():
     Polling thread class for input database, location determined from configuration service.
     Manages starting polls and processing.
     """
-    def __init__(self):
+    def __init__(self, config_service=None):
 
         # Temporary polling location, will be taken from config_service.get("pipeline:ingress:polling_location")
         # Modify this path for testing
-        self.config_service = YAMLBackedConfigurationService()
+        self.config_service = config_service or YAMLBackedConfigurationService()
         self.polling_location = Path(self.config_service.get("pipeline:ingress:polling_location"))
 
         # Early exit in polling operations if the path doesn't exist, can add logging here later
