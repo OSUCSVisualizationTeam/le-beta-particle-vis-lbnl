@@ -123,7 +123,7 @@ END //
 DROP VIEW IF EXISTS v_tritium_candidates;
 
 CREATE VIEW v_tritium_candidates as
-SELECT * FROM clusters
+SELECT * FROM clusters 
 WHERE classification = "tritium"
 ORDER BY classification DESC;
 
