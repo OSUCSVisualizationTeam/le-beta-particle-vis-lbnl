@@ -22,10 +22,10 @@ class EventPersistence():
     """
     def __init__(self):
         self.config = YAMLBackedConfigurationService()
-        self.db_host="localhost"
-        self.db_user=os.environ.get("DB_USER")
-        self.db_password=os.environ.get("DB_PASS")
-        self.database=os.environ.get("DB_NAME")
+        self.db_host=self.config.get("global:db:hostname")
+        self.db_user=self.config.get("global:db:username")
+        self.db_password=self.config.get("global:db:password")
+        self.database=self.config.get("global:db:database")
         self.conn = None
 
         # Initialize storage and retrieval dictionaries to avoid unbound local errors
@@ -76,11 +76,11 @@ class EventPersistence():
         """Initialize the zmq server endpoint socket to listen for requests"""
         context_manager = zmq.Context()
         fits_socket = context_manager.socket(zmq.REP)
-        fits_socket.bind("ipc:///tmp/EPCFits.ipc")    #EPC***.ipc will be the file created for IPC, becomes a pipe on windows
+        fits_socket.bind(self.config.get("eps:fits_ipc"))    #EPC***.ipc will be the file created for IPC, becomes a pipe on windows
         cluster_socket = context_manager.socket(zmq.REP)
-        cluster_socket.bind("ipc:///tmp/EPCCluster.ipc")
+        cluster_socket.bind(self.config.get("eps:cluster_ipc"))
         command_socket = context_manager.socket(zmq.REP)
-        command_socket.bind("ipc:///tmp/EPCCommand.ipc")
+        command_socket.bind(self.config.get("eps:command_ipc"))
 
         socket_poller = zmq.Poller()
         socket_poller.register(fits_socket, zmq.POLLIN)

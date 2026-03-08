@@ -10,7 +10,7 @@ import threading
 # Needed for local imports, can be removed later when called by main program
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from le_beta_vis.common.ConfigurationService import ConfigurationService
+from le_beta_vis.common.YAMLBackedConfigurationService import YAMLBackedConfigurationService
 from le_beta_vis.backend.FileProcessing import ProcessFile
 
 class PollingThread():
@@ -18,7 +18,7 @@ class PollingThread():
     Polling thread class for input database, location determined from configuration service.
     Manages starting polls and processing.
     """
-    def __init__(self, config_service: ConfigurationService):
+    def __init__(self, config_service: YAMLBackedConfigurationService):
 
         # Temporary polling location, will be taken from config_service.get("pipeline:ingress:polling_location")
         # Modify this path for testing
@@ -57,7 +57,7 @@ class PollingThread():
         self.observer.stop()
         self.ingest_thread.join()
 
-    def file_uploaded(self, queue: queue.Queue, config: ConfigurationService, stop_event: threading.Event):
+    def file_uploaded(self, queue: queue.Queue, config: YAMLBackedConfigurationService, stop_event: threading.Event):
         while not stop_event.is_set():
             try:
                 path = queue.get(timeout=1)  # Wait for 1 second
@@ -96,7 +96,7 @@ class FileWatcher():
         self.observer.schedule(self.handler, self.path, recursive=False)
         self.observer.start()
 
-def file_uploaded(queue: queue.Queue, config: ConfigurationService, stop_event: threading.Event = None):
+def file_uploaded(queue: queue.Queue, config: YAMLBackedConfigurationService, stop_event: threading.Event = None):
     if stop_event is None:
         stop_event = threading.Event()  # Not set, so loop runs
     while not stop_event.is_set():
