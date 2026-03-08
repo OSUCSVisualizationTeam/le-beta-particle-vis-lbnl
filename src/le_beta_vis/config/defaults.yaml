@@ -10,9 +10,15 @@
 
 global:db:connection_string:
   type: str
-  default: "mysql://localhost/le_beta_vis"
+  default: "localhost"
   description: >-
-    Database connection URI for the Event Persistence Service.
+    Database host for the Event Persistence Service.
+
+global:db:connection_string:
+  type: str
+  default: "le_beta_vis"
+  description: >-
+    Database name for the Event Persistence Service.  
 
 global:db:username:
   type: str
