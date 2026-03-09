@@ -51,11 +51,21 @@ def test_polling_thread_begins(mock_config):
     """
     Tests the polling thread creation of the file watcher and event handler
     """
-    with patch('le_beta_vis.backend.InitializePolling.FileWatcher') as MockWatcher, patch('threading.Thread') as MockThread:
+    mock_observer = MagicMock()
+    mock_thread = MagicMock()
+    
+    with patch('le_beta_vis.backend.InitializePolling.FileWatcher', return_value=mock_observer) as MockWatcher, \
+         patch('threading.Thread', return_value=mock_thread) as MockThread:
         polling = PollingThread(mock_config)
         polling.begin()
+        
         MockWatcher.assert_called_once_with(polling.handler, Path("/tmp"))
         MockThread.assert_called_once()
+        mock_thread.start.assert_called_once()
+        
+        # Cleanup
+        polling.stop_event.set()
+        mock_observer.stop.assert_not_called()
 
 @pytest.fixture
 def polling_runner():
@@ -66,24 +76,37 @@ def test_polling_runner_start(polling_runner, mock_config):
     Tests starting the PollingRunner with a PollingThread.
     """
     poller = PollingThread(mock_config)
-    with patch.object(poller, '__call__') as mock_call:
+    
+    # Mock the poller to prevent it from actually running
+    with patch.object(poller, 'begin'), patch.object(poller, 'end'):
         polling_runner.start(poller)
         assert polling_runner.running is True
         assert polling_runner.poller is poller
         assert polling_runner.thread is not None
         assert polling_runner.thread.daemon is True
-        mock_call.assert_not_called()  # __call__ is called in the thread
+        
+        # Cleanup - stop the runner
+        polling_runner.stop()
+        time.sleep(0.1)  # Give thread time to stop
 
 def test_polling_runner_is_running(polling_runner, mock_config):
     """
     Tests the is_running method.
     """
     poller = PollingThread(mock_config)
-    with patch.object(poller, 'begin'), patch.object(poller, 'end'):
+    
+    # Mock begin and end to prevent actual file watching
+    with patch.object(poller, 'begin', side_effect=lambda: None) as mock_begin, \
+         patch.object(poller, 'end', side_effect=lambda: None) as mock_end:
+        
         polling_runner.start(poller)
         assert polling_runner.is_running() is True
+        
         polling_runner.stop()
-        time.sleep(0.1)  # Allow thread to stop
+        time.sleep(0.2)  # Allow thread to stop
+        
+        # Verify end was called
+        mock_end.assert_called_once()
         assert polling_runner.is_running() is False
 
 def test_polling_runner_stop(polling_runner, mock_config):
@@ -91,17 +114,32 @@ def test_polling_runner_stop(polling_runner, mock_config):
     Tests stopping the PollingRunner.
     """
     poller = PollingThread(mock_config)
-    with patch.object(poller, 'end'):
+    
+    # Mock begin and end to prevent actual file watching
+    with patch.object(poller, 'begin'), patch.object(poller, 'end') as mock_end:
         polling_runner.start(poller)
+        assert polling_runner.running is True
+        
         polling_runner.stop()
+        time.sleep(0.1)  # Allow thread to stop
+        
         assert polling_runner.running is False
-        poller.end.assert_called_once()
+        mock_end.assert_called_once()
 
 def test_polling_runner_start_already_running(polling_runner, mock_config, caplog):
     """
     Tests starting when already running logs a warning.
     """
     poller = PollingThread(mock_config)
-    polling_runner.start(poller)
-    polling_runner.start(poller)  # Try to start again
-    assert "File Ingest is already running" in caplog.text
+    
+    # Mock begin and end to prevent actual file watching
+    with patch.object(poller, 'begin'), patch.object(poller, 'end'):
+        polling_runner.start(poller)
+        polling_runner.start(poller)  # Try to start again
+        
+        # Check for warning in logs
+        assert "File Ingest is already running" in caplog.text
+        
+        # Cleanup
+        polling_runner.stop()
+        time.sleep(0.1)
