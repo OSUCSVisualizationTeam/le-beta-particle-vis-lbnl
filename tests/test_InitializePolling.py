@@ -8,7 +8,6 @@ import time
 from le_beta_vis.backend.InitializePolling import PollingThread
 from le_beta_vis.backend.InitializePolling import EventHandler
 from le_beta_vis.backend.InitializePolling import FileWatcher
-from le_beta_vis.backend.InitializePolling import file_uploaded
 from le_beta_vis.backend.PollingRunner import PollingRunner
 from mock_configuration_service import MockConfigurationService
 
@@ -41,9 +40,9 @@ def test_only_fits_processed(mock_config):
     mock_queue.get.side_effect = ["testing.fits", "testing.txt", Exception("timeout")]
 
     with patch('le_beta_vis.backend.InitializePolling.ProcessFile') as mock_process:
-        from le_beta_vis.backend.InitializePolling import file_uploaded
+        polling = PollingThread(mock_config)
         try:
-            file_uploaded(mock_queue, mock_config, stop_event)
+            polling.file_uploaded(mock_queue, mock_config, stop_event)
         except Exception:
             pass  # Expected to timeout after processing
         mock_process.assert_called_once_with(config_service=mock_config, file="testing.fits")
