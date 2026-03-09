@@ -3,9 +3,9 @@ from le_beta_vis.common.YAMLBackedConfigurationService import YAMLBackedConfigur
 import os
 import zmq
 import numpy as np
-from dotenv import load_dotenv
+import logging
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 class FailedProcException(Exception):
     """
@@ -129,7 +129,7 @@ class EventPersistence():
                             command_socket.send_json({"Error": "Invalid request"})
 
                 except zmq.ZMQError as err:
-                    print(f"ERROR: {err}")
+                    print(f"ERROR: {str(err)}")
         finally:
             if cluster_socket:
                 cluster_socket.close()
@@ -156,11 +156,12 @@ class EventPersistence():
 
     def cluster_event(self, request: dict, socket: zmq.Socket):
         """Processes a requested cluster event and calls storage or retrieval of cluster."""
+        logger.info("Cluster request received by EPS.")
         if request.get("Action") == "Storage":
             # Reassemble JSON as dict for storage in object
             try:
                 self.cluster_to_store = {
-                        "data": np.array(request.get("data")),
+                        "data": request.get("data"),
                         "bounding_box": request.get("bounding_box"),
                         "hdu_id": request.get("hdu_id"),
                         "sigmaX": request.get("sigmaX"),
@@ -176,12 +177,12 @@ class EventPersistence():
                 else:
                     raise FailedProcException
             except FailedProcException as err:
-                socket.send_json({"result": "failure", "cluster_id": None, "error": err})
+                socket.send_json({"result": "failure", "cluster_id": None, "error": str(err)})
 
         elif request.get("Action") == "Retrieval":
             try:
                 self.retrieval_clusters = {
-                        "data": np.array(request.get("data")),
+                        "data": request.get("data"),
                         "cluster_id": request.get("cluster_id"),
                         "bounding_box": request.get("bounding_box"),
                         "date": request.get("date"),
@@ -195,11 +196,12 @@ class EventPersistence():
                 }
                 response = self.retrieve_clusters()
                 socket.send_json(response)
-            except KeyError as err:
-                socket.send_json({"result": "failure", "clusters": None, "error": err})
+            except Exception as err:
+                socket.send_json({"result": "failure", "clusters": None, "error": str(err)})
 
     def fits_event(self, request: dict, socket: zmq.Socket):
         """Processes a requested cluster event and calls storage or retrieval of cluster."""
+        logger.info("Fits request received by EPS.")
         if request.get("Action") == "Storage":
             # Reassemble JSON as dict for storage in object
             try:
@@ -216,7 +218,7 @@ class EventPersistence():
                 else:
                     raise FailedProcException
             except FailedProcException as err:
-                socket.send_json({"result": "failure", "fits_id": None, "error": err})
+                socket.send_json({"result": "failure", "fits_id": None, "error": str(err)})
 
         elif request.get("Action") == "Retrieval":
             try:
@@ -230,8 +232,8 @@ class EventPersistence():
                     }
                 response = self.retrieve_fits()
                 socket.send_json(response)
-            except KeyError as err:
-                socket.send_json({"result": "failure", "fits": None, "error": err})
+            except Exception as err:
+                socket.send_json({"result": "failure", "fits": None, "error": str(err)})
 
         elif request.get("Action") == "Clusters":
             try:
@@ -264,8 +266,8 @@ class EventPersistence():
 
                 response = self.retrieve_clusters()
                 socket.send_json(response)
-            except KeyError as err:
-                socket.send_json({"result": "failure", "clusters": None, "error": err})
+            except Exception as err:
+                socket.send_json({"result": "failure", "clusters": None, "error": str(err)})
 
     def store_fits(self) -> int:
         """Uses the persistent EPS DB connection to call the stored procedure insert_fits on the database
@@ -280,27 +282,21 @@ class EventPersistence():
             minimum = self.fits_to_store["minimum"]
             maximum = self.fits_to_store["maximum"]
             exposure_time = self.fits_to_store["exposure_time"]
-            proc_args = (filename, date, minimum, maximum, exposure_time, (0, 'INT'))
-            cursor.callproc("insert_fits", proc_args)
+            proc_args = (filename, date, minimum, maximum, exposure_time, None)
 
-            fits_id = None
-            for result in cursor.stored_results():
-                id = result.fetchone()[0]
-                if id > 0:
-                    fits_id = id
-                else:
-                    self.conn.close()
-                    self.conn = None
-                    raise FailedProcException
-
-            # Commit results and close connection
-            self.conn.commit()
-            cursor.close()
-            return fits_id
+            fits_id = cursor.callproc("insert_fits", proc_args)[-1]
+            
+            if fits_id and fits_id > 0:
+                self.conn.commit()
+                cursor.close()
+                return fits_id
+            else:
+                self.conn.close()
+                self.conn = None
+                raise FailedProcException
 
         except mysql.connector.Error as err:
-            print(f"Could not connect: {err}")
-            return err
+            logger.warning(f"Could not connect: {str(err)}")
 
     def store_cluster(self) -> int:
         """Uses the persistent EPS DB connection to call the stored procedure insert_cluster on the database
@@ -316,34 +312,27 @@ class EventPersistence():
             box_bottom = bounding_box.get("bottom")
             box_right = bounding_box.get("right")
 
-            proc_args = (self.cluster_to_store["fits_id"], self.cluster_to_store["data"],
+            proc_args = (self.cluster_to_store["fits_id"],
                          self.cluster_to_store["hdu_id"],
                          box_top, box_left, box_bottom, box_right,
+                        self.cluster_to_store["data"],
                          self.cluster_to_store["total_energy"],
                          self.cluster_to_store["sigmaX"], self.cluster_to_store["sigmaY"],
                          self.cluster_to_store["classification"],
-                         self.cluster_to_store["total_pixels"] ,(0, 'INT'))
-            cursor.callproc("insert_cluster", proc_args)
+                         self.cluster_to_store["total_pixels"], None)
 
-            cluster_id = None
-            for result in cursor.stored_results():
-                id = result.fetchone()[0]
-                if id > 0:
-                    cluster_id = id
-                else:
-                    self.conn.close()
-                    self.conn = None
-                    raise FailedProcException
-
-            # Commit results and close connection
-            self.conn.commit()
-            cursor.close()
-
-            return cluster_id
+            cluster_id = cursor.callproc("insert_cluster", proc_args)[-1]
+            if cluster_id and cluster_id > 0:
+                self.conn.commit()
+                cursor.close()
+                return cluster_id
+            else:
+                self.conn.close()
+                self.conn = None
+                raise FailedProcException
 
         except mysql.connector.Error as err:
-            print(f"Could not connect: {err}")
-            return err
+            logger.warning(f"Could not connect: {str(err)}")
 
     def retrieve_fits(self) -> dict:
         """Selects from the database all values from the fits table that match any and all values from the request."""
@@ -394,8 +383,7 @@ class EventPersistence():
             return self.process_retrieval_fits(results)
 
         except mysql.connector.Error as err:
-            print(f"Could not connect: {err}")
-            return err
+            logger.warning(f"Could not connect: {str(err)}")
 
     def retrieve_clusters(self) -> dict:
         """Selects from the database all values from the clusters table that match any and all values from the request."""
@@ -423,7 +411,7 @@ class EventPersistence():
                 select_args.append("data = %s")
                 select_argv.append(data)
             if hdu:
-                select_args.append("hduID = %s")
+                select_args.append("hdu_id = %s")
                 select_argv.append(hdu)
             if bounding_box:
                 select_args.extend(["top = %s", "left = %s", "bottom = %s", "right = %s"])
@@ -471,8 +459,7 @@ class EventPersistence():
             return self.process_retrieval_clusters(results)
 
         except mysql.connector.Error as err:
-            print(f"Could not connect: {err}")
-            return err
+            logger.warning(f"Could not connect: {str(err)}")
 
     def process_retrieval_fits(self, results) -> dict:
         """Takes the results from a fits retrieval SELECT statement and formats the EPS response into JSON
@@ -495,7 +482,7 @@ class EventPersistence():
             fits_list.append({
                 "fits_id": result[0],
                 "filename": result[1],
-                "date": result[2],
+                "date": str(result[2]),
                 "min": result[3],
                 "max": result[4],
                 "exposure_time": result[5]
@@ -522,17 +509,18 @@ class EventPersistence():
         clusters_list = []
         for result in results:
         # Tuple return from a select statement will be in the order:
-        # `fitsFile`, `hdu_id`, `clusterID`, `data`, `totalEnergy`, `sigmaX`, `sigmaY`, `classification`, `pixelCount`,
+        # `fitsFile`, `clusterID`, `hdu_id`, bounding_box, `data`, `totalEnergy`, `sigmaX`, `sigmaY`, `classification`, `pixelCount`,
             clusters_list.append({
                 "fits_id": result[0],
-                "hdu_id": result[1],
-                "cluster_id": result[2],
-                "data": result[3],
-                "total_energy": result[4],
-                "sigmaX": result[5],
-                "sigmaY": result[6],
-                "classification": result[7],
-                "total_pixels": result[8]
+                "cluster_id": result[1],
+                "hdu_id": result[2],
+                "bounding_box": {"top": result[3], "left": result[4], "bottom": result[5], "right": result[6]},
+                "data": None,
+                "total_energy": result[8],
+                "sigmaX": result[9],
+                "sigmaY": result[10],
+                "classification": result[11],
+                "total_pixels": result[12]
             })
         response = {
             "result": "success",

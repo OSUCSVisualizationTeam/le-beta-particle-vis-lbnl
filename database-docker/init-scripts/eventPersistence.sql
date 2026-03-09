@@ -6,7 +6,7 @@ USE `lbnlfits` ;
 
 DROP TABLE IF EXISTS `fits_files` ;
 CREATE TABLE IF NOT EXISTS `fits_files`(
-  `fitsID` INT NOT NULL,
+  `fitsID` INT NOT NULL AUTO_INCREMENT,
   `fileName` VARCHAR(255) NOT NULL,
   `date` DATETIME NOT NULL,
   `min` FLOAT NOT NULL,
@@ -18,13 +18,13 @@ CREATE TABLE IF NOT EXISTS `fits_files`(
 DROP TABLE IF EXISTS `clusters` ;
 CREATE TABLE IF NOT EXISTS `clusters` (
   `fitsFile` INT NOT NULL,
-  `clusterID` INT NOT NULL,
+  `clusterID` INT NOT NULL AUTO_INCREMENT,
   `hdu_id` INT NOT NULL,
   `box_top` INT NOT NULL,
   `box_left` INT NOT NULL,
   `box_bottom` INT NOT NULL,
   `box_right` INT NOT NULL,
-  `data` BLOB NOT NULL,
+  `data` BLOB,
   `totalEnergy` FLOAT NOT NULL,
   `sigmaX` FLOAT NOT NULL,
   `sigmaY` FLOAT NOT NULL,

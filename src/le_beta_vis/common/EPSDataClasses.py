@@ -46,8 +46,8 @@ class ClusterQueryFilter:
             d["hdu_id"] = self.hdu_id
         if self.date_start is not None and self.date_end is not None:
                 d["date"] = {}
-                d["date"]["start"] = self.date_start
-                d["date"]["end"] = self.date_end
+                d["date"]["start"] = str(self.date_start)
+                d["date"]["end"] = str(self.date_end)
         if self.bounding_box is not None:
             d["bounding_box"] = self.bounding_box
         if self.min_sigma_x is not None:
