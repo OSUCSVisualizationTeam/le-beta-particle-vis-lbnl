@@ -10,6 +10,7 @@ import logging
 import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import threading
 
 import numpy as np
 import zmq
@@ -81,10 +82,16 @@ class ZMQBasedEventRepository(EventRepository):
 
         raw_clusters = response.get("clusters", [])
         clusters: List[Cluster] = []
+        hdu_cache = dict()
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[0].filename
-            cluster = self._map_to_cluster(record, filename)
+            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
+                0
+            ].filename
+            if filename not in hdu_cache:
+                hdu_cache[filename] = CCDCaptureModel.load(filename)
+            hdus = hdu_cache[filename]
+            cluster = self._map_to_cluster(record, hdus[record.hdu_id])
             if cluster is not None:
                 clusters.append(cluster)
         return clusters
@@ -115,7 +122,9 @@ class ZMQBasedEventRepository(EventRepository):
             return False
         return True
 
-    def query_fits(self, query_filter: Optional[FitsQueryFilter] = None) -> List[EPSFitsRecord]:
+    def query_fits(
+        self, query_filter: Optional[FitsQueryFilter] = None
+    ) -> List[EPSFitsRecord]:
         """Sends a retrieval request to the EPS FITS socket."""
         if query_filter is not None:
             request = query_filter.to_eps_dict()
@@ -132,8 +141,10 @@ class ZMQBasedEventRepository(EventRepository):
             return []
         raw_files = response.get("fits", [])
         return [EPSFitsRecord.from_eps_dict(f) for f in raw_files]
-    
-    def query_fits_clusters(self, query_filter: Optional[FitsClusterQueryFilter] = None) -> List[EPSFitsRecord]:
+
+    def query_fits_clusters(
+        self, query_filter: Optional[FitsClusterQueryFilter] = None
+    ) -> List[EPSFitsRecord]:
         """Sends a retrieval request to the EPS FITS socket."""
         if query_filter is not None:
             request = query_filter.to_eps_dict()
@@ -151,14 +162,22 @@ class ZMQBasedEventRepository(EventRepository):
         raw_clusters = response.get("clusters", [])
         clusters: List[Cluster] = []
         filename = self.query_fits(FitsQueryFilter)
+        hdu_cache = dict()
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[0].filename
-            cluster = self._map_to_cluster(record, filename)
+            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
+                0
+            ].filename
+
+            if filename not in hdu_cache:
+                hdu_cache[filename] = CCDCaptureModel.load(filename)
+            hdus = hdu_cache[filename]
+
+            cluster = self._map_to_cluster(record, hdus[record.hdu_id])
             if cluster is not None:
                 clusters.append(cluster)
         return clusters
-    
+
     # ------------------------------------------------------------------
     # Socket helpers
     # ------------------------------------------------------------------
@@ -212,7 +231,9 @@ class ZMQBasedEventRepository(EventRepository):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _map_to_cluster(record: EPSClusterRecord, filename: str) -> Optional[Cluster]:
+    def _map_to_cluster(
+        record: EPSClusterRecord, ccdCapture: CCDCaptureModel
+    ) -> Optional[Cluster]:
         """Converts an ``EPSClusterRecord`` to a domain ``Cluster``.
 
         Handles the gaps between the EPS response and the frontend
@@ -227,9 +248,16 @@ class ZMQBasedEventRepository(EventRepository):
           single string, not per-model floats).
         """
         try:
-            bbox = BoundingBox(top=record.bounding_box["top"] , left=record.bounding_box["left"], 
-                               bottom=record.bounding_box["bottom"], right=record.bounding_box["right"])
-            arr = CCDCaptureModel.extractClusterFromFile(fits_filepath=filename, hdu=record.hdu_id, bounding_box=bbox)
+            bbox = BoundingBox(
+                top=record.bounding_box["top"],
+                left=record.bounding_box["left"],
+                bottom=record.bounding_box["bottom"],
+                right=record.bounding_box["right"],
+            )
+            arr = ccdCapture.clusterFromBoundingBox(bbox)
+            # arr = CCDCaptureModel.extractClusterFromFile(
+            #    fits_filepath=filename, hdu=record.hdu_id, bounding_box=bbox
+            # )
             rows, cols = arr.shape
             if arr.size > 0:
                 flat_idx = int(np.argmax(arr))
@@ -247,7 +275,7 @@ class ZMQBasedEventRepository(EventRepository):
                 pixelCount=record.total_pixels,
                 fitsId=record.fits_id,
                 clusterId=record.cluster_id,
-                classification = record.classification,
+                classification=record.classification,
                 cnnClassification=0.0,
                 nrgClassification=0.0,
                 bdtClassification=0.0,
