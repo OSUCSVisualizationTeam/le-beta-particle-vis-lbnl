@@ -26,7 +26,7 @@ class PollingThread():
         # Temporary polling location, will be taken from config_service.get("pipeline:ingress:polling_location")
         # Modify this path for testing
         self.config_service = config_service or YAMLBackedConfigurationService()
-        self.polling_location = Path(self.config_service.get("pipeline:ingress:polling_location"))
+        self.polling_location = os.path.normpath(self.config_service.get("pipeline:ingress:polling_location"))
 
         # Early exit in polling operations if the path doesn't exist, can add logging here later
         if not os.path.exists(self.polling_location):
@@ -51,6 +51,7 @@ class PollingThread():
         Begins polling the configured location with an observer
         """
         self.observer = FileWatcher(self.handler, self.polling_location)
+        time.sleep(1)
         self.ingest_thread = threading.Thread(target=self.file_uploaded, args=(self.file_queue, self.config_service, self.stop_event))
         self.ingest_thread.start()
 
@@ -68,7 +69,7 @@ class PollingThread():
                 if file_type.lower() != '.fits':
                     continue
                 ProcessFile(config_service=config, file=path)
-            except queue.Empty:
+            except:
                 continue
 
 class EventHandler(FileSystemEventHandler):
@@ -82,13 +83,23 @@ class EventHandler(FileSystemEventHandler):
         """Handles events when files are created in watched directory, does not update for created directories."""
         super().on_created(event)
         if not event.is_directory:
-                self.event_queue.put(event.src_path)
+            logger.info("New file creation polled.")
+            self.event_queue.put(event.src_path)
+
+    def on_moved(self, event):
+        """Handles file move events and queues destination path for moved files."""
+        super().on_moved(event)
+        if not event.is_directory:
+            moved_path = getattr(event, "dest_path", None)
+            if moved_path:
+                logger.info("New file moved in polling")
+                self.event_queue.put(moved_path)
 
 class FileWatcher():
     """
     FileWatcher class that instantiates an observer object to watch for changes in the directory
     """
-    def __init__(self, handler: EventHandler, path: Path):
+    def __init__(self, handler: EventHandler, path: str):
         self.handler = handler
         self.path = path
         self.observer = Observer()
@@ -99,15 +110,5 @@ class FileWatcher():
         self.observer.schedule(self.handler, self.path, recursive=False)
         self.observer.start()
 
-def file_uploaded(queue: queue.Queue, config: YAMLBackedConfigurationService, stop_event: threading.Event = None):
-    if stop_event is None:
-        stop_event = threading.Event()  # Not set, so loop runs
-    while not stop_event.is_set():
-        try:
-            path = queue.get(timeout=1)  # Wait for 1 second
-            file_type = os.path.splitext(path)[1] # return extension of file in queue
-            if file_type.lower() != '.fits':
-                continue
-            ProcessFile(config_service=config, file=path)
-        except queue.Empty:
-            continue
+    def stop(self):
+        self.observer.stop()

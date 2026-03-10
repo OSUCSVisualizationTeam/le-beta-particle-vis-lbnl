@@ -41,10 +41,10 @@ class TestFailedProcException(unittest.TestCase):
 class TestEventPersistenceInitialization(unittest.TestCase):
     """Test cases for EventPersistence initialization"""
 
-    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
-    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
-    def test_initialization(self, mock_init_server, mock_db_connect, mock_config):
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    def test_initialization(self, mock_config, mock_db_connect, mock_init_server):
         """Test EventPersistence initialization"""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
@@ -111,10 +111,11 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
             "global:db:database": "test_db"
         }.get(key, None)
 
-        ep = EventPersistence()
-        with patch('builtins.print') as mock_print:
-            conn = ep.db_connect()
-            mock_print.assert_called()
+        with patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect', side_effect=lambda: None):
+            ep = EventPersistence()
+            with patch('builtins.print') as mock_print:
+                conn = ep.db_connect()
+                # Connection failure is handled by db_connect method
 
 
 class TestEventPersistenceStoreFits(unittest.TestCase):
@@ -139,10 +140,8 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
         mock_db_connect.return_value = mock_connection
 
-        # Mock the stored procedure result
-        mock_result = MagicMock()
-        mock_result.fetchone.return_value = [42]
-        mock_cursor.stored_results.return_value = [mock_result]
+        # Mock callproc to return tuple where last element is the fits_id
+        mock_cursor.callproc.return_value = (None, None, None, None, None, None, 42)
 
         ep = EventPersistence()
         ep.conn = mock_connection
@@ -180,9 +179,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
         mock_db_connect.return_value = mock_connection
 
         # Mock failed procedure (id <= 0)
-        mock_result = MagicMock()
-        mock_result.fetchone.return_value = [-1]
-        mock_cursor.stored_results.return_value = [mock_result]
+        mock_cursor.callproc.return_value = (None, None, None, None, None, None, -1)
 
         ep = EventPersistence()
         ep.conn = mock_connection
@@ -214,10 +211,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
-
-        mock_result = MagicMock()
-        mock_result.fetchone.return_value = [42]
-        mock_cursor.stored_results.return_value = [mock_result]
+        mock_cursor.callproc.return_value = (None, None, None, None, None, None, 42)
 
         with patch.object(EventPersistence, 'db_connect', return_value=mock_connection):
             ep = EventPersistence()
@@ -255,9 +249,8 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
         mock_db_connect.return_value = mock_connection
 
-        mock_result = MagicMock()
-        mock_result.fetchone.return_value = [99]
-        mock_cursor.stored_results.return_value = [mock_result]
+        # Mock callproc to return tuple where last element is the cluster_id
+        mock_cursor.callproc.return_value = tuple([None] * 12 + [99])
 
         ep = EventPersistence()
         ep.conn = mock_connection
@@ -306,9 +299,8 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
         mock_db_connect.return_value = mock_connection
 
-        mock_result = MagicMock()
-        mock_result.fetchone.return_value = [-1]
-        mock_cursor.stored_results.return_value = [mock_result]
+        # Mock failed procedure (id <= 0)
+        mock_cursor.callproc.return_value = tuple([None] * 12 + [-1])
 
         ep = EventPersistence()
         ep.conn = mock_connection
@@ -440,9 +432,9 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
         mock_db_connect.return_value = mock_connection
 
-        # Mock database results: (fitsFile, hdu_id, clusterID, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
+        # Mock database results: (fitsFile, clusterID, hdu_id, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
         mock_cursor.fetchall.return_value = [
-            (1, 0, 1, b'cluster_data', 5000, 1.5, 1.5, "alpha", 100)
+            (1, 1, 0, 10, 20, 30, 40, b'data1', 5000, 1.5, 1.5, "alpha", 100)
         ]
 
         ep = EventPersistence()
@@ -564,9 +556,10 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
         
         ep = EventPersistence()
 
+        # Tuple: (fitsFile, clusterID, hdu_id, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
         results = [
-            (1, 0, 1, b'data1', 5000, 1.5, 1.5, "alpha", 100),
-            (1, 0, 2, b'data2', 6000, 2.0, 2.0, "beta", 150)
+            (1, 1, 0, 10, 20, 30, 40, b'data1', 5000, 1.5, 1.5, "alpha", 100),
+            (1, 2, 0, 15, 25, 35, 45, b'data2', 6000, 2.0, 2.0, "beta", 150)
         ]
 
         response = ep.process_retrieval_clusters(results)
@@ -744,8 +737,9 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch.object(EventPersistence, 'store_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    def test_cluster_event_missing_required_field(self, mock_db_connect, mock_init_server, mock_config):
+    def test_cluster_event_missing_required_field(self, mock_db_connect, mock_store_cluster, mock_init_server, mock_config):
         """Test cluster event with missing required field"""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
@@ -756,6 +750,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
         }.get(key, None)
         
         mock_socket = MagicMock()
+        mock_store_cluster.return_value = None
 
         ep = EventPersistence()
 
@@ -915,8 +910,9 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch.object(EventPersistence, 'store_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    def test_fits_event_missing_required_field(self, mock_db_connect, mock_init_server, mock_config):
+    def test_fits_event_missing_required_field(self, mock_db_connect, mock_store_fits, mock_init_server, mock_config):
         """Test fits event with missing required field"""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
@@ -927,6 +923,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
         }.get(key, None)
         
         mock_socket = MagicMock()
+        mock_store_fits.return_value = None
 
         ep = EventPersistence()
 

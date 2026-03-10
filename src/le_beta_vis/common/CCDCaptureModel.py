@@ -166,10 +166,10 @@ class CCDCaptureModel:
         bbox.bottom = min(bbox.bottom, rows)
         bbox.right = min(bbox.right, cols)
     
-        if bbox.top > bbox.bottom or bbox.left > bbox.right:
+        if bbox.top < bbox.bottom or bbox.left > bbox.right:
             raise ValueError("Invalid BoundingBox")
 
-        return self.__data[bbox.top:bbox.bottom, bbox.left:bbox.right]
+        return self.__data[bbox.bottom:bbox.top:, bbox.left:bbox.right]
     
     @staticmethod
     def extractClusterFromFile(fits_filepath: Path, hdu: int, bounding_box: BoundingBox) -> np.ndarray:

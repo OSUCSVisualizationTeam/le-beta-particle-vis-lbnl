@@ -8,15 +8,15 @@
 # Global / Infrastructure
 # ---------------------------------------------------------------------------
 
-global:db:connection_string:
+global:db:hostname:
   type: str
   default: "localhost"
   description: >-
     Database host for the Event Persistence Service.
 
-global:db:connection_string:
+global:db:database:
   type: str
-  default: "le_beta_vis"
+  default: "lbnlfits"
   description: >-
     Database name for the Event Persistence Service.  
 
