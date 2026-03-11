@@ -234,11 +234,8 @@ class ZMQBasedEventRepository(EventRepository):
         Handles the gaps between the EPS response and the frontend
         model:
 
-        - **data**: ``np.frombuffer`` if bytes, ``np.array`` if list.
-          Attempts square reshape; falls back to 1-row.
         - **bounding box**: synthesised from data shape (EPS does not
           include it in the response).
-        - **center**: brightest pixel via ``np.argmax``.
         - **classification scores**: defaulted to 0.0 (EPS stores a
           single string, not per-model floats).
         """
