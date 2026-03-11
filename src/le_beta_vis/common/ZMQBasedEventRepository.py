@@ -82,16 +82,14 @@ class ZMQBasedEventRepository(EventRepository):
 
         raw_clusters = response.get("clusters", [])
         clusters: List[Cluster] = []
-        hdu_cache = dict()
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
+            fits = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
                 0
-            ].filename
-            if filename not in hdu_cache:
-                hdu_cache[filename] = CCDCaptureModel.load(filename)
-            hdus = hdu_cache[filename]
-            cluster = self._map_to_cluster(record, hdus[record.hdu_id])
+            ]
+            fitsFilename = fits.filename
+            fits_date = fits.date
+            cluster = self._map_to_cluster(record, fitsFilename, fits_date)
             if cluster is not None:
                 clusters.append(cluster)
         return clusters
@@ -162,18 +160,15 @@ class ZMQBasedEventRepository(EventRepository):
         raw_clusters = response.get("clusters", [])
         clusters: List[Cluster] = []
         filename = self.query_fits(FitsQueryFilter)
-        hdu_cache = dict()
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
+            fits = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
                 0
-            ].filename
+            ]
+            fitsFilename = fits.filename
+            fits_date = fits.date
 
-            if filename not in hdu_cache:
-                hdu_cache[filename] = CCDCaptureModel.load(filename)
-            hdus = hdu_cache[filename]
-
-            cluster = self._map_to_cluster(record, hdus[record.hdu_id])
+            cluster = self._map_to_cluster(record, fitsFilename, fits_date)
             if cluster is not None:
                 clusters.append(cluster)
         return clusters
@@ -232,7 +227,7 @@ class ZMQBasedEventRepository(EventRepository):
 
     @staticmethod
     def _map_to_cluster(
-        record: EPSClusterRecord, ccdCapture: CCDCaptureModel
+        record: EPSClusterRecord, fitsFilename: str, date: str
     ) -> Optional[Cluster]:
         """Converts an ``EPSClusterRecord`` to a domain ``Cluster``.
 
@@ -254,25 +249,18 @@ class ZMQBasedEventRepository(EventRepository):
                 bottom=record.bounding_box["bottom"],
                 right=record.bounding_box["right"],
             )
-            arr = ccdCapture.clusterFromBoundingBox(bbox)
-            # arr = CCDCaptureModel.extractClusterFromFile(
-            #    fits_filepath=filename, hdu=record.hdu_id, bounding_box=bbox
-            # )
-            rows, cols = arr.shape
-            if arr.size > 0:
-                flat_idx = int(np.argmax(arr))
-                center_y, center_x = divmod(flat_idx, cols)
-            else:
-                center_x, center_y = 0, 0
+
             return Cluster(
                 boundingBox=bbox,
-                data=arr,
-                centerX=center_x,
-                centerY=center_y,
+                data=None,
+                centerX=None,
+                centerY=None,
                 sigmaX=record.sigma_x,
                 sigmaY=record.sigma_y,
                 energy=record.total_energy,
                 pixelCount=record.total_pixels,
+                fitsFilename=fitsFilename,
+                date=date,
                 fitsId=record.fits_id,
                 clusterId=record.cluster_id,
                 classification=record.classification,

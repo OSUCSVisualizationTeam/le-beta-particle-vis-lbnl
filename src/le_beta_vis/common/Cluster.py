@@ -36,6 +36,8 @@ class Cluster(ClusteredEventInfo):
         sigmaX: float = 0.0,
         sigmaY: float = 0.0,
         energy: float = 0.0,
+        fitsFilename: Optional[str] = None,
+        date: Optional[str] = None,
         pixelCount: int = 0,
         fitsId: Optional[int] = None,
         clusterId: Optional[int] = None,
@@ -59,4 +61,6 @@ class Cluster(ClusteredEventInfo):
         self.cnnClassification = cnnClassification
         self.nrgClassification = nrgClassification
         self.bdtClassification = bdtClassification
+        self.fitsFilename = fitsFilename
+        self.date = date
         self.classification = classification
