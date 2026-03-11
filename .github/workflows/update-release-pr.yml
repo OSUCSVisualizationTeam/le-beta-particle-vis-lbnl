@@ -1,0 +1,78 @@
+name: Update Release PR
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - 'release/**'
+
+permissions:
+  pull-requests: write
+
+jobs:
+  update-release-pr:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update release PR body
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHILD_NUMBER: ${{ github.event.pull_request.number }}
+          CHILD_TITLE: ${{ github.event.pull_request.title }}
+          CHILD_URL: ${{ github.event.pull_request.html_url }}
+          CHILD_BODY: ${{ github.event.pull_request.body }}
+          RELEASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Find the open release PR (release branch → main)
+          RELEASE_PR_NUMBER=$(gh pr list \
+            --repo "$REPO" \
+            --head "$RELEASE_BRANCH" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -z "$RELEASE_PR_NUMBER" ]; then
+            echo "No open release PR found for $RELEASE_BRANCH → main. Exiting."
+            exit 0
+          fi
+
+          echo "Found release PR #$RELEASE_PR_NUMBER"
+
+          # Get current release PR body
+          CURRENT_BODY=$(gh pr view "$RELEASE_PR_NUMBER" \
+            --repo "$REPO" \
+            --json body \
+            --jq '.body')
+
+          # Idempotency: skip if child PR is already listed
+          if echo "$CURRENT_BODY" | grep -qF "#${CHILD_NUMBER} "; then
+            echo "Child PR #$CHILD_NUMBER already listed in release PR. Skipping."
+            exit 0
+          fi
+
+          # Build the new entry
+          ENTRY="- **#${CHILD_NUMBER} — ${CHILD_TITLE}** ([view PR](${CHILD_URL}))"
+          if [ -n "$CHILD_BODY" ]; then
+            FIRST_LINE=$(echo "$CHILD_BODY" | head -n 1 | sed 's/^[[:space:]]*//')
+            if [ -n "$FIRST_LINE" ]; then
+              ENTRY=$(printf '%s\n  > %s' "$ENTRY" "$FIRST_LINE")
+            fi
+          fi
+
+          # Append to or create the Merged Changes section
+          if echo "$CURRENT_BODY" | grep -qF "## Merged Changes"; then
+            NEW_BODY=$(printf '%s\n%s' "$CURRENT_BODY" "$ENTRY")
+          else
+            NEW_BODY=$(printf '%s\n\n## Merged Changes\n%s' "$CURRENT_BODY" "$ENTRY")
+          fi
+
+          # Update the release PR
+          gh pr edit "$RELEASE_PR_NUMBER" \
+            --repo "$REPO" \
+            --body "$NEW_BODY"
+
+          echo "Updated release PR #$RELEASE_PR_NUMBER with child PR #$CHILD_NUMBER"
