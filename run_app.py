@@ -12,7 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "src")))
 from PySide6.QtGui import QIcon  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from le_beta_vis.frontend.MainWindow import MainWindow  # noqa: E402
-from le_beta_vis.backend.ServicesManager import ServicesManager
+from le_beta_vis.backend.ServicesManager import ServicesManager  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -27,22 +27,22 @@ ICON_PATH = (
     / "lbnl-logo.png"
 )
 
-XDG_DATA_HOME = Path(
-    os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
-)
+XDG_DATA_HOME = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
 XDG_ICON_DIR = XDG_DATA_HOME / "icons" / "hicolor" / "256x256" / "apps"
 XDG_DESKTOP_DIR = XDG_DATA_HOME / "applications"
 XDG_HICOLOR_ROOT = XDG_DATA_HOME / "icons" / "hicolor"
 
-_DESKTOP_ENTRY = """\
+_APPLICATION_DISPLAY_NAME = "LE Beta Particle Visualization"
+
+_DESKTOP_ENTRY = f"""\
 [Desktop Entry]
 Type=Application
-Name=LE Beta Particle Visualization
+Name={_APPLICATION_DISPLAY_NAME}
 Comment=Low-Energy Beta Particle Track Visualization Tool (LBNL)
-Icon={app_id}
+Icon={{app_id}}
 Terminal=false
 Categories=Science;Education;
-StartupWMClass={app_id}
+StartupWMClass={{app_id}}
 """
 
 
@@ -105,6 +105,9 @@ def main():
     QApplication.setDesktopFileName(APP_ID)
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
+    app.setApplicationName(_APPLICATION_DISPLAY_NAME)
+    app.setApplicationDisplayName(_APPLICATION_DISPLAY_NAME)
+    # TODO: Set application version here
 
     # In the future, we would load a QTranslator here:
     # translator = QTranslator()
@@ -119,6 +122,7 @@ def main():
 
     def cleanup():
         services.stop_all()
+
     app.aboutToQuit.connect(cleanup)
     sys.exit(app.exec())
 

@@ -292,6 +292,58 @@ gui:historical:grid_max_columns:
   description: >-
     Maximum number of visible columns in the event grid.
 
+gui:historical:thumbnail_colormap:
+  type: enum
+  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool"]
+  default: "viridis"
+  description: >-
+    Colormap used for event grid thumbnail rendering.
+
+gui:historical:eviction_distance:
+  type: int
+  default: 30
+  description: >-
+    Number of rows beyond the visible viewport before cached
+    thumbnails are evicted.
+
+gui:historical:scroll_prefetch_buffer:
+  type: int
+  default: 30
+  description: >-
+    Number of items to pre-fetch beyond the visible viewport on
+    each side during scroll.  Keeps thumbnails ready before items
+    scroll into view.  Matches eviction_distance so pre-fetched
+    items are never immediately evicted.
+
+gui:historical:fits_cache_idle_seconds:
+  type: int
+  default: 60
+  description: >-
+    Seconds of scroll inactivity before the cached FITS HDU array
+    is released from memory. Minimum enforced: 60.
+
+gui:historical:thumbnail_max_workers:
+  type: int
+  default: 2
+  description: >-
+    Number of worker threads for async thumbnail generation.
+    Minimum enforced: 2.
+
+gui:historical:prefetch_thumbnail_count:
+  type: int
+  default: 30
+  description: >-
+    Number of thumbnails to pre-fetch eagerly on initial load
+    before scroll events are available.
+
+gui:historical:thumbnail_smooth_scaling:
+  type: bool
+  default: false
+  description: >-
+    Enable smooth (anti-aliased) scaling for event grid thumbnails.
+    When false, nearest-neighbor interpolation preserves pixel
+    boundaries.
+
 # ---------------------------------------------------------------------------
 # GUI — Inspector
 # ---------------------------------------------------------------------------
