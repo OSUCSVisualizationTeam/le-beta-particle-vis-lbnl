@@ -32,7 +32,7 @@ jobs:
           path: ~/conda_pkgs_dir
           key:
             ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{
-            hashFiles('experiment.yml') }}
+            hashFiles('environment.yml') }}
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v3
