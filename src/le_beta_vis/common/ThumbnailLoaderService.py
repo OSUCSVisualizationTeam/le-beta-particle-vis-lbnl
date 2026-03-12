@@ -54,6 +54,23 @@ class ThumbnailLoaderService(ABC):
         ...
 
     @abstractmethod
+    def request_cluster_data(
+        self,
+        cluster: Cluster,
+        on_ready: Callable[[Optional[np.ndarray]], None],
+    ) -> None:
+        """Extract raw pixel data for *cluster* asynchronously.
+
+        Uses the FITS HDU cache for efficient extraction. The result
+        is NOT cached — it is delivered once via *on_ready*.
+
+        Args:
+            cluster: The cluster whose pixel data to extract.
+            on_ready: Callback invoked with the data array or None.
+        """
+        ...
+
+    @abstractmethod
     def shutdown(self) -> None:
         """Release all resources (threads, timers, cached data)."""
         ...
