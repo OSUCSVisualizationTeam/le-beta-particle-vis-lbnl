@@ -35,3 +35,4 @@ from .LBNLOptimizedClusterExtractor import LBNLOptimizedClusterExtractor
 from .GeneralClusterExtractor import GeneralClusterExtractor
 from .ClusterExtractorFactory import ClusterExtractorMethod, create_cluster_extractor
 from .cluster_sigma import compute_cluster_sigmas
+from .AppInfo import APP_VERSION, APP_NAME
