@@ -25,6 +25,8 @@ class Cluster(ClusteredEventInfo):
             score (0.0–1.0).
         bdtClassification (float): BDT tritium confidence score
             (0.0–1.0).
+        hdu_id (Optional[int]): Index of the HDU within the FITS file
+            that contains this cluster's data.
     """
 
     def __init__(
@@ -45,6 +47,7 @@ class Cluster(ClusteredEventInfo):
         nrgClassification: float = 0.0,
         bdtClassification: float = 0.0,
         classification: str = "UNCLASSIFIED",
+        hdu_id: Optional[int] = None,
     ):
         super().__init__(
             boundingBox=boundingBox,
@@ -64,3 +67,4 @@ class Cluster(ClusteredEventInfo):
         self.fitsFilename = fitsFilename
         self.date = date
         self.classification = classification
+        self.hdu_id = hdu_id
