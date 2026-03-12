@@ -17,7 +17,7 @@ from le_beta_vis.frontend.fitsconverters.interface import Colormap
 logger = logging.getLogger(__name__)
 
 
-class LazyThumbnailLoadingService(ThumbnailLoaderService):
+class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
     """Generates cluster thumbnails on background threads.
 
     Caches rendered thumbnails and the loaded FITS HDU arrays to
@@ -72,7 +72,11 @@ class LazyThumbnailLoadingService(ThumbnailLoaderService):
             generation = self._generation
 
         future = self._executor.submit(
-            self._load_worker, key, cluster, generation, on_ready,
+            self._load_worker,
+            key,
+            cluster,
+            generation,
+            on_ready,
         )
         with self._lock:
             self._futures[key] = future
@@ -143,7 +147,8 @@ class LazyThumbnailLoadingService(ThumbnailLoaderService):
     # ------------------------------------------------------------------
 
     def _get_or_load_hdus(
-        self, fits_filename: str,
+        self,
+        fits_filename: str,
     ) -> List[CCDCaptureModel]:
         """Return cached HDUs for *fits_filename*, loading if needed.
 
@@ -176,7 +181,8 @@ class LazyThumbnailLoadingService(ThumbnailLoaderService):
         if self._idle_timer is not None:
             self._idle_timer.cancel()
         self._idle_timer = threading.Timer(
-            self._fits_cache_idle_seconds, self._evict_fits_cache,
+            self._fits_cache_idle_seconds,
+            self._evict_fits_cache,
         )
         self._idle_timer.daemon = True
         self._idle_timer.start()
@@ -214,7 +220,8 @@ class LazyThumbnailLoadingService(ThumbnailLoaderService):
                 cluster.centerY = int(cy)
 
             thumbnail = generate_cluster_thumbnail(
-                data, colormap=self._colormap,
+                data,
+                colormap=self._colormap,
             )
 
             with self._lock:
@@ -230,7 +237,8 @@ class LazyThumbnailLoadingService(ThumbnailLoaderService):
 
         except Exception:
             logger.warning(
-                "Thumbnail generation failed for key %d", key,
+                "Thumbnail generation failed for key %d",
+                key,
                 exc_info=True,
             )
             with self._lock:
