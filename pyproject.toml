@@ -1,3 +1,8 @@
+[project]
+name = "le-beta-vis-lbnl"
+version = "0.0.2"
+description = "Interactive desktop tool for visualizing and classifying low-energy beta particle tracks in CCD sensor data — built for LBNL's Applied Nuclear Physics program."
+
 [tool.flake8]
 max-line-length = 127
 max-complexity = 10
