@@ -194,10 +194,12 @@ class HistoricalEventInspector(QWidget):
         else:
             x_unit = "ADU"
 
+        colormap_name = self._colormap.value if self._colormap is not None else None
         model = HistogramDataModel.from_pixel_data(
             hist_data,
             _HISTOGRAM_BINS,
             x_label,
+            colormap=colormap_name,
             x_unit=x_unit,
         )
         self._histogram.setData(model)

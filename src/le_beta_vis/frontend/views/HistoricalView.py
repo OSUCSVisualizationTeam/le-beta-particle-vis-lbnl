@@ -148,7 +148,7 @@ class HistoricalView(QWidget):
         via the ``HistoricalEventInspectorViewModel`` constructor.
         Only the colormap (a view concern) is set here.
         """
-        pass
+        self._inspector.setColormap(self.viewModel.thumbnailColormap)
 
     def _configureGridWidget(self) -> None:
         """Wires ViewModel properties into the event grid."""

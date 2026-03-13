@@ -164,8 +164,9 @@ def test_center_computed():
     assert _wait_for_event(done)
 
     # argmax of [[1,2],[3,10]] is index 3 → row=1, col=1
+    # Absolute coords: col + bb.left = 1 + 0 = 1, row + bb.top = 1 + 2 = 3
     assert cluster.centerX == 1
-    assert cluster.centerY == 1
+    assert cluster.centerY == 3
     service.shutdown()
 
 

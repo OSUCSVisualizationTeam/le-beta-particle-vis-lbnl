@@ -15,6 +15,7 @@ from le_beta_vis.common.PhysicsConversionManager import (
 from le_beta_vis.common.EventRepository import EventRepository
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.ThumbnailLoaderService import ThumbnailLoaderService
+from le_beta_vis.frontend.fitsconverters.interface import Colormap
 
 
 class HistoricalMode(str, Enum):
@@ -121,6 +122,14 @@ class HistoricalViewModel:
             "gui:historical:classification_threshold",
             0.75,
         )
+
+    @property
+    def thumbnailColormap(self) -> Colormap:
+        """Colormap used for cluster thumbnails and inspector images."""
+        colormap_str = str(self._config.get(
+            "gui:historical:thumbnail_colormap", "viridis"
+        ))
+        return Colormap(colormap_str)
 
     @property
     def displayEnergyInKev(self) -> bool:

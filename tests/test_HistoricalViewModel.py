@@ -10,6 +10,7 @@ from le_beta_vis.frontend.viewmodels.HistoricalViewModel import (
     HistoricalViewModel,
     HistoricalMode,
 )
+from le_beta_vis.frontend.fitsconverters.interface import Colormap
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.MockEventRepository import (
     MockEventRepository,
@@ -135,6 +136,27 @@ def test_histogram_renderer_default():
         MockThumbnailLoaderService(),
     )
     assert isinstance(vm.histogramRenderer, MatplotlibHistogramRenderer)
+
+
+def test_thumbnail_colormap_default():
+    """thumbnailColormap should default to Viridis."""
+    config = MockConfigurationService()
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
+    )
+    assert vm.thumbnailColormap == Colormap.VIRIDIS
+
+
+def test_thumbnail_colormap_from_config():
+    """thumbnailColormap should read from config."""
+    config = MockConfigurationService()
+    config.set("gui:historical:thumbnail_colormap", "plasma")
+    vm = HistoricalViewModel(
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
+    )
+    assert vm.thumbnailColormap == Colormap.PLASMA
 
 
 def test_histogram_renderer_injected():

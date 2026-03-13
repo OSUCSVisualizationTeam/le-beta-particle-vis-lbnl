@@ -179,14 +179,14 @@ class HistoricalEventInspectorViewModel:
 
         # Geometry
         bb = cluster.boundingBox
-        w = bb.right - bb.left
-        h = bb.bottom - bb.top
+        w = abs(bb.right - bb.left)
+        h = abs(bb.bottom - bb.top)
         geometry = f"{w}\u00d7{h}"
 
         # Relative center
         if cluster.centerX is not None and cluster.centerY is not None:
-            rel_cx = cluster.centerX  # - bb.left
-            rel_cy = cluster.centerY  # - bb.top
+            rel_cx = cluster.centerX - bb.left
+            rel_cy = cluster.centerY - bb.top
             center = f"({rel_cx}, {rel_cy})"
         else:
             center = "N/A"

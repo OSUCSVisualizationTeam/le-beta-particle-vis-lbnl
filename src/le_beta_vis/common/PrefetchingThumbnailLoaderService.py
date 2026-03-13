@@ -216,8 +216,8 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
             ):
                 flat_idx = np.argmax(data)
                 cy, cx = np.unravel_index(flat_idx, data.shape)
-                cluster.centerX = int(cx)
-                cluster.centerY = int(cy)
+                cluster.centerX = int(cx) + cluster.boundingBox.left
+                cluster.centerY = int(cy) + cluster.boundingBox.top
 
             thumbnail = generate_cluster_thumbnail(
                 data,
