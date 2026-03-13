@@ -1,3 +1,4 @@
+import socket
 import numpy as np
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
@@ -23,38 +24,41 @@ class ProcessFile():
         self.ped_width = self.config.get(key = "global:physics:ped_width")
         self.fits_name = file
         self.capture = CCDCaptureModel.load(file)
-        self.clusters = []
         self.fits_id = None
         self.process_context = zmq.Context()
-        self.store_fits()
-        self.cluster_fits()
-        self.store_clusters()
+        try:
+            self.store_fits()
+            self.cluster_fits()
+        finally:
+            self.process_context.term()
 
     def store_fits(self):
         """
         Stores ingested fits file into the fits_file table in the database.
         """
         socket = self.process_context.socket(zmq.REQ)
-        socket.connect(self.config.get("eps:fits_ipc"))
-        # Form JSON request with fits data, send to endpoint and grab response
-        request = {
-        "Action": "Storage",
-        "filename": self.fits_name,
-        "date": str(self.capture[0].info().captureDate()),
-        "minimum": float(min(self.capture[0].info().min, self.capture[1].info().min, self.capture[2].info().min, self.capture[3].info().min)),
-        "maximum": float(max(self.capture[0].info().max, self.capture[1].info().max, self.capture[2].info().max, self.capture[3].info().max)),
-        "exposure_time": str(self.capture[0].info().exposureDuration())
-        }
-        socket.send_json(request)
-        logger.info("New store FITS request sent to EPS.")
-        response = socket.recv_json()
-        socket.close()
-        if response["result"] == "success":
-            self.fits_id = response["fits_id"]
-            logger.info(f"Fits ID {self.fits_id} stored in database.")
-        else:
-            logger.warning(f"There was an issue communicating with the EPS. Due to {response['error']}")
-
+        try:
+            socket.connect(self.config.get("eps:fits_ipc"))
+            # Form JSON request with fits data, send to endpoint and grab response
+            request = {
+            "Action": "Storage",
+            "filename": self.fits_name,
+            "date": str(self.capture[0].info().captureDate()),
+            "minimum": float(min(self.capture[0].info().min, self.capture[1].info().min, self.capture[2].info().min, self.capture[3].info().min)),
+            "maximum": float(max(self.capture[0].info().max, self.capture[1].info().max, self.capture[2].info().max, self.capture[3].info().max)),
+            "exposure_time": str(self.capture[0].info().exposureDuration())
+            }
+            socket.send_json(request)
+            logger.info("New store FITS request sent to EPS.")
+            response = socket.recv_json()
+            socket.close()
+            if response["result"] == "success":
+                self.fits_id = response["fits_id"]
+                logger.info(f"Fits ID {self.fits_id} stored in database.")
+            else:
+                logger.warning(f"There was an issue communicating with the EPS. Due to {response['error']}")
+        finally:
+            socket.close()
     def cluster_fits(self):
         """
         Iterates through HDUs, creating clusters from each
@@ -63,7 +67,7 @@ class ProcessFile():
             data = hdu.rawData()
             # Label as a cluster if the data passes the four sigma threshold comparison to the background noise
             labeled_array, num_features = label(data > 4 * self.ped_width) # 4 sigma threshold
-            for i in range(num_features):
+            for i in range(1, num_features + 1):
                 # This will set each background value in the numpy array to zero and keep all features that pass the threshold
                 # as their value
                 cluster_image = np.where(labeled_array == i, data, 0)
@@ -107,9 +111,10 @@ class ProcessFile():
                 cluster_sigma_y = sigma_y
                 cluster_energy = np.sum(pixels_around_cluster_wo_noise)
                 cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
-                self.clusters.append(Cluster(pixels_around_cluster_wo_noise, hdu_index, bounding_box, cluster_sigma_x,
+                cluster = Cluster(pixels_around_cluster_wo_noise, hdu_index, bounding_box, cluster_sigma_x,
                                              cluster_sigma_y, cluster_energy, cluster_pixels,
-                                             self.fits_id))
+                                             self.fits_id)
+                self.store_cluster(cluster)
 
     def calc_sigmas(self, dtrack):
         """
@@ -123,26 +128,26 @@ class ProcessFile():
         sigma_y = np.sqrt(np.sum(dtrack * (y - mean_y)**2) / sum_weights)
         return sigma_x, sigma_y
 
-    def store_clusters(self):
+    def store_cluster(self, cluster: "Cluster"):
         """
         Stores ingested clusters into the clusters table in the database.
         """
         socket = self.process_context.socket(zmq.REQ)
-        socket.connect(self.config.get("eps:cluster_ipc"))
-        # Form JSON request with cluster data, send to endpoint and grab response
-        for cluster in self.clusters:
+        try:
+            socket.connect(self.config.get("eps:cluster_ipc"))
+            # Form JSON request with cluster data, send to endpoint and grab response
             request = {
-                "Action": "Storage",
-                "data": None,
-                "hdu_id": cluster.hdu,
-                "bounding_box": {"top": int(cluster.bounding_box.top), "left":int(cluster.bounding_box.left), 
-                                 "bottom": int(cluster.bounding_box.bottom), "right": int(cluster.bounding_box.right)},
-                "sigmaX": float(cluster.sigmaX), "sigmaY": float(cluster.sigmaY),
-                "total_energy": float(cluster.total_energy),
-                "total_pixels": int(cluster.total_pixels),
-                "fits_id": self.fits_id,
-                "classification": cluster.classification
-            }
+                    "Action": "Storage",
+                    "data": None,
+                    "hdu_id": cluster.hdu,
+                    "bounding_box": {"top": int(cluster.bounding_box.top), "left":int(cluster.bounding_box.left),
+                                    "bottom": int(cluster.bounding_box.bottom), "right": int(cluster.bounding_box.right)},
+                    "sigmaX": float(cluster.sigmaX), "sigmaY": float(cluster.sigmaY),
+                    "total_energy": float(cluster.total_energy),
+                    "total_pixels": int(cluster.total_pixels),
+                    "fits_id": self.fits_id,
+                    "classification": cluster.classification
+                }
             socket.send_json(request)
             response = socket.recv_json()
             if response["result"] == "success":
@@ -150,7 +155,8 @@ class ProcessFile():
                 logger.info(f"Cluster ID {cluster.cluster_id} stored in database.")
             else:
                 logger.warning(f"There was an issue communicating with the EPS. Due to {response['error']}")
-                break
+        finally:
+            socket.close()
 
 class Cluster():
     """
