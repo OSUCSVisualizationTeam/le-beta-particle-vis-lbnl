@@ -216,14 +216,14 @@ class HistoricalEventInspectorViewModel:
             ),
             bdt_pct=f"{cluster.bdtClassification * 100:.1f}%",
             cluster_id=cluster_id,
-            fits_filename="N/A",
+            fits_filename=cluster.fitsFilename,
             energy=energy,
             sigma_x=cluster.sigmaX,
             sigma_y=cluster.sigmaY,
             geometry=geometry,
             center=center,
             pixels=cluster.pixelCount,
-            date="N/A",
+            date=cluster.date,
         )
 
     def formatHistogramXLabel(self, cluster: Cluster) -> str:
