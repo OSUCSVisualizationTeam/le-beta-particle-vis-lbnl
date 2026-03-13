@@ -70,12 +70,12 @@ class PhysicsConversionManagerImpl(PhysicsConversionManager):
     @property
     def kev_conversion_factor(self) -> float:
         """Returns the current ADU-to-keV conversion factor from config."""
-        return float(self._config.get("global:physics:kev_conversion", 1.02857e-5))
+        return self._config.get_float("global:physics:kev_conversion", 1.02857e-5)
 
     @property
     def pedestal_width(self) -> int:
         """Returns the configured pedestal width (background noise level) in ADU."""
-        return int(self._config.get("global:physics:ped_width", 1400))
+        return self._config.get_int("global:physics:ped_width", 1400)
 
     def calculate_threshold(self, sigma: float) -> float:
         """

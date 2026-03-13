@@ -19,21 +19,25 @@ from .viewmodels.HistoricalViewModel import (
 from le_beta_vis.common.ClusterExtractorFactory import (
     create_cluster_extractor,
 )
-from le_beta_vis.common.ZMQBasedEventRepository import (
-    ZMQBasedEventRepository,
-)
 from pathlib import Path
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-
         self.viewModel = MainViewModel()
+        self._setupWindowIdentity()
+        self._setupWindowGeometry()
+        self._setupCentralWidget()
+        self._setupViewModels()
+        self._setupViews()
+        self.setupMenuBar()
+        self._bindCallbacks()
 
-        # self.tr() marks the string for translation
+    # -- Initialization helpers ------------------------------------------------
+
+    def _setupWindowIdentity(self) -> None:
         self.setWindowTitle(self.tr("LE Beta Particle Visualization"))
-
         icon_path = (
             Path(__file__).resolve().parent.parent
             / "resources"
@@ -42,22 +46,20 @@ class MainWindow(QMainWindow):
         )
         self.setWindowIcon(QIcon(str(icon_path)))
 
-        # Window Geometry
+    def _setupWindowGeometry(self) -> None:
         self.setMinimumSize(960, 600)
         width = self.viewModel.configService.get("gui:window:default_width", 1024)
         height = self.viewModel.configService.get("gui:window:default_height", 700)
         self.resize(width, height)
 
-        # Central Widget
+    def _setupCentralWidget(self) -> None:
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
-
-        # Tab Widget for Modes
         self.tabs = QTabWidget()
         self.main_layout.addWidget(self.tabs)
 
-        # Initialize Child ViewModels with Configuration Service
+    def _setupViewModels(self) -> None:
         self.rawDataViewModel = RawDataViewModel(
             self.viewModel.configService, self.viewModel.physicsManager
         )
@@ -69,30 +71,30 @@ class MainWindow(QMainWindow):
         self.historicalViewModel = HistoricalViewModel(
             self.viewModel.configService,
             self.viewModel.physicsManager,
-            ZMQBasedEventRepository(self.viewModel.configService),
+            self.viewModel.eventRepository,
+            self.viewModel.thumbnailService,
         )
 
-        # Initialize Child Views
+    def _setupViews(self) -> None:
         self.rawDataView = RawDataView(self.rawDataViewModel)
         self.historicalView = HistoricalView(self.historicalViewModel)
-
-        # Add Tabs - Strings inside self.tr()
         self.tabs.addTab(self.rawDataView, self.tr("Raw Data Analysis"))
         self.tabs.addTab(self.historicalView, self.tr("Historical Analysis"))
 
-        # Setup Menu Bar
-        self.setupMenuBar()
-
-        # Bind ViewModel callbacks
+    def _bindCallbacks(self) -> None:
         self.historicalViewModel.add_mode_changed_callback(self.onModeChanged)
 
-    def setupMenuBar(self):
-        menuBar = self.menuBar()
+    # -- Menu bar --------------------------------------------------------------
 
-        # File Menu
+    def setupMenuBar(self) -> None:
+        menuBar = self.menuBar()
+        self._setupFileMenu(menuBar)
+        self._setupViewMenu(menuBar)
+        self.onModeChanged(self.historicalViewModel.mode)
+
+    def _setupFileMenu(self, menuBar) -> None:
         fileMenu = menuBar.addMenu(self.tr("&File"))
 
-        # Open Action
         openAction = QAction(self.tr("&Open..."), self)
         openAction.setShortcut(QKeySequence.Open)
         openAction.setStatusTip(self.tr("Open a FITS file"))
@@ -101,7 +103,6 @@ class MainWindow(QMainWindow):
 
         fileMenu.addSeparator()
 
-        # Settings Action
         if sys.platform == "darwin":
             settingsAction = QAction(self.tr("&Preferences"), self)
             settingsAction.setShortcut(QKeySequence("Ctrl+,"))
@@ -114,27 +115,24 @@ class MainWindow(QMainWindow):
 
         fileMenu.addSeparator()
 
-        # Exit Action
         exitAction = QAction(self.tr("E&xit"), self)
         exitAction.setShortcut(QKeySequence.Quit)
         exitAction.setStatusTip(self.tr("Exit the application"))
         exitAction.triggered.connect(self.close)
         fileMenu.addAction(exitAction)
 
-        # View Menu
+    def _setupViewMenu(self, menuBar) -> None:
         viewMenu = menuBar.addMenu(self.tr("&View"))
 
-        # Toggle Live Mode Action
         self.toggleLiveAction = QAction(self.tr("Switch to Live Mode"), self)
         self.toggleLiveAction.setCheckable(True)
-        self.toggleLiveAction.setChecked(False)  # Initial state
+        self.toggleLiveAction.setChecked(False)
         self.toggleLiveAction.triggered.connect(self.onToggleLiveMode)
         viewMenu.addAction(self.toggleLiveAction)
 
-        # Sync initial state
-        self.onModeChanged(self.historicalViewModel.mode)
+    # -- Slots -----------------------------------------------------------------
 
-    def _onOpenSettings(self):
+    def _onOpenSettings(self) -> None:
         """Open the Settings dialog."""
         from .viewmodels.SettingsViewModel import SettingsViewModel
         from .widgets.SettingsDialog import SettingsDialog
@@ -143,7 +141,7 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(vm, parent=self)
         dialog.exec()
 
-    def onOpenFile(self):
+    def onOpenFile(self) -> None:
         """Open a file dialog and load it into the Raw Data view."""
         filePath, _ = QFileDialog.getOpenFileName(
             self,
@@ -152,27 +150,19 @@ class MainWindow(QMainWindow):
             self.tr("FITS Files (*.fits);;All Files (*)"),
         )
         if filePath:
-            # Switch to Raw Data tab
             self.tabs.setCurrentWidget(self.rawDataView)
-            # Load the file via the ViewModel
             self.rawDataViewModel.loadFile(filePath)
 
-    def onToggleLiveMode(self):
+    def onToggleLiveMode(self) -> None:
         """Handle the toggle action from the menu."""
-        # 1. Ensure Historical Tab is active if we are toggling
         if self.tabs.currentWidget() == self.rawDataView:
             self.tabs.setCurrentWidget(self.historicalView)
-
-        # 2. Toggle the mode in the ViewModel
         self.historicalViewModel.toggleMode()
 
-    def onModeChanged(self, mode: HistoricalMode):
+    def onModeChanged(self, mode: HistoricalMode) -> None:
         """Callback from ViewModel when mode changes."""
         is_live = mode == HistoricalMode.LIVE
-
-        # Update Check State
         self.toggleLiveAction.setChecked(is_live)
-
         if is_live:
             self.toggleLiveAction.setText(self.tr("Switch to Historical Mode"))
         else:
