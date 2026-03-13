@@ -19,6 +19,7 @@ from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.frontend.viewmodels.HistoricalViewModel import (
     HistoricalViewModel,
 )
+from MockThumbnailLoaderService import MockThumbnailLoaderService
 
 
 def _make_physics_mock():
@@ -44,7 +45,7 @@ def mock_repo():
 
 @pytest.fixture
 def vm(config, physics, mock_repo):
-    return HistoricalViewModel(config, physics, mock_repo)
+    return HistoricalViewModel(config, physics, mock_repo, MockThumbnailLoaderService())
 
 
 # --- loadEvents ---
@@ -175,6 +176,34 @@ def test_physics_manager_exposed(vm, physics):
 
 # --- Empty repository ---
 
+def test_request_thumbnails_for_range_with_buffer():
+    """request_thumbnails_for_range requests buffer items beyond visible range."""
+    cfg = MockConfigurationService()
+    cfg.set("gui:historical:scroll_prefetch_buffer", 3)
+    mock_thumb = MockThumbnailLoaderService()
+    repo = MockEventRepository()
+    vm = HistoricalViewModel(cfg, _make_physics_mock(), repo, mock_thumb)
+    vm.loadEvents()  # loads 12 events from MockEventRepository
+
+    requested_keys: list = []
+    def tracking_request(
+        key: int, cluster: Cluster, on_ready: object,
+    ) -> None:
+        requested_keys.append(key)
+    mock_thumb.request_thumbnail = tracking_request  # type: ignore[assignment]
+
+    vm.request_thumbnails_for_range(2, 3)  # visible: [2,3], buffer=3 → [0,6]
+
+    assert 0 in requested_keys   # max(0, 2-3) = 0
+    assert 1 in requested_keys
+    assert 2 in requested_keys
+    assert 3 in requested_keys
+    assert 4 in requested_keys
+    assert 5 in requested_keys
+    assert 6 in requested_keys   # min(11, 3+3) = 6
+    assert 7 not in requested_keys
+
+
 def test_empty_repository():
     """An empty repository should produce an empty events list."""
     class EmptyRepo(EventRepository):
@@ -183,7 +212,8 @@ def test_empty_repository():
 
     config = MockConfigurationService()
     vm = HistoricalViewModel(
-        config, _make_physics_mock(), EmptyRepo()
+        config, _make_physics_mock(), EmptyRepo(),
+        MockThumbnailLoaderService(),
     )
     vm.loadEvents()
     assert vm.events == []

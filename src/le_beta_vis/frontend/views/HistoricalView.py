@@ -1,4 +1,9 @@
+import collections
+from typing import Optional
+
+import numpy as np
 from PySide6.QtCore import Qt, Slot, QMetaObject
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QSplitter,
     QVBoxLayout,
@@ -42,6 +47,8 @@ class HistoricalView(QWidget):
         super().__init__()
         self.viewModel = viewModel
         self._pendingFilter = None
+        self._thumbnailQueue: collections.deque = collections.deque()
+        self._pendingClusterData: Optional[np.ndarray] = None
         self._initUI()
         self._bindViewModel()
 
@@ -90,12 +97,12 @@ class HistoricalView(QWidget):
     def _applyGridConfig(self) -> None:
         """Reads grid configuration and applies size constraints."""
         cfg = self.viewModel._config
-        w = int(cfg.get("gui:historical:grid_item_width", 140))
-        h = int(cfg.get("gui:historical:grid_item_height", 160))
+        w = cfg.get_int("gui:historical:grid_item_width", 140)
+        h = cfg.get_int("gui:historical:grid_item_height", 160)
         self._gridWidget.setGridSize(w, h)
 
-        default_cols = int(cfg.get("gui:historical:grid_default_columns", 2))
-        max_cols = int(cfg.get("gui:historical:grid_max_columns", 3))
+        default_cols = cfg.get_int("gui:historical:grid_default_columns", 2)
+        max_cols = cfg.get_int("gui:historical:grid_max_columns", 3)
         self._gridWidget.setColumnConstraints(default_cols, max_cols)
 
     def _bindViewModel(self) -> None:
@@ -126,6 +133,13 @@ class HistoricalView(QWidget):
             )
         )
         self._gridWidget.eventSelected.connect(self._onGridItemSelected)
+        self._gridWidget.visibleRangeChanged.connect(
+            self.viewModel.request_thumbnails_for_range,
+        )
+        self._gridWidget.prefetchRequested.connect(
+            self.viewModel.prefetch_thumbnails,
+        )
+        self.viewModel.add_thumbnail_ready_callback(self._enqueueThumbnail)
 
     def _configureInspector(self) -> None:
         """Applies view-level settings to the inspector.
@@ -138,10 +152,17 @@ class HistoricalView(QWidget):
 
     def _configureGridWidget(self) -> None:
         """Wires ViewModel properties into the event grid."""
+        cfg = self.viewModel._config
         self._gridWidget.setPhysicsManager(self.viewModel.physicsManager)
         self._gridWidget.setDisplayEnergyInKev(self.viewModel.displayEnergyInKev)
         self._gridWidget.setClassificationThreshold(
             self.viewModel.classificationThreshold
+        )
+        self._gridWidget.setPrefetchCount(
+            cfg.get_int("gui:historical:prefetch_thumbnail_count", 30)
+        )
+        self._gridWidget.setSmoothScaling(
+            cfg.get_bool("gui:historical:thumbnail_smooth_scaling", False)
         )
 
     # --- Slots ---
@@ -175,7 +196,27 @@ class HistoricalView(QWidget):
         cluster = self.viewModel.selectedEvent
         index = self.viewModel.selectedIndex
         self._gridWidget.setSelectedIndex(index)
+        if cluster is None:
+            self._inspector.setEvent(None)
+            return
         self._inspector.setEvent(cluster)
+        self.viewModel.request_selected_cluster_data(
+            self._onClusterDataReady,
+        )
+
+    def _onClusterDataReady(self, data: Optional[np.ndarray]) -> None:
+        """Callback from service with raw cluster data — may be on bg thread."""
+        self._pendingClusterData = data
+        QMetaObject.invokeMethod(
+            self, "_applyClusterData", Qt.AutoConnection,
+        )
+
+    @Slot()
+    def _applyClusterData(self) -> None:
+        """Apply raw cluster data to the inspector on the main thread."""
+        data = self._pendingClusterData
+        self._pendingClusterData = None
+        self._inspector.updateClusterData(data)
 
     @Slot()
     def _updateLoading(self) -> None:
@@ -206,3 +247,34 @@ class HistoricalView(QWidget):
 
     def _onGridItemSelected(self, index: int) -> None:
         self.viewModel.selectEvent(index)
+
+    def _enqueueThumbnail(
+        self, key: int, buffer: np.ndarray,
+    ) -> None:
+        """Appends the thumbnail to the queue and marshals to the main thread."""
+        self._thumbnailQueue.append((key, buffer))
+        QMetaObject.invokeMethod(
+            self, "_onThumbnailReady", Qt.AutoConnection,
+        )
+
+    @Slot()
+    def _onThumbnailReady(self) -> None:
+        """Drains the thumbnail queue, converting buffers to QPixmaps."""
+        while self._thumbnailQueue:
+            key, buffer = self._thumbnailQueue.popleft()
+            pixmap = self._arrayToPixmap(buffer)
+            self._gridWidget.updateThumbnail(key, pixmap)
+
+    @staticmethod
+    def _arrayToPixmap(buffer: np.ndarray) -> QPixmap:
+        """Convert a uint8 numpy array to a QPixmap."""
+        h, w = buffer.shape[:2]
+        if buffer.ndim == 3:
+            q_img = QImage(
+                buffer.data, w, h, 3 * w, QImage.Format_RGB888,
+            )
+        else:
+            q_img = QImage(
+                buffer.data, w, h, w, QImage.Format_Grayscale8,
+            )
+        return QPixmap.fromImage(q_img.copy())

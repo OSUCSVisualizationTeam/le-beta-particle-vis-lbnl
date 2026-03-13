@@ -14,6 +14,7 @@ from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.MockEventRepository import (
     MockEventRepository,
 )
+from MockThumbnailLoaderService import MockThumbnailLoaderService
 
 
 def _make_physics_mock():
@@ -30,7 +31,8 @@ def view_model():
         "gui:historical:mode", HistoricalMode.HISTORICAL
     )
     return HistoricalViewModel(
-        config, _make_physics_mock(), MockEventRepository()
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
     )
 
 
@@ -74,7 +76,8 @@ def test_config_integration():
     config.set("gui:historical:mode", HistoricalMode.LIVE)
 
     vm = HistoricalViewModel(
-        config, _make_physics_mock(), MockEventRepository()
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
     )
     assert vm.mode == HistoricalMode.LIVE
 
@@ -83,7 +86,8 @@ def test_classification_threshold_default():
     """classificationThreshold should default to 0.75."""
     config = MockConfigurationService()
     vm = HistoricalViewModel(
-        config, _make_physics_mock(), MockEventRepository()
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
     )
     assert vm.classificationThreshold == 0.75
 
@@ -93,7 +97,8 @@ def test_classification_threshold_from_config():
     config = MockConfigurationService()
     config.set("gui:historical:classification_threshold", 0.60)
     vm = HistoricalViewModel(
-        config, _make_physics_mock(), MockEventRepository()
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
     )
     assert vm.classificationThreshold == 0.60
 
@@ -102,7 +107,8 @@ def test_display_energy_in_kev_default():
     """displayEnergyInKev should default to True."""
     config = MockConfigurationService()
     vm = HistoricalViewModel(
-        config, _make_physics_mock(), MockEventRepository()
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
     )
     assert vm.displayEnergyInKev is True
 
@@ -112,7 +118,8 @@ def test_display_energy_in_kev_false():
     config = MockConfigurationService()
     config.set("gui:raw_analysis:display_energy_in_kev", False)
     vm = HistoricalViewModel(
-        config, _make_physics_mock(), MockEventRepository()
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
     )
     assert vm.displayEnergyInKev is False
 
@@ -124,7 +131,8 @@ def test_histogram_renderer_default():
     )
     config = MockConfigurationService()
     vm = HistoricalViewModel(
-        config, _make_physics_mock(), MockEventRepository()
+        config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
     )
     assert isinstance(vm.histogramRenderer, MatplotlibHistogramRenderer)
 
@@ -138,6 +146,7 @@ def test_histogram_renderer_injected():
     renderer = MockHistogramRenderer()
     vm = HistoricalViewModel(
         config, _make_physics_mock(), MockEventRepository(),
+        MockThumbnailLoaderService(),
         histogramRenderer=renderer,
     )
     assert vm.histogramRenderer is renderer

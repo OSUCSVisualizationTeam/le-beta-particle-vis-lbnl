@@ -42,12 +42,11 @@ class HistoricalFilterBarViewModel:
         self._physics = physicsManager
 
         # Resolve default time preset from config
-        default_hours = int(self._config.get(
-            "gui:historical:default_query_hours", 24
-        ))
-        self._default_time_preset = _HOURS_TO_PRESET.get(
-            default_hours, "24h"
+        default_hours = self._config.get_int(
+            "gui:historical:default_query_hours",
+            24,
         )
+        self._default_time_preset = _HOURS_TO_PRESET.get(default_hours, "24h")
 
         # Filter fields (all default to "no filter")
         self._time_preset: str = self._default_time_preset
@@ -63,9 +62,7 @@ class HistoricalFilterBarViewModel:
         self._end_datetime: Optional[datetime] = None
 
         # Callbacks
-        self._on_filter_applied: List[
-            Callable[[ClusterQueryFilter], None]
-        ] = []
+        self._on_filter_applied: List[Callable[[ClusterQueryFilter], None]] = []
         self._on_filter_reset: List[Callable[[], None]] = []
 
     # --- Properties ---
@@ -172,9 +169,10 @@ class HistoricalFilterBarViewModel:
     @property
     def display_energy_in_kev(self) -> bool:
         """Whether the UI should show energy values in keV."""
-        return bool(self._config.get(
-            "gui:raw_analysis:display_energy_in_kev", True
-        ))
+        return self._config.get_bool(
+            "gui:raw_analysis:display_energy_in_kev",
+            True,
+        )
 
     @property
     def energy_unit_label(self) -> str:
@@ -225,10 +223,7 @@ class HistoricalFilterBarViewModel:
         if self._min_total_energy is not None:
             if self.display_energy_in_kev:
                 factor = self._physics.kev_conversion_factor
-                energy_adu = (
-                    self._min_total_energy / factor
-                    if factor != 0 else None
-                )
+                energy_adu = self._min_total_energy / factor if factor != 0 else None
             else:
                 energy_adu = self._min_total_energy
 
@@ -243,8 +238,8 @@ class HistoricalFilterBarViewModel:
             cluster_id=self._cluster_id,
             fits_id=self._fits_id,
             hdu_id=self._hdu_id,
-            date_start = self.start_datetime,
-            date_end = self.end_datetime,
+            date_start=self.start_datetime,
+            date_end=self.end_datetime,
             min_sigma_x=self._min_sigma_x,
             min_sigma_y=self._min_sigma_y,
             min_total_energy=energy_adu,
@@ -282,8 +277,6 @@ class HistoricalFilterBarViewModel:
         """Registers a callback fired when ``apply()`` is called."""
         self._on_filter_applied.append(callback)
 
-    def add_filter_reset_callback(
-        self, callback: Callable[[], None]
-    ) -> None:
+    def add_filter_reset_callback(self, callback: Callable[[], None]) -> None:
         """Registers a callback fired when ``reset()`` is called."""
         self._on_filter_reset.append(callback)

@@ -7,6 +7,8 @@ rendering with hover tooltips — no background threads needed.
 import logging
 from typing import Optional
 
+import numpy as np
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -131,7 +133,10 @@ class HistoricalEventInspector(QWidget):
     # --- Public interface ---
 
     def setEvent(self, cluster: Optional[Cluster]) -> None:
-        """Updates the inspector with the given cluster's details.
+        """Updates the inspector with cluster metadata.
+
+        Image and histogram will be populated later via
+        ``updateClusterData()``.
 
         Args:
             cluster: The cluster to display, or None to clear.
@@ -145,9 +150,21 @@ class HistoricalEventInspector(QWidget):
         self._placeholder.setVisible(False)
         self._detailWidget.setVisible(True)
 
-        self._imageWidget.setCluster(cluster.data, self._colormap)
         self._detailLabel.setText(self._vm.formatDetailHtml(cluster))
-        self._updateHistogram(cluster)
+        # Clear stale image/histogram — will be populated by updateClusterData
+        self._imageWidget.clear()
+        self._histogram.setData(None)
+
+    def updateClusterData(self, data: Optional[np.ndarray]) -> None:
+        """Updates the image and histogram with raw pixel data.
+
+        Args:
+            data: Raw cluster pixel data, or None if unavailable.
+        """
+        if data is None or self._current_cluster is None:
+            return
+        self._imageWidget.setCluster(data, self._colormap)
+        self._updateHistogramFromData(data)
 
     def clear(self) -> None:
         """Resets the inspector to its empty state."""
@@ -166,9 +183,10 @@ class HistoricalEventInspector(QWidget):
 
     # --- Histogram ---
 
-    def _updateHistogram(self, cluster: Cluster) -> None:
-        """Builds a histogram model and pushes it to the widget."""
-        hist_data = cluster.data.copy()
+    def _updateHistogramFromData(self, data: np.ndarray) -> None:
+        """Builds a histogram model from raw data and pushes it to the widget."""
+        hist_data = data.copy()
+        cluster = self._current_cluster
         x_label = self._vm.formatHistogramXLabel(cluster)
         if self._vm.physics and self._vm.displayKeV:
             hist_data = self._vm.physics.adu_to_kev(hist_data)
