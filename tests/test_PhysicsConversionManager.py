@@ -1,17 +1,30 @@
 import numpy as np
 import pytest
-from typing import Union
+from typing import Any, Dict, Optional, Union
 from le_beta_vis.common import PhysicsConversionManager, PhysicsConversionManagerImpl
+from le_beta_vis.common.ConfigurationService import ConfigurationService
 
 
-class MockConfig:
+class MockConfig(ConfigurationService):
     """Simple mock for ConfigurationService."""
 
     def __init__(self, data=None):
         self.data = data or {}
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
+
+    def set(self, key: str, value: Any) -> None:
+        self.data[key] = value
+
+    def get_description(self, key: str) -> Optional[str]:
+        return None
+
+    def reset_to_defaults(self) -> None:
+        self.data.clear()
+
+    def get_metadata(self) -> Dict[str, Dict[str, Any]]:
+        return {}
 
 
 def test_conversion_factor_retrieval():

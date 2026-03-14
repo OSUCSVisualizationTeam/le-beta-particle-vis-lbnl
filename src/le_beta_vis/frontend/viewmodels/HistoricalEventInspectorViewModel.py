@@ -2,6 +2,7 @@
 
 Pure Python — no Qt dependencies — so it can run in headless CI.
 """
+
 from typing import Callable, List, Optional
 
 from le_beta_vis.common.Cluster import Cluster
@@ -100,9 +101,7 @@ class HistoricalEventInspectorViewModel:
         self._renderer: HistogramRenderer = (
             histogramRenderer or MatplotlibHistogramRenderer()
         )
-        self._on_event_changed: List[
-            Callable[[Optional[Cluster]], None]
-        ] = []
+        self._on_event_changed: List[Callable[[Optional[Cluster]], None]] = []
 
     # --- Properties ---
 
@@ -169,51 +168,40 @@ class HistoricalEventInspectorViewModel:
         Returns:
             An HTML string suitable for ``QLabel.setText()``.
         """
-        particle_type, _ = classify_particle(
-            cluster, self._threshold
-        )
+        particle_type, _ = classify_particle(cluster, self._threshold)
 
         # Energy formatting
         if self._physics and self._displayKeV:
             energy_kev = self._physics.adu_to_kev(cluster.energy)
-            energy = (
-                f"{energy_kev:.4f} keV ({cluster.energy:.0f} ADU)"
-            )
+            energy = f"{energy_kev:.4f} keV ({cluster.energy:.0f} ADU)"
         else:
             energy = f"{cluster.energy:.2f} ADU"
 
         # Geometry
         bb = cluster.boundingBox
-        w = bb.right - bb.left
-        h = bb.bottom - bb.top
+        w = abs(bb.right - bb.left)
+        h = abs(bb.bottom - bb.top)
         geometry = f"{w}\u00d7{h}"
 
         # Relative center
-        rel_cx = cluster.centerX - bb.left
-        rel_cy = cluster.centerY - bb.top
-        center = f"({rel_cx}, {rel_cy})"
+        if cluster.centerX is not None and cluster.centerY is not None:
+            rel_cx = cluster.centerX - bb.left
+            rel_cy = cluster.centerY - bb.top
+            center = f"({rel_cx}, {rel_cy})"
+        else:
+            center = "N/A"
 
         # Cluster ID
-        cluster_id = (
-            str(cluster.clusterId)
-            if cluster.clusterId is not None
-            else "N/A"
-        )
+        cluster_id = str(cluster.clusterId) if cluster.clusterId is not None else "N/A"
 
         return HTML_TEMPLATE.format(
             particle_symbol=particle_type.symbol,
             particle_name=particle_type.display_name,
-            cnn_css=_score_css(
-                cluster.cnnClassification, self._threshold
-            ),
+            cnn_css=_score_css(cluster.cnnClassification, self._threshold),
             cnn_pct=f"{cluster.cnnClassification * 100:.1f}%",
-            nrg_css=_score_css(
-                cluster.nrgClassification, self._threshold
-            ),
+            nrg_css=_score_css(cluster.nrgClassification, self._threshold),
             nrg_pct=f"{cluster.nrgClassification * 100:.1f}%",
-            bdt_css=_score_css(
-                cluster.bdtClassification, self._threshold
-            ),
+            bdt_css=_score_css(cluster.bdtClassification, self._threshold),
             bdt_pct=f"{cluster.bdtClassification * 100:.1f}%",
             cluster_id=cluster_id,
             fits_filename=cluster.fitsFilename,

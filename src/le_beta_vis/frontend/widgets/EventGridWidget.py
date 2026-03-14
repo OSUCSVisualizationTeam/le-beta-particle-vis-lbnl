@@ -1,18 +1,16 @@
 from typing import List, Optional
 
 from PySide6.QtCore import (
+    QEvent,
     QModelIndex,
-    QRect,
+    QObject,
+    QPoint,
     QSize,
     Qt,
+    QTimer,
     Signal,
 )
 from PySide6.QtGui import (
-    QBrush,
-    QColor,
-    QFont,
-    QPainter,
-    QPen,
     QPixmap,
     QStandardItem,
     QStandardItemModel,
@@ -22,213 +20,18 @@ from PySide6.QtWidgets import (
     QListView,
     QScroller,
     QScrollerProperties,
-    QStyle,
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
     QVBoxLayout,
     QWidget,
 )
 
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.common.ParticleType import (
-    CLASSIFICATION_THRESHOLD,
-    classify_particle,
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
+from le_beta_vis.frontend.theme import COLOR_BACKGROUND_SURFACE
+from le_beta_vis.frontend.widgets._event_item_delegate import (
+    CLUSTER_ROLE,
+    THUMBNAIL_ROLE,
+    _EventItemDelegate,
 )
-from le_beta_vis.common.PhysicsConversionManager import (
-    PhysicsConversionManager,
-)
-from le_beta_vis.frontend.fitsconverters.interface import Colormap
-from le_beta_vis.frontend.widgets.EnergyClusterWidget import (
-    EnergyClusterWidget,
-)
-
-CLUSTER_ROLE = Qt.UserRole + 1
-THUMBNAIL_ROLE = Qt.UserRole + 2
-
-
-class _EventItemDelegate(QStyledItemDelegate):
-    """Paints grid items with thumbnail + badge overlays."""
-
-    BADGE_FONT_SIZE = 9
-    BADGE_RADIUS = 4
-    BADGE_PAD_X = 4
-    BADGE_PAD_Y = 2
-    BORDER_WIDTH = 2
-
-    def __init__(
-        self,
-        item_width: int = 140,
-        item_height: int = 160,
-        parent: Optional[QWidget] = None,
-    ):
-        super().__init__(parent)
-        self._item_width = item_width
-        self._item_height = item_height
-        self._threshold: float = CLASSIFICATION_THRESHOLD
-        self._physics: Optional[PhysicsConversionManager] = None
-        self._displayKeV: bool = True
-
-    def setItemSize(self, width: int, height: int) -> None:
-        """Updates the item dimensions used for sizeHint."""
-        self._item_width = width
-        self._item_height = height
-
-    def paint(
-        self,
-        painter: QPainter,
-        option: QStyleOptionViewItem,
-        index: QModelIndex,
-    ) -> None:
-        painter.save()
-        rect = option.rect
-
-        # Background
-        painter.fillRect(rect, QColor("#1e1e1e"))
-
-        # Selection border
-        is_selected = bool(
-            option.state & QStyle.StateFlag.State_Selected
-        )
-        if is_selected:
-            pen = QPen(QColor("#0078d7"), self.BORDER_WIDTH)
-        else:
-            pen = QPen(QColor("#555555"), 1)
-        painter.setPen(pen)
-        painter.drawRect(rect.adjusted(0, 0, -1, -1))
-
-        # Thumbnail
-        pixmap = index.data(THUMBNAIL_ROLE)
-        if pixmap and not pixmap.isNull():
-            thumb_rect = QRect(
-                rect.x() + self.BORDER_WIDTH,
-                rect.y() + self.BORDER_WIDTH,
-                rect.width() - 2 * self.BORDER_WIDTH,
-                rect.width() - 2 * self.BORDER_WIDTH,
-            )
-            painter.drawPixmap(thumb_rect, pixmap)
-            badge_area = thumb_rect
-        else:
-            badge_area = rect
-
-        # Cluster data for badges
-        cluster = index.data(CLUSTER_ROLE)
-        if cluster is not None:
-            particle_type, confidence = classify_particle(
-                cluster, self._threshold
-            )
-            self._draw_particle_badge(
-                painter, badge_area, particle_type
-            )
-            self._draw_confidence_badge(
-                painter, badge_area, confidence
-            )
-            self._draw_energy_label(
-                painter, rect, cluster.energy
-            )
-
-        painter.restore()
-
-    def _draw_particle_badge(
-        self, painter: QPainter, area: QRect, particle_type
-    ) -> None:
-        """Draws the particle type symbol badge (top-left)."""
-        font = QFont()
-        font.setPointSize(self.BADGE_FONT_SIZE)
-        font.setBold(True)
-        painter.setFont(font)
-        fm = painter.fontMetrics()
-
-        text = particle_type.symbol
-        text_w = fm.horizontalAdvance(text)
-        text_h = fm.height()
-
-        badge_w = text_w + 2 * self.BADGE_PAD_X
-        badge_h = text_h + 2 * self.BADGE_PAD_Y
-        x = area.x() + 4
-        y = area.y() + 4
-
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(QColor(particle_type.badge_color)))
-        painter.drawRoundedRect(
-            x, y, badge_w, badge_h,
-            self.BADGE_RADIUS, self.BADGE_RADIUS,
-        )
-
-        painter.setPen(QColor("white"))
-        painter.drawText(
-            x + self.BADGE_PAD_X,
-            y + self.BADGE_PAD_Y + fm.ascent(),
-            text,
-        )
-
-    def _draw_confidence_badge(
-        self, painter: QPainter, area: QRect, confidence: float
-    ) -> None:
-        """Draws the confidence % badge (top-right)."""
-        font = QFont()
-        font.setPointSize(self.BADGE_FONT_SIZE)
-        font.setBold(True)
-        painter.setFont(font)
-        fm = painter.fontMetrics()
-
-        text = f"{confidence * 100:.0f}%"
-        text_w = fm.horizontalAdvance(text)
-        text_h = fm.height()
-
-        badge_w = text_w + 2 * self.BADGE_PAD_X
-        badge_h = text_h + 2 * self.BADGE_PAD_Y
-        x = area.right() - badge_w - 4
-        y = area.y() + 4
-
-        threshold = self._threshold
-        bg_color = (
-            QColor("#2ecc71") if confidence >= threshold
-            else QColor("#f39c12") if confidence >= 0.5
-            else QColor("#95a5a6")
-        )
-
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(bg_color))
-        painter.drawRoundedRect(
-            x, y, badge_w, badge_h,
-            self.BADGE_RADIUS, self.BADGE_RADIUS,
-        )
-
-        text_color = (
-            QColor("white") if confidence >= threshold
-            else QColor("#fff3cd") if confidence >= 0.5
-            else QColor("white")
-        )
-        painter.setPen(text_color)
-        painter.drawText(
-            x + self.BADGE_PAD_X,
-            y + self.BADGE_PAD_Y + fm.ascent(),
-            text,
-        )
-
-    def _draw_energy_label(
-        self, painter: QPainter, rect: QRect, energy: float
-    ) -> None:
-        """Draws a compact energy label at the bottom."""
-        font = QFont()
-        font.setPointSize(8)
-        painter.setFont(font)
-        painter.setPen(QColor("#cccccc"))
-        if self._physics and self._displayKeV:
-            energy_kev = self._physics.adu_to_kev(energy)
-            text = f"E={energy_kev:.4f} keV"
-        else:
-            text = f"E={energy:.0f} ADU"
-        painter.drawText(
-            rect.x() + 4,
-            rect.bottom() - 4,
-            text,
-        )
-
-    def sizeHint(
-        self, option: QStyleOptionViewItem, index: QModelIndex
-    ) -> QSize:
-        return QSize(self._item_width, self._item_height)
 
 
 class EventGridWidget(QWidget):
@@ -243,6 +46,8 @@ class EventGridWidget(QWidget):
     """
 
     eventSelected = Signal(int)
+    visibleRangeChanged = Signal(int, int)
+    prefetchRequested = Signal(int)
 
     def __init__(
         self,
@@ -253,12 +58,22 @@ class EventGridWidget(QWidget):
         super().__init__(parent)
         self._item_width = item_width
         self._item_height = item_height
-        self._colormap: Optional[Colormap] = None
+        self._prefetch_count: int = 30
         self._initUI()
 
     def _initUI(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+
+        self._visibilityTimer = QTimer(self)
+        self._visibilityTimer.setSingleShot(True)
+        self._visibilityTimer.setInterval(50)
+        self._visibilityTimer.timeout.connect(self._emitVisibleRange)
+
+        self._trailingTimer = QTimer(self)
+        self._trailingTimer.setSingleShot(True)
+        self._trailingTimer.setInterval(50)
+        self._trailingTimer.timeout.connect(self._emitVisibleRange)
 
         self._listView = self._buildListView()
         layout.addWidget(self._listView)
@@ -268,7 +83,9 @@ class EventGridWidget(QWidget):
         """Creates and configures the grid's QListView."""
         self._model = QStandardItemModel()
         self._delegate = _EventItemDelegate(
-            self._item_width, self._item_height, self,
+            self._item_width,
+            self._item_height,
+            self,
         )
 
         view = QListView()
@@ -277,31 +94,25 @@ class EventGridWidget(QWidget):
         view.setViewMode(QListView.ViewMode.IconMode)
         view.setResizeMode(QListView.ResizeMode.Adjust)
         view.setMovement(QListView.Movement.Static)
-        view.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        view.setGridSize(
-            QSize(self._item_width, self._item_height)
-        )
+        view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        view.setGridSize(QSize(self._item_width, self._item_height))
         view.setUniformItemSizes(True)
         view.setSpacing(4)
         view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        view.setStyleSheet("background-color: #2d2d2d;")
+        view.setStyleSheet(f"background-color: {COLOR_BACKGROUND_SURFACE};")
         view.clicked.connect(self._onItemClicked)
+        view.viewport().installEventFilter(self)
         return view
 
-    def _configureKineticScrolling(
-        self, viewport: QWidget
-    ) -> None:
+    def _configureKineticScrolling(self, viewport: QWidget) -> None:
         """Sets up touch-style kinetic scrolling on *viewport*."""
         QScroller.grabGesture(
-            viewport, QScroller.LeftMouseButtonGesture,
+            viewport,
+            QScroller.LeftMouseButtonGesture,
         )
         scroller = QScroller.scroller(viewport)
         props = scroller.scrollerProperties()
-        props.setScrollMetric(
-            QScrollerProperties.AxisLockThreshold, 0.6
-        )
+        props.setScrollMetric(QScrollerProperties.AxisLockThreshold, 0.6)
         props.setScrollMetric(
             QScrollerProperties.HorizontalOvershootPolicy,
             QScrollerProperties.OvershootAlwaysOff,
@@ -324,17 +135,7 @@ class EventGridWidget(QWidget):
         self._listView.setGridSize(QSize(width, height))
         self._delegate.setItemSize(width, height)
 
-    def setColormap(self, colormap: Optional[Colormap]) -> None:
-        """Sets the colormap used for thumbnail rendering.
-
-        Args:
-            colormap: Colormap enum or None for grayscale.
-        """
-        self._colormap = colormap
-
-    def setPhysicsManager(
-        self, manager: PhysicsConversionManager
-    ) -> None:
+    def setPhysicsManager(self, manager: PhysicsConversionManager) -> None:
         """Sets the physics conversion manager for keV display.
 
         Args:
@@ -350,9 +151,7 @@ class EventGridWidget(QWidget):
         """
         self._delegate._displayKeV = enabled
 
-    def setClassificationThreshold(
-        self, threshold: float
-    ) -> None:
+    def setClassificationThreshold(self, threshold: float) -> None:
         """Sets the confidence threshold for classification badges.
 
         Args:
@@ -360,9 +159,7 @@ class EventGridWidget(QWidget):
         """
         self._delegate._threshold = threshold
 
-    def setColumnConstraints(
-        self, default_cols: int, max_cols: int
-    ) -> None:
+    def setColumnConstraints(self, default_cols: int, max_cols: int) -> None:
         """Sets minimum/maximum width based on column counts.
 
         Constrains the grid width so it displays *default_cols*
@@ -375,15 +172,31 @@ class EventGridWidget(QWidget):
         """
         grid_w = self._listView.gridSize().width()
         spacing = self._listView.spacing()
-        self.setMinimumWidth(
-            default_cols * (grid_w + spacing)
-        )
-        self.setMaximumWidth(
-            max_cols * (grid_w + spacing)
-        )
+        self.setMinimumWidth(default_cols * (grid_w + spacing))
+        self.setMaximumWidth(max_cols * (grid_w + spacing))
+
+    def setPrefetchCount(self, count: int) -> None:
+        """Sets the number of thumbnails to pre-fetch on initial load.
+
+        Args:
+            count: Number of thumbnails to eagerly request.
+        """
+        self._prefetch_count = max(3, count)
+
+    def setSmoothScaling(self, enabled: bool) -> None:
+        """Enable or disable smooth (anti-aliased) thumbnail scaling.
+
+        Args:
+            enabled: True for bilinear interpolation, False for
+                nearest-neighbor (sharp pixels).
+        """
+        self._delegate.setSmoothScaling(enabled)
 
     def setEvents(self, events: List[Cluster]) -> None:
-        """Populates the grid with cluster events.
+        """Populates the grid with lazy placeholder items.
+
+        Thumbnails are not generated here — they are loaded
+        asynchronously once the items scroll into the viewport.
 
         Args:
             events: List of Cluster objects to display.
@@ -392,11 +205,22 @@ class EventGridWidget(QWidget):
         for cluster in events:
             item = QStandardItem()
             item.setData(cluster, CLUSTER_ROLE)
-            item.setData(
-                self._make_thumbnail(cluster), THUMBNAIL_ROLE
-            )
             item.setEditable(False)
             self._model.appendRow(item)
+        self._scheduleVisibilityCheck()
+        self.prefetchRequested.emit(self._prefetch_count)
+
+    def updateThumbnail(self, index: int, pixmap: QPixmap) -> None:
+        """Update a single cell's thumbnail and trigger repaint.
+
+        Args:
+            index: Row index of the item to update.
+            pixmap: The rendered thumbnail pixmap.
+        """
+        if 0 <= index < self._model.rowCount():
+            item = self._model.item(index)
+            if item is not None:
+                item.setData(pixmap, THUMBNAIL_ROLE)
 
     def setSelectedIndex(self, index: int) -> None:
         """Programmatically selects a grid item.
@@ -414,11 +238,78 @@ class EventGridWidget(QWidget):
         """Removes all items from the grid."""
         self._model.clear()
 
-    def _make_thumbnail(self, cluster: Cluster) -> QPixmap:
-        """Generates a QPixmap thumbnail from cluster data."""
-        return EnergyClusterWidget.to_pixmap(
-            cluster.data, colormap=self._colormap
-        )
+    def _scheduleVisibilityCheck(self) -> None:
+        """Schedule visible-range emission with leading + trailing edge debounce."""
+        if not self._visibilityTimer.isActive():
+            self._visibilityTimer.start()
+        self._trailingTimer.start()
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """Detect scroll, resize, show and paint on the viewport."""
+        etype = event.type()
+        if etype in (
+            QEvent.Type.Resize,
+            QEvent.Type.Show,
+            QEvent.Type.Paint,
+            QEvent.Type.Scroll,
+        ):
+            self._scheduleVisibilityCheck()
+        return super().eventFilter(obj, event)
+
+    def _emitVisibleRange(self) -> None:
+        """Calculate the visible item range and emit visibleRangeChanged."""
+        if self._model.rowCount() == 0:
+            return
+        viewport = self._listView.viewport()
+        vp_w = viewport.width()
+        vp_h = viewport.height()
+        if vp_w == 0 or vp_h == 0:
+            return
+
+        first_row = self._findFirstVisibleRow(viewport)
+        last_row = self._findLastVisibleRow(first_row, vp_w, vp_h)
+
+        self.visibleRangeChanged.emit(first_row, last_row)
+
+    def _findFirstVisibleRow(self, viewport: QWidget) -> int:
+        """Finds the row index of the first visible item."""
+        first_idx = self._listView.indexAt(viewport.rect().topLeft())
+        return first_idx.row() if first_idx.isValid() else 0
+
+    def _findLastVisibleRow(self, first_row: int, vp_w: int, vp_h: int) -> int:
+        """Probes the viewport to find the row index of the last visible item."""
+        grid_w = self._listView.gridSize().width() + self._listView.spacing()
+        grid_h = self._listView.gridSize().height() + self._listView.spacing()
+        cols = max(1, vp_w // grid_w)
+
+        # Probe the bottom edge of the viewport at the center of each
+        # column to find the actual last visible item.  This is more
+        # reliable than a pure arithmetic estimate because it uses
+        # QListView's own layout engine.
+        y_bottom = vp_h - 1
+        last_row = self._probeRowAtY(y_bottom, cols, grid_w, vp_w, first_row)
+
+        # If probing missed (bottom pixel landed on spacing), try one
+        # grid-row higher to catch the partially visible bottom row.
+        if last_row == first_row and self._model.rowCount() > cols:
+            y_fallback = max(0, y_bottom - grid_h)
+            last_row = self._probeRowAtY(y_fallback, cols, grid_w, vp_w, last_row)
+            # Add one visual row to account for the row we stepped back from
+            last_row = min(last_row + cols, self._model.rowCount() - 1)
+
+        return last_row
+
+    def _probeRowAtY(self, y: int, cols: int, grid_w: int, vp_w: int, current_last: int) -> int:
+        """Probes horizontally across a specific Y coordinate to find the max row index."""
+        max_row = current_last
+        for col in range(cols):
+            x_probe = col * grid_w + grid_w // 2
+            if x_probe >= vp_w:
+                break
+            idx = self._listView.indexAt(QPoint(x_probe, y))
+            if idx.isValid() and idx.row() > max_row:
+                max_row = idx.row()
+        return max_row
 
     def _onItemClicked(self, index: QModelIndex) -> None:
         self.eventSelected.emit(index.row())

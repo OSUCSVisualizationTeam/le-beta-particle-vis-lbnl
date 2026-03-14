@@ -264,6 +264,7 @@ class ZMQBasedEventRepository(EventRepository):
                 cnnClassification=0.0,
                 nrgClassification=0.0,
                 bdtClassification=0.0,
+                hdu_id=record.hdu_id,
             )
         except Exception:
             logger.warning(
