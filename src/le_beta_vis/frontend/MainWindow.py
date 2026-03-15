@@ -90,6 +90,7 @@ class MainWindow(QMainWindow):
         menuBar = self.menuBar()
         self._setupFileMenu(menuBar)
         self._setupViewMenu(menuBar)
+        self._setupHelpMenu(menuBar)
         self.onModeChanged(self.historicalViewModel.mode)
 
     def _setupFileMenu(self, menuBar) -> None:
@@ -130,7 +131,24 @@ class MainWindow(QMainWindow):
         self.toggleLiveAction.triggered.connect(self.onToggleLiveMode)
         viewMenu.addAction(self.toggleLiveAction)
 
+    def _setupHelpMenu(self, menuBar) -> None:
+        helpMenu = menuBar.addMenu(self.tr("&Help"))
+        aboutAction = QAction(self.tr("About LE Beta Vis"), self)
+        if sys.platform == "darwin":
+            aboutAction.setMenuRole(QAction.MenuRole.AboutRole)
+        aboutAction.triggered.connect(self._onShowAbout)
+        helpMenu.addAction(aboutAction)
+
     # -- Slots -----------------------------------------------------------------
+
+    def _onShowAbout(self) -> None:
+        """Open the About dialog."""
+        from .viewmodels.AboutViewModel import AboutViewModel
+        from .widgets.AboutDialog import AboutDialog
+
+        vm = AboutViewModel()
+        dialog = AboutDialog(vm, parent=self)
+        dialog.exec()
 
     def _onOpenSettings(self) -> None:
         """Open the Settings dialog."""

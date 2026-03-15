@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +16,15 @@ _PYPROJECT_PATH = Path(__file__).resolve().parents[3] / "pyproject.toml"
 
 
 def _read_pyproject_version() -> Optional[str]:
-    """Return the version string from pyproject.toml, or None on failure."""
+    """Return the version string, handling both frozen and dev modes."""
+    if getattr(sys, "frozen", False):
+        try:
+            from importlib.metadata import version
+            return version("le-beta-vis-lbnl")
+        except Exception as exc:
+            _logger.warning("Could not read version via importlib.metadata: %s", exc)
+            return None
+
     try:
         with open(_PYPROJECT_PATH, "rb") as fh:
             data = tomllib.load(fh)
