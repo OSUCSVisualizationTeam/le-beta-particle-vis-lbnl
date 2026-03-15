@@ -31,7 +31,7 @@ def _resolve_icon_path() -> Path:
     if getattr(sys, "frozen", False):
         base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
     else:
-        base = Path(__file__).resolve().parent.parent
+        base = Path(__file__).resolve().parent.parent.parent
     return base / "resources" / "icons" / "lbnl-logo.png"
 
 
