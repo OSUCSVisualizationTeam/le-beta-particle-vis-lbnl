@@ -4,9 +4,18 @@
 import sys
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib  # type: ignore[no-redef]
+
 block_cipher = None
 
 ROOT = Path(SPECPATH).resolve().parent
+
+with open(ROOT / "pyproject.toml", "rb") as _fh:
+    _pyproject = tomllib.load(_fh)
+_VERSION = _pyproject["project"]["version"]
 SRC = ROOT / "src"
 RESOURCES = SRC / "le_beta_vis" / "resources"
 CONFIG = SRC / "le_beta_vis" / "config"
@@ -18,6 +27,7 @@ a = Analysis(
     datas=[
         (str(RESOURCES), "resources"),
         (str(CONFIG / "defaults.yaml"), "config"),
+        (str(ROOT / "pyproject.toml"), "."),
     ],
     hiddenimports=[
         "mlccd_models",
@@ -69,4 +79,12 @@ if sys.platform == "darwin":
         name="lbnlvis.app",
         icon=str(ROOT / "packaging" / "lbnlvis.icns"),
         bundle_identifier="edu.oregonstate.lbnl.lbnlvis",
+        info_plist={
+            "CFBundleDisplayName": "LE Beta Particle Visualization",
+            "CFBundleName": "LE Beta Particle Visualization",
+            "CFBundleShortVersionString": _VERSION,
+            "CFBundleVersion": _VERSION,
+            "NSHighResolutionCapable": True,
+            "NSHumanReadableCopyright": "Oregon State University / LBNL",
+        },
     )
