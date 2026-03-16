@@ -51,7 +51,8 @@ The project follows a "src-layout" to separate product code from research artifa
 
 ### Prerequisites
 
-- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/products/distribution) installed on your system.
+- [uv](https://docs.astral.sh/uv/) installed on your system.
+- Or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) / [Anaconda](https://www.anaconda.com/products/distribution) if you prefer Conda.
 
 ### Installation
 
@@ -61,8 +62,17 @@ The project follows a "src-layout" to separate product code from research artifa
     cd le-beta-particle-vis-lbnl
     ```
 
-2.  **Create and activate the Conda environment:**
-    This installs all dependencies including Python 3.12, PySide6, NumPy, AstroPy, and OpenCV.
+2.  **Create the uv environment and install dependencies:**
+    This installs the GUI stack, backend dependencies, and the LBNL
+    `mlccd` packages used by the default clustering mode.
+    ```bash
+    uv sync
+    ```
+
+    `uv` will use Python 3.10 as pinned in `.python-version`.
+
+3.  **Or create and activate the Conda environment:**
+    This installs the same baseline dependencies using Conda.
     ```bash
     conda env create -f environment.yml
     conda activate mlccd_viz
@@ -110,7 +120,19 @@ pre-commit run --all-files
 To launch the main Desktop GUI:
 
 ```bash
+uv run le-beta-vis
+```
+
+You can still launch the legacy entrypoint directly from a clone:
+
+```bash
 python run_app.py
+```
+
+For a headless smoke test:
+
+```bash
+QT_QPA_PLATFORM=offscreen uv run le-beta-vis
 ```
 
 ### Running Tests
@@ -118,8 +140,8 @@ python run_app.py
 To run the unit test suite (headless-compatible):
 
 ```bash
-# Ensure src is in the python path
-PYTHONPATH=src pytest tests
+uv sync --extra dev
+QT_QPA_PLATFORM=offscreen uv run pytest tests
 ```
 
 ### Troubleshooting

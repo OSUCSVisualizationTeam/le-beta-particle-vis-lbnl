@@ -17,6 +17,7 @@ dependencies:
   - pre-commit
   - autopep8
   - scikit-image
+  - scipy
   - pip
   - pyyaml
   - redis-py
