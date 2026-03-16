@@ -51,8 +51,8 @@ The project follows a "src-layout" to separate product code from research artifa
 
 ### Prerequisites
 
-- [uv](https://docs.astral.sh/uv/) installed on your system.
-- Or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) / [Anaconda](https://www.anaconda.com/products/distribution) if you prefer Conda.
+- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/products/distribution) installed on your system.
+- [uv](https://docs.astral.sh/uv/) installed on your system if you prefer the alternative `uv` workflow.
 
 ### Installation
 
@@ -62,7 +62,14 @@ The project follows a "src-layout" to separate product code from research artifa
     cd le-beta-particle-vis-lbnl
     ```
 
-2.  **Create the uv environment and install dependencies:**
+2.  **Create and activate the Conda environment:**
+    This installs the baseline dependencies used by the project.
+    ```bash
+    conda env create -f environment.yml
+    conda activate mlccd_viz
+    ```
+
+3.  **Alternative: create the `uv` environment and install dependencies:**
     This installs the GUI stack, backend dependencies, and the LBNL
     `mlccd` packages used by the default clustering mode.
     ```bash
@@ -70,13 +77,6 @@ The project follows a "src-layout" to separate product code from research artifa
     ```
 
     `uv` will use Python 3.10 as pinned in `.python-version`.
-
-3.  **Or create and activate the Conda environment:**
-    This installs the same baseline dependencies using Conda.
-    ```bash
-    conda env create -f environment.yml
-    conda activate mlccd_viz
-    ```
 
 ### Pre-commit Hooks
 
@@ -114,19 +114,18 @@ After installation the hooks run automatically on every `git commit`. To run the
 ```bash
 pre-commit run --all-files
 ```
-
 ### Running the Application
 
 To launch the main Desktop GUI:
 
 ```bash
-uv run le-beta-vis
+python run_app.py
 ```
 
-You can still launch the legacy entrypoint directly from a clone:
+If you installed with `uv`, you can also launch the packaged entrypoint:
 
 ```bash
-python run_app.py
+uv run le-beta-vis
 ```
 
 For a headless smoke test:
