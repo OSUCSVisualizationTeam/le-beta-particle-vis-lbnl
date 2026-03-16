@@ -2,6 +2,7 @@
 
 Usage:
     python packaging/build.py [--platform {macos,linux,windows,auto}] [--skip-pyinstaller]
+    python packaging/build.py --clear
 """
 
 import argparse
@@ -21,6 +22,22 @@ SRC = ROOT / "src"
 PACKAGING = ROOT / "packaging"
 DIST = ROOT / "dist"
 ICON_SOURCE = SRC / "le_beta_vis" / "resources" / "icons" / "lbnl-logo.png"
+
+_BUILD_ARTIFACT_DIRS = [ROOT / "dist", ROOT / "build"]
+_BUILD_ARTIFACT_FILES = [PACKAGING / "lbnlvis.ico", PACKAGING / "lbnlvis.icns"]
+
+
+def _clear_build_artifacts() -> None:
+    """Remove all build artifacts so the next build starts fresh."""
+    for directory in _BUILD_ARTIFACT_DIRS:
+        if directory.exists():
+            shutil.rmtree(directory)
+            print(f"Removed {directory}")
+
+    for filepath in _BUILD_ARTIFACT_FILES:
+        if filepath.exists():
+            filepath.unlink()
+            print(f"Removed {filepath}")
 
 
 def _read_version() -> str:
@@ -192,7 +209,16 @@ def main() -> None:
         action="store_true",
         help="Skip the PyInstaller step (use existing dist/)",
     )
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Remove all build artifacts and exit",
+    )
     args = parser.parse_args()
+
+    if args.clear:
+        _clear_build_artifacts()
+        return
 
     target = args.platform if args.platform != "auto" else _detect_platform()
     version = _read_version()

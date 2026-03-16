@@ -7,6 +7,9 @@ app = defines.get("app", "/tmp/lbnlvis.app")  # noqa: F821
 
 appname = os.path.basename(app)
 
+# Files to include in the DMG
+files = [app]
+
 # Volume settings
 volume_name = "LE Beta Particle Visualization"
 format = "UDBZ"
