@@ -107,21 +107,29 @@ def _package_macos(version: str) -> None:
         print(f"ERROR: {app_path} not found. Run PyInstaller first.", file=sys.stderr)
         return
 
+    user_guide = ROOT / "wiki" / "User-Guide.pdf"
+    if not user_guide.exists():
+        print(
+            f"WARNING: {user_guide} not found. "
+            "DMG will be created without the User Guide.",
+            file=sys.stderr,
+        )
+
     dmg_name = f"LBNLVis-{version}.dmg"
     dmg_path = DIST / dmg_name
     settings = PACKAGING / "dmgbuild_settings.py"
 
+    dmgbuild_args = [
+        sys.executable, "-m", "dmgbuild",
+        "-s", str(settings),
+        "-D", f"app={app_path}",
+    ]
+    if user_guide.exists():
+        dmgbuild_args += ["-D", f"user_guide={user_guide}"]
+    dmgbuild_args += ["LE Beta Particle Visualization", str(dmg_path)]
+
     try:
-        subprocess.run(
-            [
-                sys.executable, "-m", "dmgbuild",
-                "-s", str(settings),
-                "-D", f"app={app_path}",
-                "LE Beta Particle Visualization",
-                str(dmg_path),
-            ],
-            check=True,
-        )
+        subprocess.run(dmgbuild_args, check=True)
         print(f"Created {dmg_path}")
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         print(f"WARNING: dmgbuild failed: {exc}", file=sys.stderr)
