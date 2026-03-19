@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +16,23 @@ _PYPROJECT_PATH = Path(__file__).resolve().parents[3] / "pyproject.toml"
 
 
 def _read_pyproject_version() -> Optional[str]:
-    """Return the version string from pyproject.toml, or None on failure."""
+    """Return the version string, handling both frozen and dev modes."""
+    if getattr(sys, "frozen", False):
+        try:
+            from importlib.metadata import version
+            return version("le-beta-vis-lbnl")
+        except Exception:
+            _logger.debug("importlib.metadata unavailable in frozen app, "
+                          "falling back to bundled pyproject.toml")
+        frozen_pyproject = Path(sys._MEIPASS) / "pyproject.toml"  # type: ignore[attr-defined]
+        try:
+            with open(frozen_pyproject, "rb") as fh:
+                data = tomllib.load(fh)
+            return data.get("project", {}).get("version")
+        except Exception as exc:
+            _logger.warning("Could not read version from bundled pyproject.toml: %s", exc)
+            return None
+
     try:
         with open(_PYPROJECT_PATH, "rb") as fh:
             data = tomllib.load(fh)

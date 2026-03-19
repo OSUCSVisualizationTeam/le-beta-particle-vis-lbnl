@@ -29,3 +29,6 @@ dependencies:
     - git+https://gitlab.com/lbl-anp/mlccd/mlccd_models.git
     - flake8-pyproject
     - docformatter[tomli]
+    - pyinstaller
+    - dmgbuild
+    - pillow

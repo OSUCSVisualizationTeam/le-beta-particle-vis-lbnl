@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LE Beta Particle Visualization
+Comment=Low-Energy Beta Particle Track Visualization Tool (LBNL)
+Exec=lbnlvis
+Icon=lbnlvis
+Terminal=false
+Categories=Science;Education;
