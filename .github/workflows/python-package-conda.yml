@@ -1,12 +1,18 @@
 name: Python Conda
 
-on: 
+on:
   push:
     branches:
       - main
+      - 'release/**'
   pull_request:
     branches:
       - main
+      - 'release/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-linux:
@@ -30,7 +36,7 @@ jobs:
           path: ~/conda_pkgs_dir
           key:
             ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{
-            hashFiles('experiment.yml') }}
+            hashFiles('environment.yml') }}
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v3

@@ -1,5 +1,8 @@
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, Set
 from enum import Enum
+
+import numpy as np
+
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
 from le_beta_vis.common.HistogramRenderer import (
@@ -11,6 +14,8 @@ from le_beta_vis.common.PhysicsConversionManager import (
 )
 from le_beta_vis.common.EventRepository import EventRepository
 from le_beta_vis.common.Cluster import Cluster
+from le_beta_vis.common.ThumbnailLoaderService import ThumbnailLoaderService
+from le_beta_vis.frontend.fitsconverters.interface import Colormap
 
 
 class HistoricalMode(str, Enum):
@@ -33,19 +38,19 @@ class HistoricalViewModel:
         configService: ConfigurationService,
         physicsManager: PhysicsConversionManager,
         repository: EventRepository,
+        thumbnailService: ThumbnailLoaderService,
         histogramRenderer: Optional[HistogramRenderer] = None,
     ):
         self._config = configService
         self._physics = physicsManager
         self._repository = repository
+        self._thumbnail_service = thumbnailService
         self._histogramRenderer: HistogramRenderer = (
             histogramRenderer or MatplotlibHistogramRenderer()
         )
 
         # Mode state
-        mode_str = self._config.get(
-            "gui:historical:mode", HistoricalMode.HISTORICAL
-        )
+        mode_str = self._config.get("gui:historical:mode", HistoricalMode.HISTORICAL)
         self._mode = HistoricalMode(mode_str)
 
         # Event state
@@ -54,17 +59,22 @@ class HistoricalViewModel:
         self._loading: bool = False
         self._query_filter: Optional[ClusterQueryFilter] = None
 
+        # Thumbnail loader config
+        self._eviction_distance: int = self._config.get_int(
+            "gui:historical:eviction_distance",
+            30,
+        )
+        self._scroll_prefetch_buffer: int = self._config.get_int(
+            "gui:historical:scroll_prefetch_buffer",
+            30,
+        )
+
         # Callbacks
-        self._on_mode_changed_callbacks: List[
-            Callable[[HistoricalMode], None]
-        ] = []
+        self._on_mode_changed_callbacks: List[Callable[[HistoricalMode], None]] = []
         self._on_events_changed_callbacks: List[Callable[[], None]] = []
-        self._on_selected_event_changed_callbacks: List[
-            Callable[[], None]
-        ] = []
-        self._on_loading_changed_callbacks: List[
-            Callable[[bool], None]
-        ] = []
+        self._on_selected_event_changed_callbacks: List[Callable[[], None]] = []
+        self._on_loading_changed_callbacks: List[Callable[[bool], None]] = []
+        self._on_thumbnail_ready_callbacks: List[Callable[[int, np.ndarray], None]] = []
 
     # --- Properties ---
 
@@ -108,16 +118,26 @@ class HistoricalViewModel:
     @property
     def classificationThreshold(self) -> float:
         """Classification confidence threshold from configuration."""
-        return float(self._config.get(
-            "gui:historical:classification_threshold", 0.75
+        return self._config.get_float(
+            "gui:historical:classification_threshold",
+            0.75,
+        )
+
+    @property
+    def thumbnailColormap(self) -> Colormap:
+        """Colormap used for cluster thumbnails and inspector images."""
+        colormap_str = str(self._config.get(
+            "gui:historical:thumbnail_colormap", "viridis"
         ))
+        return Colormap(colormap_str)
 
     @property
     def displayEnergyInKev(self) -> bool:
         """Whether cluster energy should be displayed in keV."""
-        return bool(self._config.get(
-            "gui:raw_analysis:display_energy_in_kev", True
-        ))
+        return self._config.get_bool(
+            "gui:raw_analysis:display_energy_in_kev",
+            True,
+        )
 
     # --- Commands ---
 
@@ -149,15 +169,75 @@ class HistoricalViewModel:
         )
         self.setMode(new_mode)
 
-    def setQueryFilter(
-        self, query_filter: Optional[ClusterQueryFilter]
-    ) -> None:
+    def setQueryFilter(self, query_filter: Optional[ClusterQueryFilter]) -> None:
         """Sets filter criteria for the next ``loadEvents`` call.
 
         Args:
             query_filter: Filter to apply, or ``None`` to clear.
         """
         self._query_filter = query_filter
+
+    def prefetch_thumbnails(self, count: int) -> None:
+        """Pre-fetch the first *count* thumbnails without waiting for scroll."""
+        last = min(count, len(self._events)) - 1
+        if last >= 0:
+            self.request_thumbnails_for_range(0, last)
+
+    def request_thumbnails_for_range(
+        self,
+        first: int,
+        last: int,
+    ) -> None:
+        """Request thumbnails for visible indices plus a look-ahead buffer.
+
+        Args:
+            first: First visible item index.
+            last: Last visible item index.
+        """
+        buf = self._scroll_prefetch_buffer
+        req_first = max(0, first - buf)
+        req_last = min(len(self._events) - 1, last + buf)
+        for i in range(req_first, req_last + 1):
+            if 0 <= i < len(self._events):
+                self._thumbnail_service.request_thumbnail(
+                    i,
+                    self._events[i],
+                    self._on_thumbnail_loaded,
+                )
+        keep: Set[int] = set(
+            range(
+                max(0, first - self._eviction_distance),
+                min(len(self._events), last + self._eviction_distance + 1),
+            )
+        )
+        self._thumbnail_service.evict(keep)
+
+    def request_selected_cluster_data(
+        self,
+        on_ready: Callable[[Optional[np.ndarray]], None],
+    ) -> None:
+        """Request raw pixel data for the currently selected cluster."""
+        cluster = self.selectedEvent
+        if cluster is None:
+            on_ready(None)
+            return
+        self._thumbnail_service.request_cluster_data(cluster, on_ready)
+
+    def add_thumbnail_ready_callback(
+        self,
+        callback: Callable[[int, np.ndarray], None],
+    ) -> None:
+        """Registers a callback for when a thumbnail finishes loading."""
+        self._on_thumbnail_ready_callbacks.append(callback)
+
+    def _on_thumbnail_loaded(
+        self,
+        key: int,
+        thumbnail: np.ndarray,
+    ) -> None:
+        """Internal callback passed to service; fans out to registered observers."""
+        for cb in self._on_thumbnail_ready_callbacks:
+            cb(key, thumbnail)
 
     def loadEvents(self) -> None:
         """Fetches events from the repository and notifies observers.
@@ -167,13 +247,12 @@ class HistoricalViewModel:
         repository does not implement it, falls back to
         ``fetch_events``.
         """
+        self._thumbnail_service.clear()
         self._setLoading(True)
         try:
             if self._query_filter is not None:
                 try:
-                    self._events = self._repository.query_clusters(
-                        self._query_filter
-                    )
+                    self._events = self._repository.query_clusters(self._query_filter)
                 except NotImplementedError:
                     self._events = self._repository.fetch_events()
             else:
@@ -205,21 +284,15 @@ class HistoricalViewModel:
         """Registers a callback for mode changes."""
         self._on_mode_changed_callbacks.append(callback)
 
-    def add_events_changed_callback(
-        self, callback: Callable[[], None]
-    ) -> None:
+    def add_events_changed_callback(self, callback: Callable[[], None]) -> None:
         """Registers a callback for when the event list changes."""
         self._on_events_changed_callbacks.append(callback)
 
-    def add_selected_event_changed_callback(
-        self, callback: Callable[[], None]
-    ) -> None:
+    def add_selected_event_changed_callback(self, callback: Callable[[], None]) -> None:
         """Registers a callback for selection changes."""
         self._on_selected_event_changed_callbacks.append(callback)
 
-    def add_loading_changed_callback(
-        self, callback: Callable[[bool], None]
-    ) -> None:
+    def add_loading_changed_callback(self, callback: Callable[[bool], None]) -> None:
         """Registers a callback for loading state changes."""
         self._on_loading_changed_callbacks.append(callback)
 

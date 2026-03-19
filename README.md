@@ -68,6 +68,43 @@ The project follows a "src-layout" to separate product code from research artifa
     conda activate mlccd_viz
     ```
 
+### Pre-commit Hooks
+
+The project uses [pre-commit](https://pre-commit.com/) to enforce code style automatically at commit time. Hooks run `autopep8` (auto-format), `docformatter` (Google-style docstrings), and `flake8` (lint) in that order. If a formatter modifies a file, the commit is aborted so you can review the changes before re-committing.
+
+The hooks are already included in `environment.yml`. After creating or updating the environment, register them with git once:
+
+#### Linux / macOS
+
+```bash
+conda activate mlccd_viz
+pre-commit install
+```
+
+#### Windows (Anaconda Prompt)
+
+```bat
+conda activate mlccd_viz
+pre-commit install
+```
+
+#### Windows (PowerShell)
+
+If `conda activate` fails in PowerShell, initialise conda first (one-time setup):
+
+```powershell
+conda init powershell
+# Restart PowerShell, then:
+conda activate mlccd_viz
+pre-commit install
+```
+
+After installation the hooks run automatically on every `git commit`. To run them manually against all files:
+
+```bash
+pre-commit run --all-files
+```
+
 ### Running the Application
 
 To launch the main Desktop GUI:

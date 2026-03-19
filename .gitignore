@@ -1,2 +1,7 @@
 **/__pycache__/
 wiki/
+.idea/
+packaging/tools/
+packaging/lbnlvis.ico
+packaging/lbnlvis.icns
+memray*

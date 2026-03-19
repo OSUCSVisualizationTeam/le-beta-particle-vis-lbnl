@@ -10,6 +10,7 @@ import logging
 import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import threading
 
 import numpy as np
 import zmq
@@ -83,8 +84,12 @@ class ZMQBasedEventRepository(EventRepository):
         clusters: List[Cluster] = []
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[0].filename
-            cluster = self._map_to_cluster(record, filename)
+            fits = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
+                0
+            ]
+            fitsFilename = fits.filename
+            fits_date = fits.date
+            cluster = self._map_to_cluster(record, fitsFilename, fits_date)
             if cluster is not None:
                 clusters.append(cluster)
         return clusters
@@ -115,7 +120,9 @@ class ZMQBasedEventRepository(EventRepository):
             return False
         return True
 
-    def query_fits(self, query_filter: Optional[FitsQueryFilter] = None) -> List[EPSFitsRecord]:
+    def query_fits(
+        self, query_filter: Optional[FitsQueryFilter] = None
+    ) -> List[EPSFitsRecord]:
         """Sends a retrieval request to the EPS FITS socket."""
         if query_filter is not None:
             request = query_filter.to_eps_dict()
@@ -132,8 +139,10 @@ class ZMQBasedEventRepository(EventRepository):
             return []
         raw_files = response.get("fits", [])
         return [EPSFitsRecord.from_eps_dict(f) for f in raw_files]
-    
-    def query_fits_clusters(self, query_filter: Optional[FitsClusterQueryFilter] = None) -> List[EPSFitsRecord]:
+
+    def query_fits_clusters(
+        self, query_filter: Optional[FitsClusterQueryFilter] = None
+    ) -> List[EPSFitsRecord]:
         """Sends a retrieval request to the EPS FITS socket."""
         if query_filter is not None:
             request = query_filter.to_eps_dict()
@@ -153,12 +162,17 @@ class ZMQBasedEventRepository(EventRepository):
         filename = self.query_fits(FitsQueryFilter)
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            filename = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[0].filename
-            cluster = self._map_to_cluster(record, filename)
+            fits = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
+                0
+            ]
+            fitsFilename = fits.filename
+            fits_date = fits.date
+
+            cluster = self._map_to_cluster(record, fitsFilename, fits_date)
             if cluster is not None:
                 clusters.append(cluster)
         return clusters
-    
+
     # ------------------------------------------------------------------
     # Socket helpers
     # ------------------------------------------------------------------
@@ -212,45 +226,45 @@ class ZMQBasedEventRepository(EventRepository):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _map_to_cluster(record: EPSClusterRecord, filename: str) -> Optional[Cluster]:
+    def _map_to_cluster(
+        record: EPSClusterRecord, fitsFilename: str, date: str
+    ) -> Optional[Cluster]:
         """Converts an ``EPSClusterRecord`` to a domain ``Cluster``.
 
         Handles the gaps between the EPS response and the frontend
         model:
 
-        - **data**: ``np.frombuffer`` if bytes, ``np.array`` if list.
-          Attempts square reshape; falls back to 1-row.
         - **bounding box**: synthesised from data shape (EPS does not
           include it in the response).
-        - **center**: brightest pixel via ``np.argmax``.
         - **classification scores**: defaulted to 0.0 (EPS stores a
           single string, not per-model floats).
         """
         try:
-            bbox = BoundingBox(top=record.bounding_box["top"] , left=record.bounding_box["left"], 
-                               bottom=record.bounding_box["bottom"], right=record.bounding_box["right"])
-            arr = CCDCaptureModel.extractClusterFromFile(fits_filepath=filename, hdu=record.hdu_id, bounding_box=bbox)
-            rows, cols = arr.shape
-            if arr.size > 0:
-                flat_idx = int(np.argmax(arr))
-                center_y, center_x = divmod(flat_idx, cols)
-            else:
-                center_x, center_y = 0, 0
+            bbox = BoundingBox(
+                top=record.bounding_box["top"],
+                left=record.bounding_box["left"],
+                bottom=record.bounding_box["bottom"],
+                right=record.bounding_box["right"],
+            )
+
             return Cluster(
                 boundingBox=bbox,
-                data=arr,
-                centerX=center_x,
-                centerY=center_y,
+                data=None,
+                centerX=None,
+                centerY=None,
                 sigmaX=record.sigma_x,
                 sigmaY=record.sigma_y,
                 energy=record.total_energy,
                 pixelCount=record.total_pixels,
+                fitsFilename=fitsFilename,
+                date=date,
                 fitsId=record.fits_id,
                 clusterId=record.cluster_id,
-                classification = record.classification,
+                classification=record.classification,
                 cnnClassification=0.0,
                 nrgClassification=0.0,
                 bdtClassification=0.0,
+                hdu_id=record.hdu_id,
             )
         except Exception:
             logger.warning(

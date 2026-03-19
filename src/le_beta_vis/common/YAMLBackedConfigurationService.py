@@ -2,6 +2,7 @@ import enum
 import logging
 import os
 import platform
+import sys
 import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -12,9 +13,15 @@ from le_beta_vis.common.ConfigurationService import ConfigurationService
 
 logger = logging.getLogger(__name__)
 
-_BUNDLED_DEFAULTS_PATH = (
-    Path(__file__).resolve().parent.parent / "config" / "defaults.yaml"
-)
+
+def _resolve_bundled_defaults() -> Path:
+    """Return the path to defaults.yaml, handling frozen mode."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "config" / "defaults.yaml"  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parent.parent / "config" / "defaults.yaml"
+
+
+_BUNDLED_DEFAULTS_PATH = _resolve_bundled_defaults()
 
 
 class YAMLBackedConfigurationService(ConfigurationService):

@@ -1,0 +1,25 @@
+repos:
+  - repo: local
+    hooks:
+      - id: autopep8
+        name: autopep8 (auto-format)
+        language: system
+        entry: autopep8
+        types: [python]
+        pass_filenames: true
+
+      - id: docformatter
+        name: docformatter (Google-style docstrings)
+        language: system
+        entry: docformatter
+        types: [python]
+        pass_filenames: true
+
+      - id: flake8
+        name: flake8 lint (all rules)
+        language: system
+        entry: flake8
+        types: [python]
+        pass_filenames: false
+        args:
+          - src/
