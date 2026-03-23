@@ -1,7 +1,6 @@
 import sys
 import os
 
-# Add the src directory to sys.path to allow imports when running from a clone.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from le_beta_vis.app import main  # noqa: E402
 
