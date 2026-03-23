@@ -4,6 +4,10 @@
   #define AppVersion "0.0.0"
 #endif
 
+#ifndef AppArch
+  #define AppArch "x86_64"
+#endif
+
 [Setup]
 AppName=LE Beta Particle Visualization
 AppVersion={#AppVersion}
@@ -12,7 +16,7 @@ AppPublisherURL=https://github.com/OSUCSVisualizationTeam/le-beta-particle-vis-l
 DefaultDirName={autopf}\LBNLVis
 DefaultGroupName=LBNLVis
 OutputDir=..\dist
-OutputBaseFilename=LBNLVis-Setup-{#AppVersion}
+OutputBaseFilename=LBNLVis-Windows-{#AppArch}-{#AppVersion}-Setup
 Compression=lzma
 SolidCompression=yes
 SetupIconFile=lbnlvis.ico

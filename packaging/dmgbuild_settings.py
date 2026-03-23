@@ -6,15 +6,14 @@ import os
 app = defines.get("app", "/tmp/lbnlvis.app")  # noqa: F821
 user_guide = defines.get("user_guide", "")  # noqa: F821
 
-appname = os.path.basename(app)
-
-# Files to include in the DMG
-files = [app]
+# Present the app with a user-friendly name inside the DMG
+display_name = "LE Beta Vis.app"
+files = [(app, display_name)]
 if user_guide:
     files.append((user_guide, "User Guide.pdf"))
 
-# Volume settings
-volume_name = "LE Beta Particle Visualization"
+# Volume settings — title bar doubles as drag instruction
+volume_name = "Drag LE Beta Vis to Applications"
 format = "UDBZ"
 size = None  # auto-calculate
 
@@ -24,7 +23,7 @@ background_color = "#1e1e1e"
 
 icon_size = 80
 icon_locations = {
-    appname: (140, 140),
+    display_name: (140, 140),
     "Applications": (500, 140),
 }
 if user_guide:
