@@ -122,13 +122,13 @@ To launch the main Desktop GUI:
 python run_app.py
 ```
 
-If you installed with `uv`, you can also launch the packaged entrypoint:
+From the repository root, if you installed with `uv`, you can launch the app with:
 
 ```bash
 uv run lbnlvis
 ```
 
-For a headless smoke test:
+For a headless smoke test from the repository root:
 
 ```bash
 QT_QPA_PLATFORM=offscreen uv run lbnlvis
