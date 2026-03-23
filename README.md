@@ -125,13 +125,13 @@ python run_app.py
 If you installed with `uv`, you can also launch the packaged entrypoint:
 
 ```bash
-uv run le-beta-vis
+uv run lbnlvis
 ```
 
 For a headless smoke test:
 
 ```bash
-QT_QPA_PLATFORM=offscreen uv run le-beta-vis
+QT_QPA_PLATFORM=offscreen uv run lbnlvis
 ```
 
 ### Running Tests

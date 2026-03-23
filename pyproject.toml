@@ -41,9 +41,6 @@ where = ["src"]
 [project.scripts]
 lbnlvis = "le_beta_vis.app:main"
 
-[project.gui-scripts]
-le-beta-vis = "le_beta_vis.app:main"
-
 [tool.uv.sources]
 mlccd-diffusion = { git = "https://gitlab.com/lbl-anp/mlccd/mlccd_diffusion.git" }
 mlccd-models = { git = "https://gitlab.com/lbl-anp/mlccd/mlccd_models.git" }
