@@ -128,12 +128,6 @@ From the repository root, if you installed with `uv`, you can launch the app wit
 uv run lbnlvis
 ```
 
-For a headless smoke test from the repository root:
-
-```bash
-QT_QPA_PLATFORM=offscreen uv run lbnlvis
-```
-
 ### Running Tests
 
 To run the unit test suite (headless-compatible):
