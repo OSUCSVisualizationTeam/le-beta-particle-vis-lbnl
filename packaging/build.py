@@ -190,10 +190,12 @@ def _package_macos(version: str, arch: str, python_bin: str) -> None:
     dmg_path = DIST / dmg_name
     settings = PACKAGING / "dmgbuild_settings.py"
 
+    background = PACKAGING / "dmg_background.png"
     dmgbuild_args = [
         python_bin, "-m", "dmgbuild",
         "-s", str(settings),
         "-D", f"app={app_path}",
+        "-D", f"background={background}",
     ]
     if user_guide.exists():
         dmgbuild_args += ["-D", f"user_guide={user_guide}"]

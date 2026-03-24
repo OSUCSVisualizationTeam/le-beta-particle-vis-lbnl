@@ -19,8 +19,7 @@ size = None  # auto-calculate
 
 # Window layout
 window_rect = ((200, 120), (660, 480))
-_settings_dir = os.path.dirname(os.path.abspath(__file__))
-background = os.path.join(_settings_dir, "dmg_background.png")
+background = defines.get("background", "")  # noqa: F821
 
 icon_size = 80
 icon_locations = {
