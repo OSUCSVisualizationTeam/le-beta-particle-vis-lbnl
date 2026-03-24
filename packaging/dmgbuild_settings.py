@@ -17,8 +17,9 @@ volume_name = "Drag LE Beta Vis to Applications"
 format = "UDBZ"
 size = None  # auto-calculate
 
-# Window layout
-window_rect = ((200, 120), (660, 480))
+# Window layout — height includes the macOS title bar (~28pt on Big Sur+),
+# so add 28 to the background image height (480) to avoid clipping.
+window_rect = ((200, 120), (660, 508))
 background = defines.get("background", "")  # noqa: F821
 
 icon_size = 80
