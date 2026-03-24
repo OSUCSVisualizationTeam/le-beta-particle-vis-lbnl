@@ -19,15 +19,16 @@ size = None  # auto-calculate
 
 # Window layout
 window_rect = ((200, 120), (660, 480))
-background_color = "#1e1e1e"
+_settings_dir = os.path.dirname(os.path.abspath(__file__))
+background = os.path.join(_settings_dir, "dmg_background.png")
 
 icon_size = 80
 icon_locations = {
-    display_name: (140, 140),
-    "Applications": (500, 140),
+    display_name: (160, 250),
+    "Applications": (500, 250),
 }
 if user_guide:
-    icon_locations["User Guide.pdf"] = (320, 340)
+    icon_locations["User Guide.pdf"] = (330, 340)
 
 # Symlink to /Applications
 symlinks = {"Applications": "/Applications"}
