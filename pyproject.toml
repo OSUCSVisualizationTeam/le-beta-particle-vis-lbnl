@@ -38,6 +38,7 @@ packaging = [
     "dmgbuild; sys_platform == 'darwin'",
     "pillow",
     "pyinstaller",
+    "tomli",
 ]
 
 [tool.setuptools.packages.find]
