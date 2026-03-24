@@ -645,6 +645,7 @@ packaging = [
     { name = "dmgbuild", marker = "sys_platform == 'darwin'" },
     { name = "pillow" },
     { name = "pyinstaller" },
+    { name = "tomli" },
 ]
 
 [package.metadata]
@@ -671,6 +672,7 @@ requires-dist = [
     { name = "scikit-image" },
     { name = "scipy" },
     { name = "superqt" },
+    { name = "tomli", marker = "extra == 'packaging'" },
     { name = "watchdog" },
 ]
 provides-extras = ["dev", "packaging"]

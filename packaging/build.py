@@ -171,7 +171,7 @@ def _run_pyinstaller(python_bin: str) -> None:
     )
 
 
-def _package_macos(version: str, arch: str) -> None:
+def _package_macos(version: str, arch: str, python_bin: str) -> None:
     """Create a DMG using dmgbuild."""
     app_path = DIST / "lbnlvis.app"
     if not app_path.exists():
@@ -191,7 +191,7 @@ def _package_macos(version: str, arch: str) -> None:
     settings = PACKAGING / "dmgbuild_settings.py"
 
     dmgbuild_args = [
-        sys.executable, "-m", "dmgbuild",
+        python_bin, "-m", "dmgbuild",
         "-s", str(settings),
         "-D", f"app={app_path}",
     ]
@@ -328,7 +328,7 @@ def main() -> None:
         _run_pyinstaller(python_bin)
 
     if target == "macos":
-        _package_macos(version, arch)
+        _package_macos(version, arch, python_bin)
     elif target == "linux":
         _package_linux(version, arch)
     elif target == "windows":
