@@ -34,6 +34,12 @@ dev = [
     "flake8",
     "pytest",
 ]
+packaging = [
+    "dmgbuild; sys_platform == 'darwin'",
+    "pillow",
+    "pyinstaller",
+    "tomli",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
