@@ -4,4 +4,6 @@ wiki/
 packaging/tools/
 packaging/lbnlvis.ico
 packaging/lbnlvis.icns
+.packaging-venv/
 memray*
+src/le_beta_vis_lbnl.egg-info/

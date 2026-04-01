@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - 'release/**'
+      - 'feat/uv_support'
   pull_request:
     branches:
       - main
       - 'release/**'
+      - 'feat/uv_support'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

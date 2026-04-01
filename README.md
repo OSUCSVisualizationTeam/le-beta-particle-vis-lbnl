@@ -52,6 +52,7 @@ The project follows a "src-layout" to separate product code from research artifa
 ### Prerequisites
 
 - [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/products/distribution) installed on your system.
+- [uv](https://docs.astral.sh/uv/) installed on your system if you prefer the alternative `uv` workflow.
 
 ### Installation
 
@@ -62,11 +63,20 @@ The project follows a "src-layout" to separate product code from research artifa
     ```
 
 2.  **Create and activate the Conda environment:**
-    This installs all dependencies including Python 3.12, PySide6, NumPy, AstroPy, and OpenCV.
+    This installs the baseline dependencies used by the project.
     ```bash
     conda env create -f environment.yml
     conda activate mlccd_viz
     ```
+
+3.  **Alternative: create the `uv` environment and install dependencies:**
+    This installs the GUI stack, backend dependencies, and the LBNL
+    `mlccd` packages used by the default clustering mode.
+    ```bash
+    uv sync
+    ```
+
+    `uv` will use Python 3.10 as pinned in `.python-version`.
 
 ### Pre-commit Hooks
 
@@ -104,7 +114,6 @@ After installation the hooks run automatically on every `git commit`. To run the
 ```bash
 pre-commit run --all-files
 ```
-
 ### Running the Application
 
 To launch the main Desktop GUI:
@@ -113,13 +122,19 @@ To launch the main Desktop GUI:
 python run_app.py
 ```
 
+From the repository root, if you installed with `uv`, you can launch the app with:
+
+```bash
+uv run lbnlvis
+```
+
 ### Running Tests
 
 To run the unit test suite (headless-compatible):
 
 ```bash
-# Ensure src is in the python path
-PYTHONPATH=src pytest tests
+uv sync --extra dev
+QT_QPA_PLATFORM=offscreen uv run pytest tests
 ```
 
 ### Troubleshooting

@@ -1,17 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "le-beta-vis-lbnl"
 version = "0.0.2"
 description = "Interactive desktop tool for visualizing and classifying low-energy beta particle tracks in CCD sensor data — built for LBNL's Applied Nuclear Physics program."
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "astropy",
+    "matplotlib",
+    "mlccd-diffusion",
+    "mlccd-models",
+    "mysql-connector-python",
+    "numpy<2",
+    "opencv-python",
+    "pyqtgraph",
+    "pyside6",
+    "python-dotenv",
+    "pyyaml",
+    "pyzmq",
+    "redis",
+    "scikit-image",
+    "scipy",
+    "superqt",
+    "watchdog",
+]
 
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+[project.optional-dependencies]
+dev = [
+    "coverage",
+    "flake8",
+    "pytest",
+]
+packaging = [
+    "dmgbuild; sys_platform == 'darwin'",
+    "pillow",
+    "pyinstaller",
+    "tomli",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [project.scripts]
 lbnlvis = "le_beta_vis.app:main"
+
+[tool.uv.sources]
+mlccd-diffusion = { git = "https://gitlab.com/lbl-anp/mlccd/mlccd_diffusion.git" }
+mlccd-models = { git = "https://gitlab.com/lbl-anp/mlccd/mlccd_models.git" }
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.package-data]
+le_beta_vis = [
+    "backend/SAMPLE.env",
+    "config/*.yaml",
+    "resources/icons/*.png",
+]
 
 [tool.flake8]
 max-line-length = 127
