@@ -105,6 +105,9 @@ class HistoricalView(QWidget):
         max_cols = cfg.get_int("gui:historical:grid_max_columns", 3)
         self._gridWidget.setColumnConstraints(default_cols, max_cols)
 
+        header_h = cfg.get_int("gui:historical:grid_section_header_height", 28)
+        self._gridWidget.setHeaderHeight(header_h)
+
     def _bindViewModel(self) -> None:
         """Connects ViewModel callbacks to View update slots."""
         self._connectViewModelCallbacks()

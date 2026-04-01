@@ -336,6 +336,14 @@ gui:historical:prefetch_thumbnail_count:
     Number of thumbnails to pre-fetch eagerly on initial load
     before scroll events are available.
 
+gui:historical:grid_section_header_height:
+  type: int
+  default: 28
+  description: >-
+    Height (in pixels) of section header labels in the Historical
+    Analysis event grid.  Headers display the observation date and
+    source FITS filename.
+
 gui:historical:thumbnail_smooth_scaling:
   type: bool
   default: false
