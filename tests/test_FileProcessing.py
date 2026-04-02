@@ -56,7 +56,7 @@ class TestProcessFile:
     ):
         config = _make_config()
         capture = [MagicMock()]
-        zmq_context = MagicMock(spec=zmq.Context)
+        zmq_context = MagicMock(spec=["term"])
 
         mock_context_class.return_value = zmq_context
         mock_load.return_value = capture
@@ -94,9 +94,8 @@ class TestProcessFile:
         _mock_store_fits,
     ):
         config = _make_config()
-        zmq_context = MagicMock(spec=zmq.Context)
+        zmq_context = MagicMock(spec=["term"])
         mock_context_class.return_value = zmq_context
-
         with pytest.raises(RuntimeError):
             process_file(config_service=config, file="bad.fits")
 
