@@ -1,3 +1,5 @@
+import logging
+
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -11,6 +13,8 @@ from PySide6.QtCore import Qt, Signal, QEvent
 from superqt import QRangeSlider
 from typing import Tuple
 from le_beta_vis.frontend.fitsconverters.colormaps import generate_gradient_pixmap
+
+logger = logging.getLogger(__name__)
 
 
 # Private namespace for widget styles
@@ -222,6 +226,14 @@ class VerticalRangeControl(QWidget):
         :param abs_min: The new absolute minimum value.
         :param abs_max: The new absolute maximum value.
         """
+        if abs_min >= abs_max:
+            logger.warning(
+                "setAbsoluteRange called with degenerate range (%s >= %s); ignoring",
+                abs_min,
+                abs_max,
+            )
+            return
+
         self._abs_min = abs_min
         self._abs_max = abs_max
 

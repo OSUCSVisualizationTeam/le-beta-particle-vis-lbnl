@@ -94,6 +94,7 @@ class RawDataViewModel:
         self._selectedClusterIndex: int = -1
 
         # Async Rendering State
+        self._buffer_lock = threading.Lock()
         self._current_buffer: Optional[np.ndarray] = None
         self._render_queue = queue.Queue(maxsize=1)
         self._render_thread = threading.Thread(
@@ -538,12 +539,11 @@ class RawDataViewModel:
             self._clustering_timeout_timer = None
 
     def _request_render(self):
-        """Queues a render request."""
+        """Queues a render request, coalescing rapid calls into one."""
         try:
-            self._render_queue.get_nowait()
-        except queue.Empty:
+            self._render_queue.put_nowait(True)
+        except queue.Full:
             pass
-        self._render_queue.put(True)
 
     def _render_worker(self):
         """Background thread loop."""
@@ -554,7 +554,8 @@ class RawDataViewModel:
     def _render_worker_logic(self):
         """Core rendering logic, extracted for testability."""
         if self._activeIndex == -1 or not self._captures:
-            self._current_buffer = None
+            with self._buffer_lock:
+                self._current_buffer = None
         else:
             try:
                 current_capture = self._captures[self._activeIndex]
@@ -562,12 +563,15 @@ class RawDataViewModel:
                 self._image_bounds = raw_data.shape[:2]
                 viz_data = self._physics_manager.adu_to_kev(raw_data)
 
-                self._current_buffer = self._converter.convert(
+                buffer = self._converter.convert(
                     viz_data, self._colormap, self._vrange
                 )
+                with self._buffer_lock:
+                    self._current_buffer = buffer
             except Exception:
                 logger.exception("Render failed")
-                self._current_buffer = None
+                with self._buffer_lock:
+                    self._current_buffer = None
 
         self._notify_image_changed()
 
@@ -575,7 +579,8 @@ class RawDataViewModel:
 
     @property
     def currentBuffer(self) -> Optional[np.ndarray]:
-        return self._current_buffer
+        with self._buffer_lock:
+            return self._current_buffer
 
     @property
     def dataRange(self) -> Tuple[float, float]:

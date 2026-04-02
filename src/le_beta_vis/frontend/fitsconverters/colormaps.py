@@ -122,4 +122,6 @@ def generate_gradient_pixmap(
         bytes_per_line,
         QImage.Format_RGB888,
     )
+    # q_img borrows color_img.data (a raw NumPy pointer). .copy() transfers
+    # ownership to Qt before color_img goes out of scope.
     return QPixmap.fromImage(q_img.copy())

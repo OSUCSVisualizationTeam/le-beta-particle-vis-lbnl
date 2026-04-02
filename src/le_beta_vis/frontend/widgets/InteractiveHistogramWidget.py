@@ -167,9 +167,7 @@ class InteractiveHistogramWidget(QWidget):
 
         counts = model.counts
         if self._logarithmicBars:
-            display_heights = np.where(
-                counts > 0, np.log10(counts.astype(float)), 0.0,
-            )
+            display_heights = np.log10(np.maximum(counts.astype(float), 1.0))
         else:
             display_heights = counts.astype(float)
         self._display_heights = display_heights

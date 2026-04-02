@@ -6,6 +6,7 @@
 # and interaction with CCDCaptureModel without using Qt.
 
 import sys
+import threading
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -414,3 +415,73 @@ def test_request_render_skips_when_no_data():
 
     # Queue should be empty — render was skipped
     assert vm._render_queue.empty()
+
+
+def test_request_render_coalescing_does_not_raise():
+    """Rapid concurrent _request_render calls must not raise or deadlock.
+
+    Verifies the put_nowait/Full guard is safe under concurrent callers.
+    With the old get_nowait()/put() pair, two racing threads could both
+    drain the queue and then both block on put(), deadlocking the UI thread.
+    """
+    config = MockConfigurationService()
+    physics = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics)
+
+    errors: list = []
+
+    def call_many() -> None:
+        for _ in range(200):
+            try:
+                vm._request_render()
+            except Exception as exc:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=call_many) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5.0)
+
+    assert not errors, f"_request_render raised: {errors}"
+    assert vm._render_queue.qsize() <= 1
+
+
+def test_current_buffer_lock_allows_concurrent_access():
+    """Concurrent reads and writes of _current_buffer must not raise.
+
+    Verifies that _buffer_lock serialises access so no RuntimeError or
+    corruption occurs when the render thread writes while the UI thread reads.
+    """
+    config = MockConfigurationService()
+    physics = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics)
+
+    errors: list = []
+
+    def read_buffer() -> None:
+        for _ in range(500):
+            try:
+                _ = vm.currentBuffer
+            except Exception as exc:
+                errors.append(exc)
+
+    def write_buffer() -> None:
+        for _ in range(500):
+            try:
+                with vm._buffer_lock:
+                    vm._current_buffer = None
+            except Exception as exc:
+                errors.append(exc)
+
+    threads = [
+        threading.Thread(target=read_buffer),
+        threading.Thread(target=read_buffer),
+        threading.Thread(target=write_buffer),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5.0)
+
+    assert not errors, f"concurrent buffer access raised: {errors}"
