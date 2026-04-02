@@ -3,7 +3,8 @@ import numpy as np
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.BoundingBox import BoundingBox
-import mysql.connector
+from le_beta_vis.common.Cluster import Cluster
+from le_beta_vis.common.cluster_sigma import compute_cluster_sigmas
 from astropy.io import fits
 from scipy.ndimage import label, maximum_position
 import numpy as np
@@ -104,29 +105,26 @@ class ProcessFile():
                 bounding_box = BoundingBox(y_end, x_start, y_start, x_end)
 
                 # Calculate weighted mean sigma
-                sigma_x, sigma_y = self.calc_sigmas(pixels_around_cluster_wo_noise)
+                sigma_x, sigma_y = self.compute_cluster_sigmas(pixels_around_cluster_wo_noise)
 
                 # Store the values, standard deviation in x and y, energy value, and other relevant info
                 cluster_sigma_x = sigma_x
                 cluster_sigma_y = sigma_y
                 cluster_energy = np.sum(pixels_around_cluster_wo_noise)
                 cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
-                cluster = Cluster(pixels_around_cluster_wo_noise, hdu_index, bounding_box, cluster_sigma_x,
-                                             cluster_sigma_y, cluster_energy, cluster_pixels,
-                                             self.fits_id)
+                cluster = Cluster(
+                    boundingBox=bounding_box,
+                    data=pixels_around_cluster_wo_noise,
+                    centerX=x,
+                    centerY=y,
+                    sigmaX=cluster_sigma_x,
+                    sigmaY=cluster_sigma_y,
+                    energy=cluster_energy,
+                    pixelCount=cluster_pixels,
+                    fitsId=self.fits_id,
+                    hdu_id=hdu_index,
+                )
                 self.store_cluster(cluster)
-
-    def calc_sigmas(self, dtrack):
-        """
-        Calculates standard deviation from tracks around cluster
-        """
-        x, y = np.meshgrid(np.arange(dtrack.shape[1]), np.arange(dtrack.shape[0]))
-        sum_weights = np.sum(dtrack)
-        mean_x = np.sum(x * dtrack) / sum_weights
-        mean_y = np.sum(y * dtrack) / sum_weights
-        sigma_x = np.sqrt(np.sum(dtrack * (x - mean_x)**2) / sum_weights)
-        sigma_y = np.sqrt(np.sum(dtrack * (y - mean_y)**2) / sum_weights)
-        return sigma_x, sigma_y
 
     def store_cluster(self, cluster: "Cluster"):
         """
@@ -139,13 +137,18 @@ class ProcessFile():
             request = {
                     "Action": "Storage",
                     "data": None,
-                    "hdu_id": cluster.hdu,
-                    "bounding_box": {"top": int(cluster.bounding_box.top), "left":int(cluster.bounding_box.left),
-                                    "bottom": int(cluster.bounding_box.bottom), "right": int(cluster.bounding_box.right)},
-                    "sigmaX": float(cluster.sigmaX), "sigmaY": float(cluster.sigmaY),
-                    "total_energy": float(cluster.total_energy),
-                    "total_pixels": int(cluster.total_pixels),
-                    "fits_id": self.fits_id,
+                    "hdu_id": cluster.hdu_id,
+                    "bounding_box": {
+                        "top": int(cluster.boundingBox.top),
+                        "left":int(cluster.boundingBox.left),
+                        "bottom": int(cluster.boundingBox.bottom),
+                        "right": int(cluster.boundingBox.right)
+                    },
+                    "sigmaX": float(cluster.sigmaX),
+                    "sigmaY": float(cluster.sigmaY),
+                    "total_energy": float(cluster.energy),
+                    "total_pixels": int(cluster.pixelCount),
+                    "fits_id": cluster.fits_id,
                     "classification": cluster.classification
                 }
             socket.send_json(request)
@@ -157,45 +160,3 @@ class ProcessFile():
                 logger.warning(f"There was an issue communicating with the EPS. Due to {response['error']}")
         finally:
             socket.close()
-
-class Cluster():
-    """
-    Cluster class with methods for classification and storage
-    """
-    def __init__(self,
-                 data: np.ndarray,
-                 hdu: int,
-                 bounding_box: BoundingBox,
-                 sigmaX: float,
-                 sigmaY: float,
-                 energy: float,
-                 pixels: int,
-                 fits_id: int
-                 ):
-        self.data = data
-        self.hdu = hdu
-        self.bounding_box = bounding_box
-        self.sigmaX = sigmaX
-        self.sigmaY = sigmaY
-        self.total_energy = energy
-        self.total_pixels = pixels
-        self.fits_id = fits_id
-        self.cluster_id = None
-        self.classification = None
-        # debug
-        # print(f"Sigma x: {self.sigmaX}\nSigma Y: {self.sigmaY}\nEnergy: {self.total_energy}\n Pixels: {self.total_pixels}")
-
-    def classify_cluster(self):
-        """
-        Run clusters through classification models to save in database.
-        Connects to the Classification Service through a zmq endpoint.
-        """
-        raise NotImplementedError
-
-            # Placeholders for all classifications that the /classifyall end point would return
-            #classifications = response.json()
-            #self.cnn_classification = classifications["CNN"]
-            #self.nrg_classification = classifications["NRG"]
-            #self.bdt_classification = classifications["BDT"]
-
-

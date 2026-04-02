@@ -73,7 +73,7 @@ class EventPersistence:
             "classification": None,
         }
 
-        self.db_connect()  # connect to DB before listening loop
+        self.conn = self.db_connect()  # connect to DB before listening loop
         self.initialize_server()
 
     def initialize_server(self):
@@ -122,17 +122,16 @@ class EventPersistence:
                     if command_socket in sockets:
                         request = command_socket.recv_json()
                         if request.get("Command") == "Kill":
-                            print("EPS received kill command.")
+                            command_socket.send_json({"Action": "Killed"})
                             break
-                        if request.get("Command") == "Stop":
+                        elif request.get("Command") == "Stop":
                             EPS_is_active = False
                             command_socket.send_json({"Action": "Server stopped"})
-                        if request.get("Command") == "Start" and EPS_is_active == False:
+                        elif request.get("Command") == "Start" and not EPS_is_active:
                             EPS_is_active = True
                             command_socket.send_json({"Action": "Server started"})
                         else:
                             command_socket.send_json({"Error": "Invalid request"})
-
                 except zmq.ZMQError as err:
                     print(f"ERROR: {str(err)}")
         finally:
