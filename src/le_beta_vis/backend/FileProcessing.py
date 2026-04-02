@@ -127,7 +127,7 @@ def cluster_fits(process_context: zmq.Context, config: ConfigurationService, cap
             )
             store_cluster(config, process_context, cluster)
 
-def store_cluster(self, config: ConfigurationService, process_context: zmq.Context, cluster: "Cluster"):
+def store_cluster(config: ConfigurationService, process_context: zmq.Context, cluster: "Cluster"):
     """
     Stores ingested clusters into the clusters table in the database.
     """
@@ -149,14 +149,14 @@ def store_cluster(self, config: ConfigurationService, process_context: zmq.Conte
                 "sigmaY": float(cluster.sigmaY),
                 "total_energy": float(cluster.energy),
                 "total_pixels": int(cluster.pixelCount),
-                "fits_id": cluster.fits_id,
+                "fits_id": cluster.fitsId,
                 "classification": cluster.classification
             }
         socket.send_json(request)
         response = socket.recv_json()
         if response["result"] == "success":
-            cluster.cluster_id = response["cluster_id"]
-            logger.info(f"Cluster ID {cluster.cluster_id} stored in database.")
+            cluster.clusterId = response["cluster_id"]
+            logger.info(f"Cluster ID {cluster.clusterId} stored in database.")
         else:
             logger.warning(f"There was an issue communicating with the EPS. Due to {response['error']}")
     finally:
