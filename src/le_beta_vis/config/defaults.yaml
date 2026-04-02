@@ -338,11 +338,11 @@ gui:historical:prefetch_thumbnail_count:
 
 gui:historical:grid_section_header_height:
   type: int
-  default: 28
+  default: 48
   description: >-
     Height (in pixels) of section header labels in the Historical
-    Analysis event grid.  Headers display the observation date and
-    source FITS filename.
+    Analysis event grid.  Headers display navigation buttons,
+    the observation date, and source FITS filename.
 
 gui:historical:thumbnail_smooth_scaling:
   type: bool

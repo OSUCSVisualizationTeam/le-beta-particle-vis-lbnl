@@ -12,11 +12,13 @@ COLOR_TEXT_PRIMARY = "#eeeeee"
 # Clickable links on dark background
 COLOR_ACCENT_LINK = "#4fc3f7"
 
-# Section header background in the event grid
-COLOR_BACKGROUND_SECTION_HEADER = "#3a3a3a"
 
-# Section header foreground text in the event grid
-COLOR_TEXT_SECTION_HEADER = "#bbbbbb"
+class EventGridSectionHeaderColors:
+    """Colors for EventGridSectionHeaderWidget."""
 
-# Section header filename text (secondary, dimmer)
-COLOR_TEXT_SECTION_HEADER_FILENAME = "#999999"
+    BACKGROUND = "#000000"
+    TEXT = "#bbbbbb"
+    TEXT_FILENAME = "#999999"
+    NAV_TEXT = "#888888"
+    NAV_TEXT_DISABLED = "#555555"
+    NAV_HOVER_BACKGROUND = "#4a4a4a"

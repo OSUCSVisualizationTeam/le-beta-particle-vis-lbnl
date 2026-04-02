@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from PySide6.QtCore import (
     QEvent,
+    QMetaObject,
     QModelIndex,
     QObject,
     QPoint,
@@ -31,17 +32,19 @@ from PySide6.QtWidgets import (
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.frontend.theme import COLOR_BACKGROUND_SURFACE
-from le_beta_vis.frontend.widgets._event_item_delegate import (
+from le_beta_vis.frontend.widgets._EventItemDelegate import (
     CLUSTER_ROLE,
     THUMBNAIL_ROLE,
     _EventItemDelegate,
 )
-from le_beta_vis.frontend.widgets._section_grouping import (
+from le_beta_vis.frontend.widgets._EventGridSectionGrouping import (
     SectionInfo,
     flat_index_to_section,
     group_clusters,
 )
-from le_beta_vis.frontend.widgets._section_header import SectionHeaderWidget
+from le_beta_vis.frontend.widgets._EventGridSectionHeaderWidget import (
+    EventGridSectionHeaderWidget,
+)
 
 
 @dataclass
@@ -49,7 +52,7 @@ class _SectionRow:
     """Internal bookkeeping for one section in the grid."""
 
     info: SectionInfo
-    header_widget: SectionHeaderWidget
+    header_widget: EventGridSectionHeaderWidget
     list_view: QListView
     model: QStandardItemModel
 
@@ -85,6 +88,9 @@ class EventGridWidget(QWidget):
         self._prefetch_count: int = 30
         self._sections: List[_SectionRow] = []
         self._delegate = _EventItemDelegate(item_width, item_height, self)
+        self._overlayPrevConn: Optional[QMetaObject.Connection] = None
+        self._overlayNextConn: Optional[QMetaObject.Connection] = None
+        self._overlaySelfConn: Optional[QMetaObject.Connection] = None
         self._initUI()
 
     # ------------------------------------------------------------------ #
@@ -135,20 +141,31 @@ class EventGridWidget(QWidget):
         )
         return area
 
-    def _buildStickyOverlay(self) -> SectionHeaderWidget:
+    def _buildStickyOverlay(self) -> EventGridSectionHeaderWidget:
         """Creates the floating header that pins above the scroll area."""
-        overlay = SectionHeaderWidget(parent=self)
+        overlay = EventGridSectionHeaderWidget(parent=self)
         overlay.hide()
         overlay.raise_()
         return overlay
 
-    def _buildSectionHeader(self, info: SectionInfo) -> SectionHeaderWidget:
-        """Creates a section header widget for *info*."""
-        header = SectionHeaderWidget()
+    def _buildSectionHeader(
+        self, info: SectionInfo, section_index: int,
+    ) -> EventGridSectionHeaderWidget:
+        """Creates a section header widget for *info* with navigation."""
+        header = EventGridSectionHeaderWidget()
         date = info.date_part if info.date_part else self.tr("Unknown Date")
         file = info.file_part if info.file_part else self.tr("Unknown File")
         header.setDateText(date)
         header.setFileText(file)
+        header.navigatePrevious.connect(
+            lambda s=section_index: self._scrollToSection(s - 1),
+        )
+        header.navigateNext.connect(
+            lambda s=section_index: self._scrollToSection(s + 1),
+        )
+        header.navigateToSelf.connect(
+            lambda s=section_index: self._scrollToSection(s),
+        )
         return header
 
     def _buildSectionListView(self, section_index: int) -> QListView:
@@ -291,6 +308,7 @@ class EventGridWidget(QWidget):
         sections = group_clusters(events)
         for idx, info in enumerate(sections):
             self._addSection(idx, info, events)
+        self._setAllNavigationStates()
         QTimer.singleShot(0, self._afterLayout)
         self._scheduleVisibilityCheck()
         self.prefetchRequested.emit(self._prefetch_count)
@@ -312,7 +330,7 @@ class EventGridWidget(QWidget):
         events: List[Cluster],
     ) -> None:
         """Creates and adds one section (header + list view) to the layout."""
-        header = self._buildSectionHeader(info)
+        header = self._buildSectionHeader(info, section_index)
         model = QStandardItemModel()
         view = self._buildSectionListView(section_index)
         view.setModel(model)
@@ -329,6 +347,47 @@ class EventGridWidget(QWidget):
         self._contentLayout.addWidget(view)
         self._sections.append(_SectionRow(info, header_widget=header,
                                           list_view=view, model=model))
+
+    def _setAllNavigationStates(self) -> None:
+        """Set prev/next button states on all section headers."""
+        total = len(self._sections)
+        for i, row in enumerate(self._sections):
+            row.header_widget.setNavigationState(
+                has_previous=i > 0,
+                has_next=i < total - 1,
+            )
+
+    def _scrollToSection(self, section_index: int) -> None:
+        """Scroll so the target section's header is at the top."""
+        if section_index < 0 or section_index >= len(self._sections):
+            return
+        header = self._sections[section_index].header_widget
+        header_y = header.mapTo(self._contentWidget, QPoint(0, 0)).y()
+        self._scrollArea.verticalScrollBar().setValue(header_y)
+
+    def _reconnectOverlaySignals(self, active_idx: int) -> None:
+        """Disconnect and reconnect sticky overlay navigation signals."""
+        if self._overlayPrevConn is not None:
+            self._stickyOverlay.navigatePrevious.disconnect(
+                self._overlayPrevConn,
+            )
+        if self._overlayNextConn is not None:
+            self._stickyOverlay.navigateNext.disconnect(
+                self._overlayNextConn,
+            )
+        if self._overlaySelfConn is not None:
+            self._stickyOverlay.navigateToSelf.disconnect(
+                self._overlaySelfConn,
+            )
+        self._overlayPrevConn = self._stickyOverlay.navigatePrevious.connect(
+            lambda: self._scrollToSection(active_idx - 1),
+        )
+        self._overlayNextConn = self._stickyOverlay.navigateNext.connect(
+            lambda: self._scrollToSection(active_idx + 1),
+        )
+        self._overlaySelfConn = self._stickyOverlay.navigateToSelf.connect(
+            lambda: self._scrollToSection(active_idx),
+        )
 
     def _afterLayout(self) -> None:
         """Deferred call after Qt finishes laying out sections."""
@@ -465,13 +524,19 @@ class EventGridWidget(QWidget):
         return active
 
     def _positionOverlay(self, active_idx: int, scroll_y: int) -> None:
-        """Set the overlay text, geometry, and visibility."""
+        """Set the overlay text, geometry, navigation state, and visibility."""
         row = self._sections[active_idx]
         date = row.info.date_part if row.info.date_part else self.tr("Unknown Date")
         file = row.info.file_part if row.info.file_part else self.tr("Unknown File")
         self._stickyOverlay.setDateText(date)
         self._stickyOverlay.setFileText(file)
         self._stickyOverlay.setFixedWidth(self.width())
+
+        self._reconnectOverlaySignals(active_idx)
+        self._stickyOverlay.setNavigationState(
+            has_previous=active_idx > 0,
+            has_next=active_idx < len(self._sections) - 1,
+        )
 
         y_pos = 0
         if active_idx + 1 < len(self._sections):

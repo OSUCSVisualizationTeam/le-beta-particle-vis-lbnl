@@ -1,11 +1,11 @@
-"""Unit tests for _section_grouping — pure Python, no QApplication needed."""
+"""Unit tests for _EventGridSectionGrouping — pure Python, no QApplication needed."""
 
 import numpy as np
 import pytest
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.frontend.widgets._section_grouping import (
+from le_beta_vis.frontend.widgets._EventGridSectionGrouping import (
     SectionInfo,
     flat_index_to_section,
     group_clusters,
