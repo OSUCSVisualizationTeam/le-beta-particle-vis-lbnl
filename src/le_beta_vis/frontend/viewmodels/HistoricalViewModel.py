@@ -1,3 +1,5 @@
+import logging
+import threading
 from typing import List, Callable, Optional, Set
 from enum import Enum
 
@@ -69,11 +71,16 @@ class HistoricalViewModel:
             30,
         )
 
+        # Threading
+        self._load_thread: Optional[threading.Thread] = None
+        self._logger = logging.getLogger(__name__)
+
         # Callbacks
         self._on_mode_changed_callbacks: List[Callable[[HistoricalMode], None]] = []
         self._on_events_changed_callbacks: List[Callable[[], None]] = []
         self._on_selected_event_changed_callbacks: List[Callable[[], None]] = []
         self._on_loading_changed_callbacks: List[Callable[[bool], None]] = []
+        self._on_load_error_callbacks: List[Callable[[str], None]] = []
         self._on_thumbnail_ready_callbacks: List[Callable[[int, np.ndarray], None]] = []
 
     # --- Properties ---
@@ -240,28 +247,47 @@ class HistoricalViewModel:
             cb(key, thumbnail)
 
     def loadEvents(self) -> None:
-        """Fetches events from the repository and notifies observers.
+        """Starts an asynchronous background fetch from the repository.
 
-        Sets loading state before/after the fetch.  When a query
-        filter is set, ``query_clusters`` is attempted first; if the
-        repository does not implement it, falls back to
-        ``fetch_events``.
+        No-op if a load is already in flight.  Sets loading state
+        synchronously on the calling thread, then spawns a daemon
+        thread for the repository call.  Observers are notified
+        from the background thread — Views should marshal back to
+        the main thread via ``Qt.AutoConnection``.
         """
+        if self._loading:
+            return
         self._thumbnail_service.clear()
         self._setLoading(True)
+        self._load_thread = threading.Thread(
+            target=self._fetch_events_worker, daemon=True,
+        )
+        self._load_thread.start()
+
+    def _fetch_events_worker(self) -> None:
+        """Worker body executed on a background thread."""
         try:
-            if self._query_filter is not None:
-                try:
-                    self._events = self._repository.query_clusters(self._query_filter)
-                except NotImplementedError:
-                    self._events = self._repository.fetch_events()
-            else:
-                self._events = self._repository.fetch_events()
+            events = self._run_repository_query()
+            self._events = events
             self._selectedIndex = 0 if self._events else -1
+        except Exception as exc:
+            self._logger.exception("loadEvents failed")
+            self._events = []
+            self._selectedIndex = -1
+            self._notify_load_error(str(exc))
         finally:
             self._setLoading(False)
         self._notify_events_changed()
         self._notify_selected_event_changed()
+
+    def _run_repository_query(self) -> List[Cluster]:
+        """Executes the repository call with query filter fallback."""
+        if self._query_filter is not None:
+            try:
+                return self._repository.query_clusters(self._query_filter)
+            except NotImplementedError:
+                return self._repository.fetch_events()
+        return self._repository.fetch_events()
 
     def selectEvent(self, index: int) -> None:
         """Selects an event by index.
@@ -296,6 +322,10 @@ class HistoricalViewModel:
         """Registers a callback for loading state changes."""
         self._on_loading_changed_callbacks.append(callback)
 
+    def add_load_error_callback(self, callback: Callable[[str], None]) -> None:
+        """Registers a callback for event loading errors."""
+        self._on_load_error_callbacks.append(callback)
+
     # --- Private helpers ---
 
     def _setLoading(self, loading: bool) -> None:
@@ -318,3 +348,7 @@ class HistoricalViewModel:
     def _notify_loading_changed(self) -> None:
         for callback in self._on_loading_changed_callbacks:
             callback(self._loading)
+
+    def _notify_load_error(self, message: str) -> None:
+        for callback in self._on_load_error_callbacks:
+            callback(message)
