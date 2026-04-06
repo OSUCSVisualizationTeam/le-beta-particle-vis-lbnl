@@ -69,7 +69,8 @@ class PollingThread():
                 if file_type.lower() != '.fits':
                     continue
                 process_file(config_service=config, file=path)
-            except:
+            except Exception as e:
+                logger.exception("file_uploaded processing error")
                 continue
 
 class EventHandler(FileSystemEventHandler):
