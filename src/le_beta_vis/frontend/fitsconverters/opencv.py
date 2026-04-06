@@ -63,6 +63,9 @@ class OpenCVBasedConverter(Fits2QPixmapConverter):
         return np.clip(matrix * 255, 0, 255).astype(np.uint8)
 
     def _colorize(self, matrix: np.ndarray, colormap: Colormap) -> np.ndarray:
+        if colormap == Colormap.GRAYSCALE:
+            return np.dstack([matrix, matrix, matrix])
+
         import cv2
 
         cmap_id = get_cv2_colormap_id(colormap)

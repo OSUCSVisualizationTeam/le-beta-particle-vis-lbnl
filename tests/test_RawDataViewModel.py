@@ -15,7 +15,7 @@ import pytest
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
-from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter
+from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter, ScalingFunction
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     RawDataViewModel,
@@ -485,3 +485,39 @@ def test_current_buffer_lock_allows_concurrent_access():
         t.join(timeout=5.0)
 
     assert not errors, f"concurrent buffer access raised: {errors}"
+
+
+# ---------------------------------------------------------------------------
+# Scaling function tests (issue #83)
+# ---------------------------------------------------------------------------
+
+
+def test_initial_scaling_from_config():
+    """Test that RawDataViewModel initializes its scaling function from config."""
+    config = MockConfigurationService()
+    config.set("gui:raw_analysis:default_scaling_function", "log")
+    physics_manager = PhysicsConversionManagerImpl(config)
+
+    vm = RawDataViewModel(config, physics_manager)
+    assert vm.scalingFunction == "log"
+
+
+def test_set_scaling_function_triggers_render(view_model):
+    """Test that setScalingFunction updates state and triggers render."""
+    mock_capture = MagicMock()
+    mock_capture.rawData.return_value = np.zeros((10, 10))
+    view_model._captures = [mock_capture]
+    view_model._activeIndex = 0
+
+    view_model.setScalingFunction("sqrt")
+
+    assert view_model.scalingFunction == "sqrt"
+    _, kwargs = view_model._converter.convert.call_args
+    assert kwargs["scaling"] == ScalingFunction.SQRT
+
+
+def test_set_scaling_function_invalid_is_noop(view_model):
+    """Test that an invalid scaling function string is silently ignored."""
+    original = view_model.scalingFunction
+    view_model.setScalingFunction("invalid")
+    assert view_model.scalingFunction == original

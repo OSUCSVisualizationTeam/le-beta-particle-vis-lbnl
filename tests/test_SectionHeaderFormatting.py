@@ -47,7 +47,8 @@ class TestSetFileText:
     def test_file_text_set_on_label(self) -> None:
         widget = EventGridSectionHeaderWidget()
         widget.setFileText("exposure_data.fits")
-        assert widget._fileLabel.text() == "exposure_data.fits"
+        # setFileText inserts zero-width spaces after _ and . for word-wrap
+        assert widget._fileLabel.text() == "exposure_\u200bdata.\u200bfits"
 
     def test_word_wrap_enabled(self) -> None:
         widget = EventGridSectionHeaderWidget()

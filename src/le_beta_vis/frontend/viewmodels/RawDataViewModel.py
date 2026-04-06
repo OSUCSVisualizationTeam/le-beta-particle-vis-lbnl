@@ -16,7 +16,7 @@ from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.RoiRect import RoiRect
-from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
+from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter, ScalingFunction
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,13 @@ class RawDataViewModel:
             self._config.get("gui:raw_analysis:vis_range_min", 0.0),
             self._config.get("gui:raw_analysis:vis_range_max", 20.0),
         )
+        scaling_str = self._config.get(
+            "gui:raw_analysis:default_scaling_function", ScalingFunction.LINEAR
+        )
+        try:
+            self._scalingFunction = ScalingFunction(scaling_str)
+        except ValueError:
+            self._scalingFunction = ScalingFunction.LINEAR
         self._scale: float = 1.0
 
         # Tool State
@@ -141,6 +148,14 @@ class RawDataViewModel:
     def setColormap(self, colormap: str):
         try:
             self._colormap = Colormap(colormap)
+            self._request_render()
+        except ValueError:
+            pass
+
+    def setScalingFunction(self, scaling: str) -> None:
+        """Sets the scaling transfer function and re-queues a render."""
+        try:
+            self._scalingFunction = ScalingFunction(scaling)
             self._request_render()
         except ValueError:
             pass
@@ -564,7 +579,8 @@ class RawDataViewModel:
                 viz_data = self._physics_manager.adu_to_kev(raw_data)
 
                 buffer = self._converter.convert(
-                    viz_data, self._colormap, self._vrange
+                    viz_data, self._colormap, self._vrange,
+                    scaling=self._scalingFunction,
                 )
                 with self._buffer_lock:
                     self._current_buffer = buffer
@@ -599,6 +615,11 @@ class RawDataViewModel:
     @property
     def colormap(self) -> str:
         return self._colormap.value
+
+    @property
+    def scalingFunction(self) -> str:
+        """Returns the current scaling function as a string."""
+        return self._scalingFunction.value
 
     @property
     def clusterThumbnailColormap(self) -> Optional[Colormap]:

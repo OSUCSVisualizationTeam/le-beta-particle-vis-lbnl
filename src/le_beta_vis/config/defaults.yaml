@@ -70,11 +70,19 @@ global:physics:ped_width:
 
 gui:raw_analysis:default_colormap:
   type: enum
-  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool"]
+  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool", "grayscale"]
   default: "viridis"
   description: >-
     Initial colormap applied when opening a new FITS file.
-    Supported: viridis, plasma, inferno, magma, jet, bone, hot, cool.
+    Supported: viridis, plasma, inferno, magma, jet, bone, hot, cool, grayscale.
+
+gui:raw_analysis:default_scaling_function:
+  type: enum
+  choices: ["linear", "log", "sqrt"]
+  default: "linear"
+  description: >-
+    Transfer function applied when rendering the main Raw Data View.
+    Values: linear, log, sqrt.
 
 gui:raw_analysis:vis_range_min:
   type: float
@@ -294,7 +302,7 @@ gui:historical:grid_max_columns:
 
 gui:historical:thumbnail_colormap:
   type: enum
-  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool"]
+  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool", "grayscale"]
   default: "viridis"
   description: >-
     Colormap used for event grid thumbnail rendering.

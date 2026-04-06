@@ -131,7 +131,7 @@ class MagnifierGraphicsItem(QGraphicsItem):
             + self._labelWidth
         )
         hintCount = len(self._hintLines)
-        totalLines = 3 + (hintCount + 1 if hintCount else 0)
+        totalLines = 4 + (hintCount + 1 if hintCount else 0)
         approxLineHeight = 14
         labelAreaHeight = totalLines * approxLineHeight + 4
         totalHeight = max(
@@ -255,7 +255,7 @@ class MagnifierGraphicsItem(QGraphicsItem):
         metrics = painter.fontMetrics()
         lineHeight = metrics.height() + 2
         hintCount = len(self._hintLines)
-        totalLines = 3 + (hintCount + 1 if hintCount else 0)
+        totalLines = 4 + (hintCount + 1 if hintCount else 0)
         labelBgHeight = totalLines * lineHeight + 4
         labelBgRect = QRectF(
             labelX - 4, labelY,
@@ -283,6 +283,10 @@ class MagnifierGraphicsItem(QGraphicsItem):
         painter.drawText(
             labelX, labelY + 3 * lineHeight, f"Val: {centralVal:.2e} {unit}"
         )
+        painter.drawText(
+            labelX, labelY + 4 * lineHeight,
+            f"Zoom: {self._magnificationFactor:.1f}x",
+        )
 
     def _drawHints(self, painter: QPainter) -> None:
         """Draws hint lines below the value labels."""
@@ -292,7 +296,7 @@ class MagnifierGraphicsItem(QGraphicsItem):
         labelX = self._displayRectSizePx + self._labelPadding
         metrics = painter.fontMetrics()
         lineHeight = metrics.height() + 2
-        startY = 4 * lineHeight
+        startY = 5 * lineHeight
 
         painter.setPen(QPen(QColor("#aaaaaa")))
         painter.setFont(QFont("Arial", 7))

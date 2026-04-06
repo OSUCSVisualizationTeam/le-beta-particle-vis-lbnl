@@ -24,6 +24,7 @@ class MockConfigurationService(ConfigurationService):
             "global:physics:ped_width": 1400,
             # Interactive Raw Data Analysis (GUI)
             "gui:raw_analysis:default_colormap": "viridis",
+            "gui:raw_analysis:default_scaling_function": "linear",
             "gui:raw_analysis:vis_range_min": 0.0,
             "gui:raw_analysis:vis_range_max": 20.0,
             "gui:raw_analysis:filter_gaussian_sigma": 1.5,

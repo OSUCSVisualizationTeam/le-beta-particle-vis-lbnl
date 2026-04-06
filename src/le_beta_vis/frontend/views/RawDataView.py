@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..fitsconverters import Colormap
+from ..fitsconverters import Colormap, ScalingFunction
 from ..viewmodels.RawDataViewModel import (
     ActiveTool,
     ClusteringState,
@@ -393,47 +393,61 @@ class RawDataView(QWidget):
         self.rightLayout.setContentsMargins(10, 10, 10, 10)
         self.rightLayout.setSpacing(15)
 
-        self._addVisualizationSection()
-        self._addFilteringSection()
-        self._setupRoiInspectorTabs()
+        self._setupRightSidebarTabs()
 
         self.bodyLayout.addWidget(self.rightSidebar)
 
-    def _addVisualizationSection(self):
-        group = QGroupBox(self.tr("Visualization"))
-        layout = QVBoxLayout(group)
-        layout.addWidget(QLabel(self.tr("Colormap")))
+    def _setupRightSidebarTabs(self):
+        self._rightSidebarTabs = QTabWidget()
+        self._rightSidebarTabs.addTab(
+            self._buildVisualizationTab(), self.tr("Visualization")
+        )
+        self._rightSidebarTabs.addTab(
+            self._buildClusteringTab(), self.tr("Clustering")
+        )
+        self._rightSidebarTabs.addTab(
+            self._buildRoiInfoTab(), self.tr("ROI Info")
+        )
+        self.rightLayout.addWidget(self._rightSidebarTabs, 1)
+
+    def _buildVisualizationTab(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(8)
+
+        vizGroup = QGroupBox(self.tr("Visualization"))
+        vizLayout = QVBoxLayout(vizGroup)
+
+        vizLayout.addWidget(QLabel(self.tr("Scaling")))
+        self.scalingSelector = QComboBox()
+        self.scalingSelector.addItems([s.value for s in ScalingFunction])
+        self.scalingSelector.currentTextChanged.connect(self.onScalingChanged)
+        vizLayout.addWidget(self.scalingSelector)
+
+        vizLayout.addWidget(QLabel(self.tr("Colormap")))
         self.cmapSelector = QComboBox()
         self.cmapSelector.addItems([c.value for c in Colormap])
         self.cmapSelector.currentTextChanged.connect(self.onColormapChanged)
-        layout.addWidget(self.cmapSelector)
-        self.rightLayout.addWidget(group)
+        vizLayout.addWidget(self.cmapSelector)
 
-    def _addFilteringSection(self):
-        group = QGroupBox(self.tr("Filtering Pipeline"))
-        layout = QVBoxLayout(group)
-        layout.addWidget(QLabel(self.tr("(Not implemented yet)")))
-        self.rightLayout.addWidget(group)
+        layout.addWidget(vizGroup)
 
-    def _setupRoiInspectorTabs(self):
-        self._roiInspectorTabs = QTabWidget()
+        filterGroup = QGroupBox(self.tr("Filtering Pipeline"))
+        filterLayout = QVBoxLayout(filterGroup)
+        filterLayout.addWidget(QLabel(self.tr("(Not implemented yet)")))
+        layout.addWidget(filterGroup)
 
-        self._clusterAnalysisView = ClusterAnalysisView(
-            self.viewModel.clusterAnalysisViewModel,
-        )
-        self._clusterAnalysisView.setContentsMargins(4, 4, 4, 4)
-        self._roiInspectorTabs.addTab(
-            self._clusterAnalysisView,
-            self.tr("Clustering"),
-        )
+        layout.addStretch()
+        return container
 
-        self._roiInfoWidget = ROIInfoWidget(self.viewModel)
-        self._roiInspectorTabs.addTab(
-            self._roiInfoWidget,
-            self.tr("ROI Info"),
-        )
+    def _buildClusteringTab(self) -> QWidget:
+        view = ClusterAnalysisView(self.viewModel.clusterAnalysisViewModel)
+        view.setContentsMargins(4, 4, 4, 4)
+        return view
 
-        self.rightLayout.addWidget(self._roiInspectorTabs, 1)
+    def _buildRoiInfoTab(self) -> QWidget:
+        return ROIInfoWidget(self.viewModel)
 
     def bindViewModel(self):
         """Bind all ViewModel callbacks and View signals."""
@@ -463,6 +477,7 @@ class RawDataView(QWidget):
         self.rangeControl.setValues(vmin, vmax)
         self.rangeControl.setColormap(self.viewModel.colormap)
         self.cmapSelector.setCurrentText(self.viewModel.colormap)
+        self.scalingSelector.setCurrentText(self.viewModel.scalingFunction)
 
     def _bindToolCallbacks(self):
         """Wire active tool, magnifier, and pointer hover callbacks."""
@@ -770,6 +785,9 @@ class RawDataView(QWidget):
 
     def onColormapChanged(self, text):
         self.viewModel.setColormap(text)
+
+    def onScalingChanged(self, text: str) -> None:
+        self.viewModel.setScalingFunction(text)
 
     def onRangeChanged(self, vmin, vmax):
         self.viewModel.setVisualizationRange(vmin, vmax)
