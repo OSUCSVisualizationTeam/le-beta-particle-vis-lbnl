@@ -33,7 +33,6 @@ class ClusterQueryFilter:
     min_total_energy: Optional[float] = None
     min_total_pixels: Optional[int] = None
     classification: Optional[str] = None
-    
 
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS Cluster socket."""
@@ -189,7 +188,9 @@ class EPSClusterRecord:
     sigma_x: float
     sigma_y: float
     classification: str
-    total_pixels: int
+    total_pixels: int 
+    filename: str
+    date: str
 
     @staticmethod
     def from_eps_dict(d: Dict[str, Any]) -> "EPSClusterRecord":
@@ -205,6 +206,8 @@ class EPSClusterRecord:
             sigma_y=float(d.get("sigmaY", 0.0)),
             classification=str(d.get("classification", "")),
             total_pixels=int(d.get("total_pixels", 0)),
+            filename=str(d.get("filename", "")),
+            date=str(d.get("date", "")),
         )
 
 

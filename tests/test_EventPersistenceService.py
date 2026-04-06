@@ -432,9 +432,25 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
         mock_db_connect.return_value = mock_connection
 
-        # Mock database results: (fitsFile, clusterID, hdu_id, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
+        # Mock database results returned from a dictionary cursor
         mock_cursor.fetchall.return_value = [
-            (1, 1, 0, 10, 20, 30, 40, b'data1', 5000, 1.5, 1.5, "alpha", 100)
+            {
+                "fitsFile": 1,
+                "clusterID": 1,
+                "hdu_id": 0,
+                "box_top": 10,
+                "box_left": 20,
+                "box_bottom": 30,
+                "box_right": 40,
+                "data": b"data1",
+                "totalEnergy": 5000,
+                "sigmaX": 1.5,
+                "sigmaY": 1.5,
+                "classification": "alpha",
+                "pixelCount": 100,
+                "filename": "test.fits",
+                "date": "2022-10-03",
+            }
         ]
 
         ep = EventPersistence()
@@ -556,10 +572,42 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
         
         ep = EventPersistence()
 
-        # Tuple: (fitsFile, clusterID, hdu_id, top, left, bottom, right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
+        # Dictionary rows returned by mysql cursor(dictionary=True)
         results = [
-            (1, 1, 0, 10, 20, 30, 40, b'data1', 5000, 1.5, 1.5, "alpha", 100),
-            (1, 2, 0, 15, 25, 35, 45, b'data2', 6000, 2.0, 2.0, "beta", 150)
+            {
+                "fitsFile": 1,
+                "clusterID": 1,
+                "hdu_id": 0,
+                "box_top": 10,
+                "box_left": 20,
+                "box_bottom": 30,
+                "box_right": 40,
+                "data": b"data1",
+                "totalEnergy": 5000,
+                "sigmaX": 1.5,
+                "sigmaY": 1.5,
+                "classification": "alpha",
+                "pixelCount": 100,
+                "filename": "test1.fits",
+                "date": "2022-10-03",
+            },
+            {
+                "fitsFile": 1,
+                "clusterID": 2,
+                "hdu_id": 0,
+                "box_top": 15,
+                "box_left": 25,
+                "box_bottom": 35,
+                "box_right": 45,
+                "data": b"data2",
+                "totalEnergy": 6000,
+                "sigmaX": 2.0,
+                "sigmaY": 2.0,
+                "classification": "beta",
+                "pixelCount": 150,
+                "filename": "test2.fits",
+                "date": "2022-10-04",
+            },
         ]
 
         response = ep.process_retrieval_clusters(results)
