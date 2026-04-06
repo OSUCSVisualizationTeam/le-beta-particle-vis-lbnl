@@ -6,6 +6,7 @@ from .BoxSelectionGraphicsItem import BoxSelectionGraphicsItem
 from .CaptureGraphicsView import CaptureGraphicsView
 from .MagnifierGraphicsItem import MagnifierGraphicsItem
 from .VerticalRangeControl import VerticalRangeControl
+from .ProgressOverlay import ProgressOverlay
 from .ClusteringProgressOverlay import ClusteringProgressOverlay
 from .ClusteredEventWidget import ClusteredEventWidget
 from .EnergyClusterWidget import EnergyClusterWidget

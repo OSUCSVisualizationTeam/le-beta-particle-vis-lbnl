@@ -5,6 +5,7 @@ import numpy as np
 from PySide6.QtCore import Qt, Slot, QMetaObject
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
+    QMessageBox,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -25,6 +26,7 @@ from ..views.HistoricalEventInspector import (
 )
 from ..widgets.EventGridWidget import EventGridWidget
 from ..widgets.HistoricalFilterBar import HistoricalFilterBar
+from ..widgets.ProgressOverlay import ProgressOverlay
 
 
 class _Style:
@@ -47,6 +49,7 @@ class HistoricalView(QWidget):
         super().__init__()
         self.viewModel = viewModel
         self._pendingFilter = None
+        self._pendingLoadError: Optional[str] = None
         self._thumbnailQueue: collections.deque = collections.deque()
         self._pendingClusterData: Optional[np.ndarray] = None
         self._initUI()
@@ -59,6 +62,9 @@ class HistoricalView(QWidget):
 
         root.addWidget(self._buildFilterBar())
         root.addWidget(self._buildSplitter(), 1)
+        self._loadingOverlay = ProgressOverlay(
+            title=self.tr("Loading Events"), parent=self,
+        )
         self._applyGridConfig()
 
     def _buildFilterBar(self) -> QWidget:
@@ -135,6 +141,7 @@ class HistoricalView(QWidget):
                 self, "_updateLoading", Qt.AutoConnection
             )
         )
+        self.viewModel.add_load_error_callback(self._onLoadError)
         self._gridWidget.eventSelected.connect(self._onGridItemSelected)
         self._gridWidget.visibleRangeChanged.connect(
             self.viewModel.request_thumbnails_for_range,
@@ -227,8 +234,30 @@ class HistoricalView(QWidget):
         self._filterBar._applyBtn.setEnabled(not loading)
         if loading:
             self._filterBar._applyBtn.setText(self.tr("Loading..."))
+            self._loadingOverlay.showOverlay()
         else:
             self._filterBar._applyBtn.setText(self.tr("Apply"))
+            self._loadingOverlay.hideOverlay()
+
+    def _onLoadError(self, message: str) -> None:
+        """Receives error from ViewModel — may arrive on bg thread."""
+        self._pendingLoadError = message
+        QMetaObject.invokeMethod(
+            self, "_showLoadError", Qt.AutoConnection,
+        )
+
+    @Slot()
+    def _showLoadError(self) -> None:
+        """Displays a warning dialog with the load error message."""
+        msg = self._pendingLoadError or self.tr(
+            "An unknown error occurred while loading events."
+        )
+        self._pendingLoadError = None
+        QMessageBox.warning(
+            self,
+            self.tr("Load Failed"),
+            msg,
+        )
 
     def _onFilterApplied(self, query_filter) -> None:
         """Receives filter from the filter bar VM and triggers load.
@@ -267,6 +296,10 @@ class HistoricalView(QWidget):
             key, buffer = self._thumbnailQueue.popleft()
             pixmap = self._arrayToPixmap(buffer)
             self._gridWidget.updateThumbnail(key, pixmap)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._loadingOverlay.setGeometry(self.rect())
 
     @staticmethod
     def _arrayToPixmap(buffer: np.ndarray) -> QPixmap:
