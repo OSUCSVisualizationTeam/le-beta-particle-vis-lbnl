@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QDoubleSpinBox,
+    QPushButton,
     QSizePolicy,
     QLabel,
     QStackedLayout,
@@ -54,6 +55,23 @@ class _Style:
         }
     """
     LABEL = "color: #eeeeee; font-size: 10px; font-weight: bold;"
+    AUTO_RANGE_BUTTON = f"""
+        QPushButton {{
+            background-color: #3d3d3d;
+            color: #eeeeee;
+            border: 1px solid #555555;
+            border-radius: 3px;
+            padding: 3px 6px;
+            font-size: 10px;
+        }}
+        QPushButton:hover {{
+            background-color: #4a4a4a;
+        }}
+        QPushButton:pressed {{
+            background-color: #2d2d2d;
+        }}
+        QToolTip {{ {TOOLTIP} }}
+    """
 
 
 class GradientBar(QLabel):
@@ -140,11 +158,14 @@ class VerticalRangeControl(QWidget):
         self._setupSpinBoxes()
         self._setupSliderStack()
 
+        self._setupAutoRangeButton()
+
         self.mainLayout.addWidget(self.lblAbsMax)
         self.mainLayout.addWidget(self.spinMax)
         self.mainLayout.addWidget(self.midContainer)
         self.mainLayout.addWidget(self.spinMin)
         self.mainLayout.addWidget(self.lblAbsMin)
+        self.mainLayout.addWidget(self.btnAutoRange)
 
     def _setupLabels(self):
         """Initializes the absolute range labels."""
@@ -199,6 +220,21 @@ class VerticalRangeControl(QWidget):
 
         stackLayout.addWidget(self.slider)
         stackLayout.setCurrentWidget(self.slider)
+
+    def _setupAutoRangeButton(self) -> None:
+        """Creates the Auto Range button that resets to full data extent."""
+        self.btnAutoRange = QPushButton(self.tr("\u27f3 Auto"))
+        self.btnAutoRange.setToolTip(
+            self.tr("Reset range to cover the full data extent")
+        )
+        self.btnAutoRange.setStyleSheet(_Style.AUTO_RANGE_BUTTON)
+        self.btnAutoRange.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.btnAutoRange.clicked.connect(self.resetToFullRange)
+
+    def resetToFullRange(self) -> None:
+        """Resets the active range to cover the full data extent."""
+        self.setValues(self._abs_min, self._abs_max)
+        self.rangeChanged.emit(self._abs_min, self._abs_max)
 
     def eventFilter(self, obj, event):
         if obj == self.slider and event.type() == QEvent.MouseMove:

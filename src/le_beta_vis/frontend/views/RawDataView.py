@@ -41,101 +41,7 @@ from ..widgets.ROIInfoWidget import ROIInfoWidget
 from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .ClusterAnalysisView import ClusterAnalysisView
 from .MosaicView import MosaicView
-
-
-class _Style:
-    LEFT_TOOLBAR = "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
-    TOP_TOOLBAR = "background-color: #2d2d2d; border-bottom: 1px solid #3d3d3d;"
-    LEFT_TOOLBAR_BUTTON = "font-weight: bold; color: #ffffff;"
-    LEFT_TOOLBAR_DIVIDER = "background-color: #555555;"
-    ZOOM_IN = "font-size: 20px; font-weight: bold; color: #ffffff;"
-    ZOOM_OUT = "font-size: 20px; font-weight: bold; color: #ffffff;"
-    GRAPHICS_VIEW = """
-        QGraphicsView {
-            background-color: #000;
-            border: none;
-        }
-        QScrollBar:vertical {
-            width: 12px;
-            background: transparent;
-            margin: 0px;
-        }
-        QScrollBar::handle:vertical {
-            background: rgba(100, 100, 100, 165);
-            min-height: 30px;
-            border-radius: 6px;
-            margin: 2px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background: rgba(150, 150, 150, 200);
-        }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-            height: 0px;
-        }
-        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-            background: transparent;
-        }
-        QScrollBar:horizontal {
-            height: 12px;
-            background: transparent;
-            margin: 0px;
-        }
-        QScrollBar::handle:horizontal {
-            background: rgba(100, 100, 100, 165);
-            min-width: 30px;
-            border-radius: 6px;
-            margin: 2px;
-        }
-        QScrollBar::handle:horizontal:hover {
-            background: rgba(150, 150, 150, 200);
-        }
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-            width: 0px;
-        }
-        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-            background: transparent;
-        }
-    """
-    STATUS_BAR = (
-        "background-color: #1e1e1e; color: #cccccc;"
-        " font-size: 12px; padding-left: 8px;"
-    )
-    RIGHT_SIDEBAR = """
-        QFrame { background-color: #f0f0f0; border-left: 1px solid #ccc; }
-        QWidget { background-color: #f0f0f0; }
-        QTabWidget::pane {
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            border-top: none;
-        }
-        QTabBar::tab {
-            background-color: #e0e0e0;
-            color: #000000;
-            padding: 6px 12px;
-            border: 1px solid #ccc;
-            border-bottom: none;
-            border-top-left-radius: 4px;
-            border-top-right-radius: 4px;
-        }
-        QTabBar::tab:selected {
-            background-color: #f0f0f0;
-        }
-        QGroupBox { color: #000000; background-color: #f0f0f0; }
-        QGroupBox::title { color: #000000; }
-        QLabel { color: #000000; background: transparent; }
-        QPushButton { color: #000000; }
-        QComboBox { color: #000000; background-color: #ffffff; }
-        QComboBox QAbstractItemView {
-            color: #000000; background-color: #ffffff;
-        }
-        QDoubleSpinBox { color: #000000; background-color: #ffffff; }
-        QListWidget {
-            color: #000000;
-            background-color: #f4f4f4;
-            alternate-background-color: #e8e8e8;
-        }
-        QListWidget::item:selected { background-color: #b3d4fc; }
-    """
+from ._RawDataViewStyle import _Style
 
 
 class RawDataView(QWidget):
@@ -185,7 +91,7 @@ class RawDataView(QWidget):
 
         self.bodyLayout.addWidget(self.leftToolbar)
 
-    def _setupTopToolbar(self):
+    def _setupTopToolbar(self) -> None:
         """Creates the horizontal top toolbar with tool and zoom buttons."""
         self.topToolbar = QFrame()
         self.topToolbar.setFixedHeight(46)
@@ -194,13 +100,18 @@ class RawDataView(QWidget):
         layout.setContentsMargins(8, 3, 8, 3)
         layout.setSpacing(4)
 
+        self._createToolButtons(layout)
+        self._createZoomButtons(layout)
+
+    def _createToolButtons(self, layout: QHBoxLayout) -> None:
+        """Creates the exclusive tool button group (ROI + Magnifier)
+        and adds them to the given toolbar layout."""
         btn_size = QSize(36, 36)
         style = _Style.LEFT_TOOLBAR_BUTTON
 
         self._toolButtonGroup = QButtonGroup(self)
         self._toolButtonGroup.setExclusive(True)
 
-        # ROI (Box Select) — default tool
         self.btnBoxSelect = QToolButton()
         self.btnBoxSelect.setIcon(self._createBoxSelectIcon())
         self.btnBoxSelect.setToolTip(self.tr("Region Of Interest"))
@@ -214,7 +125,6 @@ class RawDataView(QWidget):
         self._toolButtonGroup.addButton(self.btnBoxSelect)
         layout.addWidget(self.btnBoxSelect)
 
-        # Magnifier
         self.btnMagnifier = QToolButton()
         self.btnMagnifier.setIcon(self._createMagnifierIcon())
         self.btnMagnifier.setToolTip(self.tr("Magnifier: Inspect pixels in detail"))
@@ -227,7 +137,12 @@ class RawDataView(QWidget):
         self._toolButtonGroup.addButton(self.btnMagnifier)
         layout.addWidget(self.btnMagnifier)
 
-        # Separator
+    def _createZoomButtons(self, layout: QHBoxLayout) -> None:
+        """Adds a vertical separator and the three zoom buttons
+        (Zoom In, Reset, Zoom Out) plus a trailing stretch."""
+        btn_size = QSize(36, 36)
+        style = _Style.LEFT_TOOLBAR_BUTTON
+
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
         sep.setFrameShadow(QFrame.Sunken)
@@ -235,7 +150,6 @@ class RawDataView(QWidget):
         sep.setFixedHeight(28)
         layout.addWidget(sep)
 
-        # Zoom buttons
         self.btnZoomIn = QToolButton()
         self.btnZoomIn.setText("+")
         self.btnZoomIn.setToolTip(self.tr("Zoom In"))
@@ -307,16 +221,27 @@ class RawDataView(QWidget):
         painter.end()
         return QIcon(pixmap)
 
-    def _setupCenterImageArea(self):
-        centerContainer = QWidget()
-        centerLayout = QVBoxLayout(centerContainer)
+    def _setupCenterImageArea(self) -> None:
+        """Assembles the center image area: toolbar, graphics scene,
+        overlays, status bar, and clustering overlay."""
+        self._centerContainer = QWidget()
+        centerLayout = QVBoxLayout(self._centerContainer)
         centerLayout.setContentsMargins(0, 0, 0, 0)
         centerLayout.setSpacing(0)
 
-        # Top toolbar (tool + zoom buttons)
         self._setupTopToolbar()
         centerLayout.addWidget(self.topToolbar)
 
+        self._setupGraphicsScene(centerLayout)
+        self._setupSceneOverlays()
+        centerLayout.addWidget(self._createStatusBar())
+        self._activateDefaultTool()
+
+        self._clusteringOverlay = ClusteringProgressOverlay(self._centerContainer)
+        self.bodyLayout.addWidget(self._centerContainer)
+
+    def _setupGraphicsScene(self, centerLayout: QVBoxLayout) -> None:
+        """Creates and wires the QGraphicsScene, view, and base pixmap item."""
         self.scene = QGraphicsScene()
         self.graphicsView = CaptureGraphicsView()
         self.graphicsView.setScene(self.scene)
@@ -325,8 +250,11 @@ class RawDataView(QWidget):
 
         self.pixmapItem = QGraphicsPixmapItem()
         self.scene.addItem(self.pixmapItem)
+        centerLayout.addWidget(self.graphicsView)
 
-        # Magnifier overlay (starts hidden)
+    def _setupSceneOverlays(self) -> None:
+        """Adds the MagnifierGraphicsItem and BoxSelectionGraphicsItem
+        to the scene. Both start hidden."""
         self._magnifierItem = MagnifierGraphicsItem(
             fixedDisplaySize=127,
             initialMagnificationFactor=3.0,
@@ -342,16 +270,14 @@ class RawDataView(QWidget):
             )
         self.scene.addItem(self._magnifierItem)
 
-        # Box selection overlay (starts hidden)
         self._boxSelectionItem = BoxSelectionGraphicsItem()
         self._boxSelectionItem.setColor(self.viewModel.boxSelectColor)
         self._boxSelectionItem.setBorderWidth(self.viewModel.boxSelectBorderWidth)
         self._boxSelectionItem.setVisible(False)
         self.scene.addItem(self._boxSelectionItem)
 
-        centerLayout.addWidget(self.graphicsView)
-
-        # Status bar: pixel info (left) + tool hint (right)
+    def _createStatusBar(self) -> QWidget:
+        """Builds the pixel-info / tool-hint status bar widget."""
         statusBar = QWidget()
         statusBar.setFixedHeight(24)
         statusBar.setStyleSheet(_Style.STATUS_BAR)
@@ -369,20 +295,14 @@ class RawDataView(QWidget):
         self._hintLabel.setVisible(False)
         statusBarLayout.addWidget(self._hintLabel)
 
-        centerLayout.addWidget(statusBar)
+        return statusBar
 
-        # Activate ROI (box select) mode by default
+    def _activateDefaultTool(self) -> None:
+        """Sets the box-select cursor mode and shows the initial hint."""
         self.graphicsView.setBoxSelectActive(True)
-
-        # Show hint for the default tool (box select)
         if self.viewModel.showToolHints:
             self._hintLabel.setText(self.tr("\u21e7 Shift + drag to select ROI"))
             self._hintLabel.setVisible(True)
-
-        # Clustering progress overlay (starts hidden)
-        self._clusteringOverlay = ClusteringProgressOverlay(centerContainer)
-
-        self.bodyLayout.addWidget(centerContainer)
 
     def _setupRightSidebar(self):
         self.rightSidebar = QFrame()
@@ -399,15 +319,9 @@ class RawDataView(QWidget):
 
     def _setupRightSidebarTabs(self):
         self._rightSidebarTabs = QTabWidget()
-        self._rightSidebarTabs.addTab(
-            self._buildVisualizationTab(), self.tr("Visualization")
-        )
-        self._rightSidebarTabs.addTab(
-            self._buildClusteringTab(), self.tr("Clustering")
-        )
-        self._rightSidebarTabs.addTab(
-            self._buildRoiInfoTab(), self.tr("ROI Info")
-        )
+        self._rightSidebarTabs.addTab(self._buildVisualizationTab(), self.tr("Vis"))
+        self._rightSidebarTabs.addTab(self._buildClusteringTab(), self.tr("Clustering"))
+        self._rightSidebarTabs.addTab(self._buildRoiInfoTab(), self.tr("ROI Info"))
         self.rightLayout.addWidget(self._rightSidebarTabs, 1)
 
     def _buildVisualizationTab(self) -> QWidget:
@@ -416,7 +330,7 @@ class RawDataView(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(8)
 
-        vizGroup = QGroupBox(self.tr("Visualization"))
+        vizGroup = QGroupBox("")
         vizLayout = QVBoxLayout(vizGroup)
 
         vizLayout.addWidget(QLabel(self.tr("Scaling")))
@@ -600,8 +514,11 @@ class RawDataView(QWidget):
             dmin, dmax = self.viewModel.dataRange
             self.rangeControl.setAbsoluteRange(dmin, dmax)
 
-            vmin, vmax = self.viewModel.visualizationRange
-            self.rangeControl.setValues(vmin, vmax)
+            if self.viewModel.autoRangeOnLoad:
+                self.rangeControl.resetToFullRange()
+            else:
+                vmin, vmax = self.viewModel.visualizationRange
+                self.rangeControl.setValues(vmin, vmax)
             self.rangeControl.setColormap(self.viewModel.colormap)
 
             # Update magnifier source data
