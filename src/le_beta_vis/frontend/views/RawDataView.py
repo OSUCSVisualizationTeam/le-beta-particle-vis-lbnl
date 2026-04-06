@@ -573,7 +573,7 @@ class RawDataView(QWidget):
                 bytes_per_line,
                 QImage.Format_RGB888,
             )
-            pixmap = QPixmap.fromImage(q_img)
+            pixmap = QPixmap.fromImage(q_img.copy())
 
             self.pixmapItem.setPixmap(pixmap)
             self.scene.setSceneRect(0, 0, width, height)
