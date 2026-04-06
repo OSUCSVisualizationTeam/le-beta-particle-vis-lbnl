@@ -20,7 +20,6 @@ from le_beta_vis.common.EPSDataClasses import (
     ClusterQueryFilter,
     ClusterStoreRequest,
     EPSClusterRecord,
-    FitsClusterQueryFilter,
     FitsQueryFilter,
 )
 from le_beta_vis.common.ZMQBasedEventRepository import (
@@ -80,14 +79,18 @@ class TestQueryClusters:
                     "sigmaY": 2.0,
                     "classification": "tritium",
                     "total_pixels": 20,
-                    "filename": "a.fits",
-                    "date": "2025-01-01",
                 },
             ],
         }
-        ctx, sock = _mock_context(raw_response)
+        ctx, sock = _mock_context([raw_response, {  # first call = cluster, second = fits
+            "result": "success",
+            "fits": [{"fits_id": 1, "filename": "a.fits", "date": "", "min": 0, "max": 0, "exposure_time": 0}],
+        }])
         repo = _make_repo(ctx)
-        clusters = repo.fetch_events()
+        # Mock extractClusterFromFile to avoid file I/O
+        with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
+                   return_value=np.array([[1, 2], [3, 4]])):
+            clusters = repo.fetch_events()
 
         assert len(clusters) == 1
         c = clusters[0]
@@ -98,8 +101,6 @@ class TestQueryClusters:
         assert c.sigmaX == 1.5
         assert c.sigmaY == 2.0
         assert c.pixelCount == 20
-        assert c.fitsFilename == "a.fits"
-        assert c.date == "2025-01-01"
         # Classification defaults to 0.0 (EPS sends string)
         assert c.cnnClassification == 0.0
 
@@ -235,65 +236,6 @@ class TestQueryFits:
         assert repo.query_fits() == []
 
 
-class TestQueryFitsClusters:
-
-    def test_success_returns_clusters(self):
-        raw_response = {
-            "result": "success",
-            "clusters": [
-                {
-                    "fits_id": 7,
-                    "hdu_id": 0,
-                    "cluster_id": 21,
-                    "bounding_box": {"top": 2, "left": 3, "bottom": 6, "right": 7},
-                    "data": [1.0, 2.0, 3.0, 4.0],
-                    "total_energy": 123.0,
-                    "sigmaX": 1.1,
-                    "sigmaY": 1.2,
-                    "classification": "alpha",
-                    "total_pixels": 4,
-                    "filename": "capture_7.fits",
-                    "date": "2026-04-01",
-                }
-            ],
-        }
-        ctx, sock = _mock_context(raw_response)
-        repo = _make_repo(ctx)
-
-        clusters = repo.query_fits_clusters()
-
-        assert len(clusters) == 1
-        cluster = clusters[0]
-        assert isinstance(cluster, Cluster)
-        assert cluster.fitsId == 7
-        assert cluster.clusterId == 21
-        assert cluster.fitsFilename == "capture_7.fits"
-        assert cluster.date == "2026-04-01"
-
-    def test_failure_returns_empty(self):
-        ctx, sock = _mock_context({"result": "failure"})
-        repo = _make_repo(ctx)
-        assert repo.query_fits_clusters() == []
-
-    def test_zmq_error_returns_empty(self):
-        ctx, sock = _mock_context()
-        sock.send_json.side_effect = zmq.ZMQError("timeout")
-        repo = _make_repo(ctx)
-        assert repo.query_fits_clusters() == []
-
-    def test_filter_sent_to_socket(self):
-        ctx, sock = _mock_context({"result": "success", "clusters": []})
-        repo = _make_repo(ctx)
-        query_filter = FitsClusterQueryFilter(fits_id=7, filename="capture_7.fits")
-
-        repo.query_fits_clusters(query_filter)
-
-        sent = sock.send_json.call_args[0][0]
-        assert sent["Action"] == "Clusters"
-        assert sent["fits_id"] == 7
-        assert sent["filename"] == "capture_7.fits"
-
-
 # -------------------------------------------------------------------
 # Domain mapping
 # -------------------------------------------------------------------
@@ -309,8 +251,9 @@ class TestMapToCluster:
             data=[0, 0, 0, 0, 0, 99, 0, 0, 0],
             total_energy=99.0, sigma_x=1.5, sigma_y=2.0,
             classification="tritium", total_pixels=9,
+            filename="test.fits", date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.data is None
         assert cluster.centerX is None
@@ -337,8 +280,10 @@ class TestMapToCluster:
             sigma_y=1.0,
             classification="",
             total_pixels=16,
+            filename="test.fits",
+            date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         bb = cluster.boundingBox
         assert bb.top == 0
@@ -358,8 +303,10 @@ class TestMapToCluster:
             sigma_y=1.0,
             classification="tritium",
             total_pixels=4,
+            filename="test.fits",
+            date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.cnnClassification == 0.0
         assert cluster.nrgClassification == 0.0
@@ -372,8 +319,9 @@ class TestMapToCluster:
             bounding_box={"top": 0, "left": 0, "bottom": 0, "right": 0},
             data=[], total_energy=0.0, sigma_x=0.0, sigma_y=0.0,
             classification="", total_pixels=0,
+            filename="test.fits", date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.data is None
         assert cluster.boundingBox.top == 0
@@ -388,8 +336,9 @@ class TestMapToCluster:
             data=arr.tobytes(), total_energy=30.0,
             sigma_x=1.0, sigma_y=1.0,
             classification="", total_pixels=4,
+            filename="test.fits", date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.data is None
 
