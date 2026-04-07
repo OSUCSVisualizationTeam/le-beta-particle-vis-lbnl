@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, Signal, QEvent
 from superqt import QRangeSlider
 from typing import Tuple
 from le_beta_vis.frontend.fitsconverters.colormaps import generate_gradient_pixmap
+from le_beta_vis.frontend.theme import TooltipStyle
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +40,6 @@ class _Style:
             background: transparent;
         }
     """
-    TOOLTIP = (
-        "color: black; background-color: white; padding: 2px; border: 1px solid #ccc;"
-    )
     SPINBOX = """
         QDoubleSpinBox {
             background-color: #3d3d3d;
@@ -70,7 +68,7 @@ class _Style:
         QPushButton:pressed {{
             background-color: #2d2d2d;
         }}
-        QToolTip {{ {TOOLTIP} }}
+        {TooltipStyle.QSS}
     """
 
 
@@ -253,7 +251,7 @@ class VerticalRangeControl(QWidget):
 
     def _getTooltipText(self, value: float) -> str:
         """Generates styled HTML for the energy tooltip."""
-        return f"<span style='{_Style.TOOLTIP}'>{self._formatLabel(value)}</span>"
+        return f"<span style='{TooltipStyle.BODY}'>{self._formatLabel(value)}</span>"
 
     def setAbsoluteRange(self, abs_min: float, abs_max: float):
         """

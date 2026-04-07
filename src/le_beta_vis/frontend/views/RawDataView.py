@@ -321,7 +321,9 @@ class RawDataView(QWidget):
         self._rightSidebarTabs = QTabWidget()
         self._rightSidebarTabs.addTab(self._buildVisualizationTab(), self.tr("Vis"))
         self._rightSidebarTabs.addTab(self._buildClusteringTab(), self.tr("Clustering"))
-        self._rightSidebarTabs.addTab(self._buildRoiInfoTab(), self.tr("ROI Info"))
+        self._roiInfoTabIndex = self._rightSidebarTabs.addTab(
+            self._buildRoiInfoTab(), self.tr("ROI Info")
+        )
         self.rightLayout.addWidget(self._rightSidebarTabs, 1)
 
     def _buildVisualizationTab(self) -> QWidget:
@@ -646,6 +648,7 @@ class RawDataView(QWidget):
         """Handles a completed box selection from the graphics view."""
         self.viewModel.clearRois()
         self.viewModel.addRoi(top, left, bottom, right)
+        self._rightSidebarTabs.setCurrentIndex(self._roiInfoTabIndex)
 
     @Slot(int, int)
     def _onBoxSelectClicked(self, row: int, col: int) -> None:

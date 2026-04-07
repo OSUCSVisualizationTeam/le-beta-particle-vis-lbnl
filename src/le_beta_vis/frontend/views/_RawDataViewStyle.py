@@ -1,10 +1,22 @@
+from le_beta_vis.frontend.theme import TooltipStyle
+
+
 class _Style:
     LEFT_TOOLBAR = "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
     TOP_TOOLBAR = "background-color: #2d2d2d; border-bottom: 1px solid #3d3d3d;"
-    LEFT_TOOLBAR_BUTTON = "font-weight: bold; color: #ffffff;"
+    LEFT_TOOLBAR_BUTTON = (
+        "QToolButton { font-weight: bold; color: #ffffff; }"
+        f"{TooltipStyle.QSS}"
+    )
     LEFT_TOOLBAR_DIVIDER = "background-color: #555555;"
-    ZOOM_IN = "font-size: 20px; font-weight: bold; color: #ffffff;"
-    ZOOM_OUT = "font-size: 20px; font-weight: bold; color: #ffffff;"
+    ZOOM_IN = (
+        "QToolButton { font-size: 20px; font-weight: bold; color: #ffffff; }"
+        f"{TooltipStyle.QSS}"
+    )
+    ZOOM_OUT = (
+        "QToolButton { font-size: 20px; font-weight: bold; color: #ffffff; }"
+        f"{TooltipStyle.QSS}"
+    )
     GRAPHICS_VIEW = """
         QGraphicsView {
             background-color: #000;

@@ -33,3 +33,24 @@ class EventGridSectionHeaderColors:
     NAV_TEXT = "#888888"
     NAV_TEXT_DISABLED = "#555555"
     NAV_HOVER_BACKGROUND = "#4a4a4a"
+
+
+class TooltipStyle:
+    """Shared QToolTip stylesheet snippets.
+
+    ``BODY`` is the property body — usable inside a ``QToolTip { ... }``
+    rule embedded in a widget stylesheet, or inside an HTML
+    ``<span style='...'>`` wrapper for ``QToolTip.showText`` calls.
+    ``QSS`` is the convenience full rule for embedding directly into
+    a widget stylesheet.
+
+    ``font-weight: normal`` defeats inheritance from any bold parent
+    widget so tooltips render with a consistent weight regardless of
+    where they are anchored.
+    """
+
+    BODY = (
+        "color: black; background-color: white; padding: 2px;"
+        " border: 1px solid #ccc; font-weight: normal;"
+    )
+    QSS = f"QToolTip {{ {BODY} }}"
