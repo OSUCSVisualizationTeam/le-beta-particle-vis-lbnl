@@ -141,6 +141,19 @@ def test_set_hint_lines(magnifier):
     assert magnifier._hintLines == ["Line A", "Line B"]
 
 
+def test_bounding_rect_zoom_line_accounted(magnifier, source_data):
+    """Test boundingRect accounts for the Zoom label (4 data lines)."""
+    pixmap, raw = source_data
+    magnifier.setSourceData(pixmap, raw, None)
+    # With 0 hints: totalLines = 4, labelAreaHeight = 4*14+4 = 60 < 127
+    rect = magnifier.boundingRect()
+    assert rect.height() == 127  # display size still dominates
+    # With 10 hints: totalLines = 4 + 11 = 15, height = 15*14+4 = 214 > 127
+    magnifier.setHintLines([f"H{i}" for i in range(10)])
+    rect_tall = magnifier.boundingRect()
+    assert rect_tall.height() > 127
+
+
 def test_bounding_rect_grows_with_hints(magnifier, source_data):
     """Test boundingRect height accounts for hint lines."""
     pixmap, raw = source_data

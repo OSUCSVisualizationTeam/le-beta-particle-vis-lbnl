@@ -16,7 +16,7 @@ from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.RoiRect import RoiRect
-from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter
+from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter, ScalingFunction
 
 logger = logging.getLogger(__name__)
 
@@ -47,19 +47,27 @@ class RawDataViewModel:
         self._config = configService
         self._physics_manager = physics_manager
         self._converter = OpenCVBasedConverter()
-
         self._captures: List[CCDCaptureModel] = []
         self._activeIndex: int = -1
+        self._init_sub_viewmodels()
+        self._init_visualization_state()
+        self._init_clustering_state()
+        self._init_render_pipeline()
+        self._init_callbacks()
 
-        # Sub-ViewModels
+    def _init_sub_viewmodels(self) -> None:
+        """Constructs sub-ViewModels. Lazy imports break the circular
+        import between RawDataViewModel and ClusterAnalysisViewModel."""
         from .MosaicViewModel import MosaicViewModel
         from .ClusterAnalysisViewModel import ClusterAnalysisViewModel
 
-        self.mosaicViewModel = MosaicViewModel(configService, physics_manager)
+        self.mosaicViewModel = MosaicViewModel(self._config, self._physics_manager)
         self.mosaicViewModel.add_selection_changed_callback(self.setActiveHDU)
         self.clusterAnalysisViewModel = ClusterAnalysisViewModel(self)
 
-        # Viz Parameters
+    def _init_visualization_state(self) -> None:
+        """Initializes colormap, value range, scaling, zoom, tool,
+        magnifier, image bounds, and pointer hover state."""
         colormap_str = self._config.get(
             "gui:raw_analysis:default_colormap", Colormap.VIRIDIS
         )
@@ -68,23 +76,25 @@ class RawDataViewModel:
             self._config.get("gui:raw_analysis:vis_range_min", 0.0),
             self._config.get("gui:raw_analysis:vis_range_max", 20.0),
         )
+        scaling_str = self._config.get(
+            "gui:raw_analysis:default_scaling_function", ScalingFunction.LINEAR
+        )
+        try:
+            self._scalingFunction = ScalingFunction(scaling_str)
+        except ValueError:
+            self._scalingFunction = ScalingFunction.LINEAR
         self._scale: float = 1.0
-
-        # Tool State
         self._activeTool: ActiveTool = ActiveTool.BOX_SELECT
         self._magnificationFactor: float = self._config.get(
             "gui:raw_analysis:magnifier_default_factor", 3.0
         )
         self._magnifier_pos: Tuple[int, int] = (0, 0)
         self._image_bounds: Tuple[int, int] = (0, 0)
-
-        # Pointer Hover State
         self._pointer_hover_pos: Optional[Tuple[int, int]] = None
 
-        # ROI State
+    def _init_clustering_state(self) -> None:
+        """Initializes ROI list and all clustering lifecycle state."""
         self._rois: List[RoiRect] = []
-
-        # Clustering State
         self._clusterExtractor: Optional[ClusterExtractor] = None
         self._clusteringState: ClusteringState = ClusteringState.IDLE
         self._clusteringResults: List[ClusteredEventInfo] = []
@@ -93,16 +103,19 @@ class RawDataViewModel:
         self._clustering_timeout_timer: Optional[threading.Timer] = None
         self._selectedClusterIndex: int = -1
 
-        # Async Rendering State
+    def _init_render_pipeline(self) -> None:
+        """Creates the render queue and buffer lock, then starts the
+        background render worker daemon thread."""
         self._buffer_lock = threading.Lock()
         self._current_buffer: Optional[np.ndarray] = None
-        self._render_queue = queue.Queue(maxsize=1)
+        self._render_queue: queue.Queue = queue.Queue(maxsize=1)
         self._render_thread = threading.Thread(
             target=self._render_worker, daemon=True
         )
         self._render_thread.start()
 
-        # Callbacks
+    def _init_callbacks(self) -> None:
+        """Initializes all observer callback registries to empty lists."""
         self._on_image_changed_callbacks: List[Callable] = []
         self._on_file_loaded_callbacks: List[Callable] = []
         self._on_scale_changed_callbacks: List[Callable] = []
@@ -141,6 +154,14 @@ class RawDataViewModel:
     def setColormap(self, colormap: str):
         try:
             self._colormap = Colormap(colormap)
+            self._request_render()
+        except ValueError:
+            pass
+
+    def setScalingFunction(self, scaling: str) -> None:
+        """Sets the scaling transfer function and re-queues a render."""
+        try:
+            self._scalingFunction = ScalingFunction(scaling)
             self._request_render()
         except ValueError:
             pass
@@ -564,7 +585,8 @@ class RawDataViewModel:
                 viz_data = self._physics_manager.adu_to_kev(raw_data)
 
                 buffer = self._converter.convert(
-                    viz_data, self._colormap, self._vrange
+                    viz_data, self._colormap, self._vrange,
+                    scaling=self._scalingFunction,
                 )
                 with self._buffer_lock:
                     self._current_buffer = buffer
@@ -599,6 +621,11 @@ class RawDataViewModel:
     @property
     def colormap(self) -> str:
         return self._colormap.value
+
+    @property
+    def scalingFunction(self) -> str:
+        """Returns the current scaling function as a string."""
+        return self._scalingFunction.value
 
     @property
     def clusterThumbnailColormap(self) -> Optional[Colormap]:
@@ -711,6 +738,13 @@ class RawDataViewModel:
     def showToolHints(self) -> bool:
         return self._config.get(
             "gui:raw_analysis:show_tool_hints", True
+        )
+
+    @property
+    def autoRangeOnLoad(self) -> bool:
+        """Whether to auto-set the visualization range to the full data extent on load."""
+        return self._config.get(
+            "gui:raw_analysis:auto_range_on_load", False
         )
 
     # --- Observer Pattern Helpers ---

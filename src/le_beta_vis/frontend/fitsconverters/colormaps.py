@@ -14,6 +14,7 @@ class Colormap(str, Enum):
     BONE = "bone"
     HOT = "hot"
     COOL = "cool"
+    GRAYSCALE = "grayscale"
 
 
 def get_cv2_colormap_id(name: str) -> int:
@@ -58,6 +59,23 @@ def generate_gradient_array(
     :param height: Pixel height of the output array.
     :returns: ``(height, width, 3)`` RGB ``uint8`` array.
     """
+    # Grayscale: produce a white-to-black gradient without cv2
+    if name == Colormap.GRAYSCALE or name == "grayscale":
+        vmin_ratio = float(np.clip(vmin_ratio, 0.0, 1.0))
+        vmax_ratio = float(np.clip(vmax_ratio, 0.0, 1.0))
+        if vmin_ratio > vmax_ratio:
+            vmin_ratio, vmax_ratio = vmax_ratio, vmin_ratio
+        positions = np.linspace(1.0, 0.0, height)
+        span = vmax_ratio - vmin_ratio
+        if span < 1e-9:
+            gray_val = int(np.clip(vmin_ratio * 255, 0, 255))
+            gray = np.full((height, width), gray_val, dtype=np.uint8)
+        else:
+            normalized = np.clip((positions - vmin_ratio) / span, 0.0, 1.0)
+            gray = (normalized * 255).astype(np.uint8)
+            gray = np.tile(gray[:, np.newaxis], (1, width))
+        return np.dstack([gray, gray, gray])
+
     import cv2
 
     # Clamp to [0, 1] and ensure vmin <= vmax

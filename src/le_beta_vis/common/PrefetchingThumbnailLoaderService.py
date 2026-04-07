@@ -222,6 +222,7 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
             thumbnail = generate_cluster_thumbnail(
                 data,
                 colormap=self._colormap,
+                pad_to_square=True,
             )
 
             with self._lock:

@@ -51,6 +51,7 @@ class ROIInfoWidget(QWidget):
         super().__init__(parent)
         self._vm = viewModel
         self._stat_labels: Dict[str, QLabel] = {}
+        self._roi_coord_labels: Dict[str, QLabel] = {}
         self._initUI()
         self._bindViewModel()
 
@@ -61,8 +62,34 @@ class ROIInfoWidget(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(6)
 
+        self._initCoordSection(layout)
         self._initStatsSection(layout)
         self._initHistogramSection(layout)
+
+    def _initCoordSection(self, parent_layout: QVBoxLayout) -> None:
+        """Creates the ROI coordinate and dimensions display."""
+        header = QLabel(self.tr("ROI Region"))
+        header.setStyleSheet(_Style.HEADER)
+        parent_layout.addWidget(header)
+
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(4)
+
+        rows = [
+            ("roi_origin", self.tr("Origin:")),
+            ("roi_dimensions", self.tr("Size:")),
+        ]
+        for row_idx, (key, label_text) in enumerate(rows):
+            label = QLabel(label_text)
+            label.setStyleSheet(_Style.STAT_LABEL)
+            value = QLabel("\u2014")
+            value.setStyleSheet(_Style.STAT_VALUE)
+            grid.addWidget(label, row_idx, 0, Qt.AlignTop)
+            grid.addWidget(value, row_idx, 1, Qt.AlignTop)
+            self._roi_coord_labels[key] = value
+
+        parent_layout.addLayout(grid)
 
     def _initStatsSection(self, parent_layout: QVBoxLayout) -> None:
         """Creates the statistics header and grid."""
@@ -140,8 +167,23 @@ class ROIInfoWidget(QWidget):
             return
 
         data = roi_data.copy()
+        self._updateCoords()
         self._updateStatistics(data)
         self._updateHistogram(data)
+
+    def _updateCoords(self) -> None:
+        """Populates ROI origin and dimensions from the bounding box."""
+        bbox = self._vm.selectedRoiBoundingBox
+        if bbox is None:
+            return
+        width = bbox.right - bbox.left
+        height = bbox.bottom - bbox.top
+        self._roi_coord_labels["roi_origin"].setText(
+            f"({bbox.top}, {bbox.left})"
+        )
+        self._roi_coord_labels["roi_dimensions"].setText(
+            f"{width} \u00d7 {height}"
+        )
 
     def _updateStatistics(self, data: np.ndarray) -> None:
         """Computes and displays ROI statistics."""
@@ -181,7 +223,9 @@ class ROIInfoWidget(QWidget):
         """Resets all sections when no ROI is selected."""
         self._histogram.setData(None)
         for label in self._stat_labels.values():
-            label.setText("—")
+            label.setText("\u2014")
+        for label in self._roi_coord_labels.values():
+            label.setText("\u2014")
 
     def _populateStatLabels(self, stats: ROIStatistics) -> None:
         """Formats ROIStatistics values into the stat labels."""

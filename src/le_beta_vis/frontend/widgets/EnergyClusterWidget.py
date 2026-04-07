@@ -62,7 +62,9 @@ class EnergyClusterWidget(QLabel):
         Returns:
             A QPixmap ready for display.
         """
-        buffer = generate_cluster_thumbnail(data, colormap=colormap)
+        buffer = generate_cluster_thumbnail(
+            data, colormap=colormap, pad_to_square=True
+        )
         h, w = buffer.shape[:2]
         if buffer.ndim == 3:
             q_img = QImage(

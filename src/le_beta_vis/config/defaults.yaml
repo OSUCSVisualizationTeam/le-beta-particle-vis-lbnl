@@ -70,11 +70,19 @@ global:physics:ped_width:
 
 gui:raw_analysis:default_colormap:
   type: enum
-  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool"]
+  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool", "grayscale"]
   default: "viridis"
   description: >-
     Initial colormap applied when opening a new FITS file.
-    Supported: viridis, plasma, inferno, magma, jet, bone, hot, cool.
+    Supported: viridis, plasma, inferno, magma, jet, bone, hot, cool, grayscale.
+
+gui:raw_analysis:default_scaling_function:
+  type: enum
+  choices: ["linear", "log", "sqrt"]
+  default: "linear"
+  description: >-
+    Transfer function applied when rendering the main Raw Data View.
+    Values: linear, log, sqrt.
 
 gui:raw_analysis:vis_range_min:
   type: float
@@ -187,6 +195,14 @@ gui:raw_analysis:cluster_thumbnail_use_colormap:
     When enabled, cluster thumbnails use the active colormap
     via OpenCVBasedConverter instead of grayscale.
 
+gui:raw_analysis:auto_range_on_load:
+  type: bool
+  default: false
+  description: >-
+    When true, automatically set the visualization range to the full data
+    extent each time a new HDU is rendered. When false, the range stays at
+    the user's last selection or the config defaults.
+
 gui:raw_analysis:display_energy_in_kev:
   type: bool
   default: true
@@ -294,7 +310,7 @@ gui:historical:grid_max_columns:
 
 gui:historical:thumbnail_colormap:
   type: enum
-  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool"]
+  choices: ["viridis", "plasma", "inferno", "magma", "jet", "bone", "hot", "cool", "grayscale"]
   default: "viridis"
   description: >-
     Colormap used for event grid thumbnail rendering.
