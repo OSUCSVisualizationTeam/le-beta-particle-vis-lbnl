@@ -251,8 +251,9 @@ class TestMapToCluster:
             data=[0, 0, 0, 0, 0, 99, 0, 0, 0],
             total_energy=99.0, sigma_x=1.5, sigma_y=2.0,
             classification="tritium", total_pixels=9,
+            filename="test.fits", date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.data is None
         assert cluster.centerX is None
@@ -279,8 +280,10 @@ class TestMapToCluster:
             sigma_y=1.0,
             classification="",
             total_pixels=16,
+            filename="test.fits",
+            date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         bb = cluster.boundingBox
         assert bb.top == 0
@@ -300,8 +303,10 @@ class TestMapToCluster:
             sigma_y=1.0,
             classification="tritium",
             total_pixels=4,
+            filename="test.fits",
+            date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.cnnClassification == 0.0
         assert cluster.nrgClassification == 0.0
@@ -314,8 +319,9 @@ class TestMapToCluster:
             bounding_box={"top": 0, "left": 0, "bottom": 0, "right": 0},
             data=[], total_energy=0.0, sigma_x=0.0, sigma_y=0.0,
             classification="", total_pixels=0,
+            filename="test.fits", date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.data is None
         assert cluster.boundingBox.top == 0
@@ -330,8 +336,9 @@ class TestMapToCluster:
             data=arr.tobytes(), total_energy=30.0,
             sigma_x=1.0, sigma_y=1.0,
             classification="", total_pixels=4,
+            filename="test.fits", date="2026-03-12",
         )
-        cluster = ZMQBasedEventRepository._map_to_cluster(record, "test.fits", "2026-03-12")
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.data is None
 

@@ -12,7 +12,7 @@ import logging
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from le_beta_vis.common.YAMLBackedConfigurationService import YAMLBackedConfigurationService
-from le_beta_vis.backend.FileProcessing import ProcessFile
+from le_beta_vis.backend.FileProcessing import process_file
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,9 @@ class PollingThread():
                 file_type = os.path.splitext(path)[1] # return extension of file in queue
                 if file_type.lower() != '.fits':
                     continue
-                ProcessFile(config_service=config, file=path)
-            except:
+                process_file(config_service=config, file=path)
+            except Exception as e:
+                logger.exception("file_uploaded processing error")
                 continue
 
 class EventHandler(FileSystemEventHandler):

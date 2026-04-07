@@ -84,11 +84,8 @@ class ZMQBasedEventRepository(EventRepository):
         clusters: List[Cluster] = []
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            fits = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
-                0
-            ]
-            fitsFilename = fits.filename
-            fits_date = fits.date
+            fitsFilename = record.filename
+            fits_date = record.date
             cluster = self._map_to_cluster(record, fitsFilename, fits_date)
             if cluster is not None:
                 clusters.append(cluster)
@@ -159,15 +156,10 @@ class ZMQBasedEventRepository(EventRepository):
             return []
         raw_clusters = response.get("clusters", [])
         clusters: List[Cluster] = []
-        filename = self.query_fits(FitsQueryFilter)
         for raw in raw_clusters:
             record = EPSClusterRecord.from_eps_dict(raw)
-            fits = self.query_fits(FitsQueryFilter(fits_id=record.fits_id))[
-                0
-            ]
-            fitsFilename = fits.filename
-            fits_date = fits.date
-
+            fitsFilename = record.filename
+            fits_date = record.date
             cluster = self._map_to_cluster(record, fitsFilename, fits_date)
             if cluster is not None:
                 clusters.append(cluster)

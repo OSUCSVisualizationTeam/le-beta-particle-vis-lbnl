@@ -73,7 +73,7 @@ class EventPersistence:
             "classification": None,
         }
 
-        self.db_connect()  # connect to DB before listening loop
+        self.conn = self.db_connect()  # connect to DB before listening loop
         self.initialize_server()
 
     def initialize_server(self):
@@ -122,17 +122,16 @@ class EventPersistence:
                     if command_socket in sockets:
                         request = command_socket.recv_json()
                         if request.get("Command") == "Kill":
-                            print("EPS received kill command.")
+                            command_socket.send_json({"Action": "Killed"})
                             break
-                        if request.get("Command") == "Stop":
+                        elif request.get("Command") == "Stop":
                             EPS_is_active = False
                             command_socket.send_json({"Action": "Server stopped"})
-                        if request.get("Command") == "Start" and EPS_is_active == False:
+                        elif request.get("Command") == "Start" and not EPS_is_active:
                             EPS_is_active = True
                             command_socket.send_json({"Action": "Server started"})
                         else:
                             command_socket.send_json({"Error": "Invalid request"})
-
                 except zmq.ZMQError as err:
                     print(f"ERROR: {str(err)}")
         finally:
@@ -407,7 +406,7 @@ class EventPersistence:
         try:
             if not self.conn:
                 self.conn = self.db_connect()
-            cursor = self.conn.cursor()
+            cursor = self.conn.cursor(dictionary=True)
 
             data = self.retrieval_clusters["data"]
             hdu = self.retrieval_clusters["hdu_id"]
@@ -421,7 +420,7 @@ class EventPersistence:
             total_pixels = self.retrieval_clusters["total_pixels"]
             classification = self.retrieval_clusters["classification"]
 
-            select_query = "SELECT * FROM clusters"
+            select_query = "SELECT clusters.*, fits_files.filename, fits_files.date FROM clusters INNER JOIN fits_files ON clusters.fitsFile = fits_files.fitsID"
             select_args = []
             select_argv = []
             if data:
@@ -444,7 +443,6 @@ class EventPersistence:
                 )
             if date:
                 if date.get("start") and date.get("end"):
-                    select_query += " INNER JOIN fits_files ON clusters.fitsFile = fits_files.fitsID"
                     select_args.append("fits_files.date BETWEEN %s AND %s")
                     select_argv.extend([date["start"], date["end"]])
             if fits_id:
@@ -526,25 +524,26 @@ class EventPersistence:
             return response
         clusters_list = []
         for result in results:
-            # Tuple return from a select statement will be in the order:
-            # `fitsFile`, `clusterID`, `hdu_id`, bounding_box, `data`, `totalEnergy`, `sigmaX`, `sigmaY`, `classification`, `pixelCount`,
+            # Results return as a list of dictionaries
             clusters_list.append(
                 {
-                    "fits_id": result[0],
-                    "cluster_id": result[1],
-                    "hdu_id": result[2],
+                    "fits_id": result["fitsFile"],
+                    "cluster_id": result["clusterID"],
+                    "hdu_id": result["hdu_id"],
                     "bounding_box": {
-                        "top": result[3],
-                        "left": result[4],
-                        "bottom": result[5],
-                        "right": result[6],
+                        "top": result["box_top"],
+                        "left": result["box_left"],
+                        "bottom": result["box_bottom"],
+                        "right": result["box_right"],
                     },
                     "data": None,
-                    "total_energy": result[8],
-                    "sigmaX": result[9],
-                    "sigmaY": result[10],
-                    "classification": result[11],
-                    "total_pixels": result[12],
+                    "total_energy": result["totalEnergy"],
+                    "sigmaX": result["sigmaX"],
+                    "sigmaY": result["sigmaY"],
+                    "classification": result["classification"],
+                    "total_pixels": result["pixelCount"],
+                    "filename": result["filename"],
+                    "date": str(result["date"])
                 }
             )
         response = {"result": "success", "clusters": clusters_list}

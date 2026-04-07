@@ -105,7 +105,7 @@ DROP PROCEDURE IF EXISTS insert_classifications;
 DELIMITER //
 
 CREATE PROCEDURE insert_classifications(
-    IN classification VARCHAR(255),
+    IN in_classification VARCHAR(255),
     IN in_clusterID INT
 )
 BEGIN
@@ -115,7 +115,7 @@ BEGIN
     END;
     START TRANSACTION;
     UPDATE clusters
-    SET classification = classification
+    SET classification = in_classification
     WHERE clusterID = in_clusterID;
     COMMIT;
 END //
@@ -123,7 +123,7 @@ END //
 DROP VIEW IF EXISTS v_tritium_candidates;
 
 CREATE VIEW v_tritium_candidates as
-SELECT * FROM clusters 
+SELECT * FROM clusters
 WHERE classification = "tritium"
 ORDER BY classification DESC;
 
