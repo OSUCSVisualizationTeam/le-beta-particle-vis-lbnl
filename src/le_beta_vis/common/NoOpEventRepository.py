@@ -12,6 +12,7 @@ from .EPSDataClasses import (
     ClusterQueryFilter,
     ClusterStoreRequest,
     EPSFitsRecord,
+    FitsClusterQueryFilter,
 )
 from .EventRepository import EventRepository
 
@@ -60,5 +61,15 @@ class NoOpEventRepository(EventRepository):
         """Returns an empty list — EPS is unavailable."""
         logger.warning(
             "NoOpEventRepository: query_fits called but " "EPS is unavailable"
+        )
+        return []
+
+    def query_fits_clusters(
+        self, query_filter: Optional[FitsClusterQueryFilter] = None
+    ) -> List[Cluster]:
+        """Returns an empty list — EPS is unavailable."""
+        logger.warning(
+            "NoOpEventRepository: query_fits_clusters called but "
+            "EPS is unavailable"
         )
         return []

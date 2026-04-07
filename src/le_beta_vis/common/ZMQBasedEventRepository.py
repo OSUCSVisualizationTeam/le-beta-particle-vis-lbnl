@@ -139,7 +139,7 @@ class ZMQBasedEventRepository(EventRepository):
 
     def query_fits_clusters(
         self, query_filter: Optional[FitsClusterQueryFilter] = None
-    ) -> List[EPSFitsRecord]:
+    ) -> List[Cluster]:
         """Sends a retrieval request to the EPS FITS socket."""
         if query_filter is not None:
             request = query_filter.to_eps_dict()
