@@ -32,24 +32,6 @@ global:db:password:
   description: >-
     Password for database connection.
 
-global:redis:host:
-  type: str
-  default: "localhost"
-  description: >-
-    Hostname of the Redis server used for Pub/Sub messaging.
-
-global:redis:port:
-  type: int
-  default: 6379
-  description: >-
-    Port number of the Redis server.
-
-global:redis:channel_events:
-  type: str
-  default: "events/new_class"
-  description: >-
-    Redis channel name for broadcasting new classification events.
-
 global:physics:kev_conversion:
   type: float
   default: 1.02857e-5

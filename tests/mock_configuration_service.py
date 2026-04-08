@@ -16,9 +16,6 @@ class MockConfigurationService(ConfigurationService):
         self._store: Dict[str, Any] = {
             # Global / Infrastructure
             "global:db:connection_string": "mysql://localhost/mlccd_viz",
-            "global:redis:host": "localhost",
-            "global:redis:port": 6379,
-            "global:redis:channel_events": "events/new_class",
             # Physics (From Design Q&A section)
             "global:physics:kev_conversion": 1.02857e-5,
             "global:physics:ped_width": 1400,
