@@ -2,6 +2,10 @@
 
 Pure data-mapping tests — no ZMQ dependency.
 """
+from datetime import datetime
+
+import pytest
+
 from le_beta_vis.common.EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
@@ -57,6 +61,59 @@ class TestClusterQueryFilter:
         except AttributeError:
             pass
 
+    def test_date_filter_produces_formatted_strings(self):
+        """A datetime range serializes to MySQL DATETIME literal format."""
+        qf = ClusterQueryFilter(
+            date_start=datetime(2025, 1, 1, 0, 0, 0),
+            date_end=datetime(2025, 12, 31, 23, 59, 59),
+        )
+        d = qf.to_eps_dict()
+        assert d["date"] == {
+            "start": "2025-01-01 00:00:00",
+            "end": "2025-12-31 23:59:59",
+        }
+
+    def test_date_filter_strips_microseconds(self):
+        """strftime("%Y-%m-%d %H:%M:%S") drops microseconds and tz."""
+        qf = ClusterQueryFilter(
+            date_start=datetime(2025, 6, 15, 12, 30, 0, 123456),
+            date_end=datetime(2025, 6, 16, 0, 0, 0, 999999),
+        )
+        d = qf.to_eps_dict()
+        assert d["date"]["start"] == "2025-06-15 12:30:00"
+        assert d["date"]["end"] == "2025-06-16 00:00:00"
+
+    def test_date_filter_omitted_when_only_start_set(self):
+        """Half-set date range is silently omitted from the wire dict."""
+        qf = ClusterQueryFilter(date_start=datetime(2025, 1, 1))
+        d = qf.to_eps_dict()
+        assert "date" not in d
+
+    def test_date_filter_omitted_when_only_end_set(self):
+        qf = ClusterQueryFilter(date_end=datetime(2025, 1, 1))
+        d = qf.to_eps_dict()
+        assert "date" not in d
+
+    def test_date_type_error_on_string_input(self):
+        """String date inputs are rejected at construction time."""
+        with pytest.raises(TypeError):
+            ClusterQueryFilter(
+                date_start="2025-01-01 00:00:00",
+                date_end="2025-12-31 23:59:59",
+            )
+
+    def test_date_type_error_on_int_input(self):
+        with pytest.raises(TypeError):
+            ClusterQueryFilter(date_start=12345, date_end=67890)
+
+    def test_date_ordering_error(self):
+        """date_start must be <= date_end."""
+        with pytest.raises(ValueError):
+            ClusterQueryFilter(
+                date_start=datetime(2025, 12, 31),
+                date_end=datetime(2025, 1, 1),
+            )
+
 
 # -------------------------------------------------------------------
 # FitsQueryFilter
@@ -71,6 +128,31 @@ class TestFitsQueryFilter:
     def test_fits_id_maps(self):
         d = FitsQueryFilter(fits_id=7).to_eps_dict()
         assert d["fits_id"] == 7
+
+    def test_date_filter_produces_formatted_strings(self):
+        f = FitsQueryFilter(
+            date_start=datetime(2025, 3, 1, 8, 0, 0),
+            date_end=datetime(2025, 3, 31, 17, 30, 0),
+        )
+        d = f.to_eps_dict()
+        assert d["date"] == {
+            "start": "2025-03-01 08:00:00",
+            "end": "2025-03-31 17:30:00",
+        }
+
+    def test_date_type_error_on_string_input(self):
+        with pytest.raises(TypeError):
+            FitsQueryFilter(
+                date_start="2025-01-01",
+                date_end="2025-12-31",
+            )
+
+    def test_date_ordering_error(self):
+        with pytest.raises(ValueError):
+            FitsQueryFilter(
+                date_start=datetime(2025, 12, 31),
+                date_end=datetime(2025, 1, 1),
+            )
 
 
 # -------------------------------------------------------------------

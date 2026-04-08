@@ -294,8 +294,6 @@ class HistoricalAdvancedFilterDialog(QDialog):
         key = self._timeCombo.currentData()
         self._vm.time_preset = key
 
-        # TODO: Dates are stored in the VM but not yet sent to the
-        # EPS — wire into ClusterQueryFilter once supported.
         self._vm.start_datetime = self._startEdit.dateTime().toPython()
         self._vm.end_datetime = self._endEdit.dateTime().toPython()
 

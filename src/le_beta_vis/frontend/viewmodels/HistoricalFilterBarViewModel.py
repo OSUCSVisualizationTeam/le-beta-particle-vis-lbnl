@@ -5,7 +5,6 @@ Manages filter field state and builds ``ClusterQueryFilter``
 instances for the ``HistoricalViewModel`` to execute.
 """
 
-import logging
 from datetime import datetime, timedelta
 from typing import Callable, List, Optional, Tuple
 
@@ -15,8 +14,6 @@ from le_beta_vis.common.ParticleType import ParticleType
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,
 )
-
-logger = logging.getLogger(__name__)
 
 # Maps config default_query_hours to a preset key
 _HOURS_TO_PRESET = {24: "24h", 72: "3d", 168: "7d", 720: "30d"}
@@ -155,6 +152,11 @@ class HistoricalFilterBarViewModel:
 
     @start_datetime.setter
     def start_datetime(self, value: Optional[datetime]) -> None:
+        if value is not None and not isinstance(value, datetime):
+            raise TypeError(
+                f"start_datetime must be datetime or None, "
+                f"got {type(value).__name__}"
+            )
         self._start_datetime = value
 
     @property
@@ -164,6 +166,11 @@ class HistoricalFilterBarViewModel:
 
     @end_datetime.setter
     def end_datetime(self, value: Optional[datetime]) -> None:
+        if value is not None and not isinstance(value, datetime):
+            raise TypeError(
+                f"end_datetime must be datetime or None, "
+                f"got {type(value).__name__}"
+            )
         self._end_datetime = value
 
     @property
@@ -213,6 +220,24 @@ class HistoricalFilterBarViewModel:
         start = end - timedelta(hours=hours)
         return start, end
 
+    def apply_time_preset(self, preset: str) -> None:
+        """Selects a time preset and, for non-custom presets, resolves
+        ``start_datetime`` / ``end_datetime`` to a fresh ``[now-window, now]``
+        range.
+
+        ``"custom"`` only updates the preset key; the caller (typically the
+        Advanced Filter Dialog) is responsible for setting explicit
+        datetimes. Any other preset overwrites whatever datetimes were
+        previously stored, so picking ``"7d"`` from the inline filter bar
+        always queries the most recent 7 days relative to now.
+        """
+        self._time_preset = preset
+        if preset == "custom":
+            return
+        start, end = self.compute_dates_for_preset(preset)
+        self._start_datetime = start
+        self._end_datetime = end
+
     def build_filter(self) -> ClusterQueryFilter:
         """Constructs a ``ClusterQueryFilter`` from current field state.
 
@@ -226,13 +251,6 @@ class HistoricalFilterBarViewModel:
                 energy_adu = self._min_total_energy / factor if factor != 0 else None
             else:
                 energy_adu = self._min_total_energy
-
-        if self._time_preset != self._default_time_preset:
-            logger.info(
-                "Time preset '%s' selected but date filtering is "
-                "not yet supported by the EPS backend.",
-                self._time_preset,
-            )
 
         return ClusterQueryFilter(
             cluster_id=self._cluster_id,

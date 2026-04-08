@@ -6,6 +6,7 @@
 
 Uses mock ZMQ context/sockets — no real IPC connections.
 """
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -133,6 +134,40 @@ class TestQueryClusters:
 
         sent = sock.send_json.call_args[0][0]
         assert sent == {"Action": "Retrieval"}
+
+
+# -------------------------------------------------------------------
+# Date filter wiring (issue #146)
+# -------------------------------------------------------------------
+
+
+class TestDateFilterWiring:
+    """End-to-end check that datetime objects survive ClusterQueryFilter
+    construction, get serialized to MySQL DATETIME literal format, and
+    arrive at the ZMQ socket as plain strings inside the JSON payload."""
+
+    def test_date_filter_sent_as_strftime_strings(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+        qf = ClusterQueryFilter(
+            date_start=datetime(2025, 1, 1, 8, 0, 0),
+            date_end=datetime(2025, 12, 31, 23, 59, 59),
+        )
+        repo.query_clusters(qf)
+
+        sent = sock.send_json.call_args[0][0]
+        assert sent["date"] == {
+            "start": "2025-01-01 08:00:00",
+            "end": "2025-12-31 23:59:59",
+        }
+
+    def test_no_date_filter_omits_date_key(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+        repo.query_clusters(ClusterQueryFilter(fits_id=1))
+
+        sent = sock.send_json.call_args[0][0]
+        assert "date" not in sent
 
 
 # -------------------------------------------------------------------

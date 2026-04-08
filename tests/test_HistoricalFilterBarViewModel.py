@@ -343,6 +343,45 @@ class TestDateTimeProperties:
         assert vm.start_datetime is None
 
 
+# --- datetime forwarding into ClusterQueryFilter ---
+
+
+class TestDateTimeForwarding:
+    def test_dates_forwarded_to_filter(self, vm):
+        """build_filter() forwards both datetimes into ClusterQueryFilter."""
+        start = datetime(2025, 1, 1, 0, 0, 0)
+        end = datetime(2025, 12, 31, 23, 59, 59)
+        vm.start_datetime = start
+        vm.end_datetime = end
+        f = vm.build_filter()
+        assert f.date_start == start
+        assert f.date_end == end
+
+    def test_no_dates_yields_none(self, vm):
+        """Default state produces a filter with no date range set."""
+        f = vm.build_filter()
+        assert f.date_start is None
+        assert f.date_end is None
+
+    def test_start_setter_rejects_string(self, vm):
+        with pytest.raises(TypeError):
+            vm.start_datetime = "2025-01-01"
+
+    def test_end_setter_rejects_int(self, vm):
+        with pytest.raises(TypeError):
+            vm.end_datetime = 12345
+
+    def test_start_setter_accepts_none_after_value(self, vm):
+        vm.start_datetime = datetime(2025, 1, 1)
+        vm.start_datetime = None
+        assert vm.start_datetime is None
+
+    def test_end_setter_accepts_none_after_value(self, vm):
+        vm.end_datetime = datetime(2025, 1, 1)
+        vm.end_datetime = None
+        assert vm.end_datetime is None
+
+
 # --- compute_dates_for_preset() ---
 
 
@@ -370,3 +409,55 @@ class TestComputeDatesForPreset:
             "24h"
         )
         assert abs((datetime.now() - end).total_seconds()) < 2
+
+
+# --- apply_time_preset() ---
+
+
+class TestApplyTimePreset:
+    @pytest.mark.parametrize("preset,hours", list(_PRESET_TO_HOURS.items()))
+    def test_non_custom_preset_resolves_to_fresh_range(self, vm, preset, hours):
+        """Selecting any non-custom preset writes a fresh [now-window, now]."""
+        vm.apply_time_preset(preset)
+        assert vm.time_preset == preset
+        assert vm.start_datetime is not None
+        assert vm.end_datetime is not None
+        delta = vm.end_datetime - vm.start_datetime
+        assert delta == timedelta(hours=hours)
+        # End should be very close to now
+        assert abs((datetime.now() - vm.end_datetime).total_seconds()) < 2
+
+    def test_default_preset_resolves_when_starting_from_clean_state(self, vm):
+        """The reported bug: app start, click Apply, expect 24h of data.
+
+        On startup the VM has time_preset='24h' but datetimes are None.
+        After apply_time_preset('24h') the VM should hold a real range
+        that build_filter() forwards into ClusterQueryFilter.
+        """
+        assert vm.start_datetime is None
+        assert vm.end_datetime is None
+        vm.apply_time_preset(vm.time_preset)
+        f = vm.build_filter()
+        assert f.date_start is not None
+        assert f.date_end is not None
+        assert (f.date_end - f.date_start) == timedelta(hours=24)
+
+    def test_custom_preset_preserves_existing_dates(self, vm):
+        """'custom' must NOT overwrite manually-set datetimes."""
+        manual_start = datetime(2025, 6, 1, 0, 0, 0)
+        manual_end = datetime(2025, 6, 30, 23, 59, 59)
+        vm.start_datetime = manual_start
+        vm.end_datetime = manual_end
+        vm.apply_time_preset("custom")
+        assert vm.time_preset == "custom"
+        assert vm.start_datetime == manual_start
+        assert vm.end_datetime == manual_end
+
+    def test_non_custom_overwrites_previous_custom_dates(self, vm):
+        """Picking a window preset must discard prior custom dates."""
+        vm.start_datetime = datetime(2020, 1, 1)
+        vm.end_datetime = datetime(2020, 12, 31)
+        vm.apply_time_preset("7d")
+        # The new range should be relative to now, not 2020
+        assert vm.start_datetime.year >= datetime.now().year - 1
+        assert (vm.end_datetime - vm.start_datetime) == timedelta(hours=168)
