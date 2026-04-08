@@ -108,6 +108,7 @@ class _Style:
 
 # Time-preset display labels, in combo order.
 _TIME_PRESETS = [
+    ("all", "All time"),
     ("24h", "Last 24 hours"),
     ("3d", "Last 3 days"),
     ("7d", "Last 7 days"),
@@ -266,14 +267,19 @@ class HistoricalFilterBar(QFrame):
     # --- Helpers ---
 
     def _pushToViewModel(self) -> None:
-        """Writes inline widget values into the VM fields."""
+        """Writes inline widget values into the VM fields.
+
+        For non-custom time presets the VM also resolves the preset to a
+        fresh ``[now-window, now]`` range so clicking Apply always queries
+        the most recent window.
+        """
         energy = self._energySpin.value()
         self._vm.min_total_energy = energy if energy > 0.0 else None
 
         pixels = self._pixelsSpin.value()
         self._vm.min_total_pixels = pixels if pixels > 0 else None
 
-        self._vm.time_preset = self._timeCombo.currentData()
+        self._vm.apply_time_preset(self._timeCombo.currentData())
 
     def _selectTimePreset(self, preset: str) -> None:
         """Sets the combo to match a preset key."""

@@ -6,7 +6,37 @@ sockets.  All classes are frozen dataclasses with conversion helpers
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+_DATE_FILTER_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def _validate_date_range(
+    date_start: Optional[datetime],
+    date_end: Optional[datetime],
+) -> None:
+    """Shared validator for date_start/date_end pairs on EPS query DTOs.
+
+    Raises ``TypeError`` if either field is set but not a ``datetime``,
+    and ``ValueError`` if both are set and ``date_start > date_end``.
+    """
+    if date_start is not None and not isinstance(date_start, datetime):
+        raise TypeError(
+            f"date_start must be datetime or None, "
+            f"got {type(date_start).__name__}"
+        )
+    if date_end is not None and not isinstance(date_end, datetime):
+        raise TypeError(
+            f"date_end must be datetime or None, "
+            f"got {type(date_end).__name__}"
+        )
+    if (
+        date_start is not None
+        and date_end is not None
+        and date_start > date_end
+    ):
+        raise ValueError("date_start must be <= date_end")
 
 
 # ---------------------------------------------------------------------------
@@ -26,13 +56,16 @@ class ClusterQueryFilter:
     fits_id: Optional[int] = None
     hdu_id: Optional[int] = None
     bounding_box: Optional[dict] = None
-    date_start: Optional[str] = None
-    date_end: Optional[str] = None
+    date_start: Optional[datetime] = None
+    date_end: Optional[datetime] = None
     min_sigma_x: Optional[float] = None
     min_sigma_y: Optional[float] = None
     min_total_energy: Optional[float] = None
     min_total_pixels: Optional[int] = None
     classification: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        _validate_date_range(self.date_start, self.date_end)
 
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS Cluster socket."""
@@ -44,9 +77,10 @@ class ClusterQueryFilter:
         if self.hdu_id is not None:
             d["hdu_id"] = self.hdu_id
         if self.date_start is not None and self.date_end is not None:
-                d["date"] = {}
-                d["date"]["start"] = str(self.date_start)
-                d["date"]["end"] = str(self.date_end)
+            d["date"] = {
+                "start": self.date_start.strftime(_DATE_FILTER_FORMAT),
+                "end": self.date_end.strftime(_DATE_FILTER_FORMAT),
+            }
         if self.bounding_box is not None:
             d["bounding_box"] = self.bounding_box
         if self.min_sigma_x is not None:
@@ -67,11 +101,14 @@ class FitsQueryFilter:
 
     fits_id: Optional[int] = None
     filename: Optional[str] = None
-    date_start: Optional[str] = None
-    date_end: Optional[str] = None
+    date_start: Optional[datetime] = None
+    date_end: Optional[datetime] = None
     minimum: Optional[float] = None
     maximum: Optional[float] = None
     exposure_time: Optional[float] = None
+
+    def __post_init__(self) -> None:
+        _validate_date_range(self.date_start, self.date_end)
 
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS FITS socket."""
@@ -81,9 +118,10 @@ class FitsQueryFilter:
         if self.filename is not None:
             d["filename"] = self.filename
         if self.date_start is not None and self.date_end is not None:
-                d["date"] = {}
-                d["date"]["start"] = self.date_start
-                d["date"]["end"] = self.date_end
+            d["date"] = {
+                "start": self.date_start.strftime(_DATE_FILTER_FORMAT),
+                "end": self.date_end.strftime(_DATE_FILTER_FORMAT),
+            }
         if self.minimum is not None:
             d["minimum"] = self.minimum
         if self.maximum is not None:
@@ -98,11 +136,14 @@ class FitsClusterQueryFilter:
 
     fits_id: Optional[int] = None
     filename: Optional[str] = None
-    date_start: Optional[str] = None
-    date_end: Optional[str] = None
+    date_start: Optional[datetime] = None
+    date_end: Optional[datetime] = None
     minimum: Optional[float] = None
     maximum: Optional[float] = None
     exposure_time: Optional[float] = None
+
+    def __post_init__(self) -> None:
+        _validate_date_range(self.date_start, self.date_end)
 
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS FITS socket."""
@@ -112,9 +153,10 @@ class FitsClusterQueryFilter:
         if self.filename is not None:
             d["filename"] = self.filename
         if self.date_start is not None and self.date_end is not None:
-                d["date"] = {}
-                d["date"]["start"] = self.date_start
-                d["date"]["end"] = self.date_end
+            d["date"] = {
+                "start": self.date_start.strftime(_DATE_FILTER_FORMAT),
+                "end": self.date_end.strftime(_DATE_FILTER_FORMAT),
+            }
         if self.minimum is not None:
             d["minimum"] = self.minimum
         if self.maximum is not None:

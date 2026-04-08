@@ -4,6 +4,7 @@
 # I need to create unit tests for this file under the tests directory, name it test_EventPersistenceService.
 # Ensure that all functions, edge cases, and paths are tested for storage and retrieval.
 import unittest
+from datetime import datetime
 from unittest.mock import Mock, MagicMock, patch, call
 import numpy as np
 import sys
@@ -12,8 +13,70 @@ import os
 # Add the src directory to the path so we can import the module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from le_beta_vis.backend.EventPersistenceService import EventPersistence, FailedProcException
+from le_beta_vis.backend.EventPersistenceService import (
+    EventPersistence,
+    FailedProcException,
+    _parse_date_filter,
+)
 import zmq
+
+
+class TestParseDateFilter(unittest.TestCase):
+    """Tests for _parse_date_filter, the EPS date-range entry validator."""
+
+    def test_none_returns_none(self):
+        self.assertIsNone(_parse_date_filter(None))
+
+    def test_empty_dict_returns_none(self):
+        self.assertIsNone(_parse_date_filter({}))
+
+    def test_both_keys_none_returns_none(self):
+        self.assertIsNone(_parse_date_filter({"start": None, "end": None}))
+
+    def test_valid_pair_returns_datetimes(self):
+        result = _parse_date_filter(
+            {"start": "2025-01-01 00:00:00", "end": "2025-12-31 23:59:59"}
+        )
+        self.assertEqual(
+            result,
+            (
+                datetime(2025, 1, 1, 0, 0, 0),
+                datetime(2025, 12, 31, 23, 59, 59),
+            ),
+        )
+
+    def test_only_start_raises(self):
+        with self.assertRaises(ValueError):
+            _parse_date_filter({"start": "2025-01-01 00:00:00"})
+
+    def test_only_end_raises(self):
+        with self.assertRaises(ValueError):
+            _parse_date_filter({"end": "2025-01-01 00:00:00"})
+
+    def test_non_string_start_raises(self):
+        with self.assertRaises(TypeError):
+            _parse_date_filter({"start": 12345, "end": "2025-12-31 23:59:59"})
+
+    def test_non_string_end_raises(self):
+        with self.assertRaises(TypeError):
+            _parse_date_filter({"start": "2025-01-01 00:00:00", "end": 67890})
+
+    def test_bad_format_slashes_raises(self):
+        with self.assertRaises(ValueError):
+            _parse_date_filter({"start": "2025/01/01", "end": "2025/12/31"})
+
+    def test_bad_format_iso_t_separator_raises(self):
+        """ISO 8601 with 'T' separator is *not* the agreed format."""
+        with self.assertRaises(ValueError):
+            _parse_date_filter(
+                {"start": "2025-01-01T00:00:00", "end": "2025-12-31T23:59:59"}
+            )
+
+    def test_ordering_raises(self):
+        with self.assertRaises(ValueError):
+            _parse_date_filter(
+                {"start": "2025-12-31 23:59:59", "end": "2025-01-01 00:00:00"}
+            )
 
 
 class TestFailedProcException(unittest.TestCase):
@@ -391,14 +454,14 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
         mock_db_connect.return_value = mock_connection
 
-        mock_cursor.fetchall.return_value = [(1, "test.fits", "2022-10-03", 100, 5000, 3600)]
+        mock_cursor.fetchall.return_value = [(1, "test.fits", "2022-10-03 00:00:00", 100, 5000, 3600)]
 
         ep = EventPersistence()
         ep.conn = mock_connection
         ep.retrieval_fits = {
             "filename": "test.fits",
             "fits_id": 1,
-            "date": {"start": "2022-10-03", "end": "2022-10-03"},
+            "date": {"start": "2022-10-03 00:00:00", "end": "2022-10-03 23:59:59"},
             "minimum": 100,
             "maximum": 5000,
             "exposure_time": 3600

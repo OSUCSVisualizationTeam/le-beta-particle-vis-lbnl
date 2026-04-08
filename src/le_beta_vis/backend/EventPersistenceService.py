@@ -6,8 +6,48 @@ import os
 import zmq
 import numpy as np
 import logging
+from datetime import datetime
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+_DATE_FILTER_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def _parse_date_filter(
+    date: Optional[dict],
+) -> Optional[Tuple[datetime, datetime]]:
+    """Validates and parses a date-range filter from an EPS request.
+
+    Returns ``(start, end)`` as ``datetime`` objects when both keys are
+    present and well-formed, or ``None`` when no date filter was supplied
+    (``None``, empty dict, or both keys ``None``). Raises ``ValueError``
+    or ``TypeError`` on malformed input so the calling retrieve_* method
+    can surface a clean failure response to the client instead of a
+    confusing MySQL error.
+    """
+    if not date:
+        return None
+    start = date.get("start")
+    end = date.get("end")
+    if start is None and end is None:
+        return None
+    if start is None or end is None:
+        raise ValueError("date filter requires both 'start' and 'end'")
+    if not isinstance(start, str) or not isinstance(end, str):
+        raise TypeError(
+            "date filter 'start' and 'end' must be strings"
+        )
+    try:
+        start_dt = datetime.strptime(start, _DATE_FILTER_FORMAT)
+        end_dt = datetime.strptime(end, _DATE_FILTER_FORMAT)
+    except ValueError as exc:
+        raise ValueError(
+            f"date filter must use format '{_DATE_FILTER_FORMAT}': {exc}"
+        )
+    if start_dt > end_dt:
+        raise ValueError("date filter 'start' must be <= 'end'")
+    return start_dt, end_dt
 
 
 class FailedProcException(Exception):
@@ -358,7 +398,7 @@ class EventPersistence:
 
             filename = self.retrieval_fits["filename"]
             fits_id = self.retrieval_fits["fits_id"]
-            date = self.retrieval_fits["date"]
+            date_range = _parse_date_filter(self.retrieval_fits["date"])
             minimum = self.retrieval_fits["minimum"]
             maximum = self.retrieval_fits["maximum"]
             exposure_time = self.retrieval_fits["exposure_time"]
@@ -371,13 +411,9 @@ class EventPersistence:
             if fits_id:
                 select_args.append("fitsID = %s")
                 select_argv.append(fits_id)
-            if date:
-                if date.get("start") and date.get("end"):
-                    select_args.append("date BETWEEN %s AND %s")
-                    select_argv.extend([date["start"], date["end"]])
-                else:
-                    select_args.append("date = %s")
-                    select_argv.append(date)
+            if date_range is not None:
+                select_args.append("date BETWEEN %s AND %s")
+                select_argv.extend(date_range)
             if minimum:
                 select_args.append("minimum = %s")
                 select_argv.append(minimum)
@@ -411,7 +447,7 @@ class EventPersistence:
             data = self.retrieval_clusters["data"]
             hdu = self.retrieval_clusters["hdu_id"]
             cluster_id = self.retrieval_clusters["cluster_id"]
-            date = self.retrieval_clusters["date"]
+            date_range = _parse_date_filter(self.retrieval_clusters["date"])
             bounding_box = self.retrieval_clusters["bounding_box"]
             fits_id = self.retrieval_clusters["fits_id"]
             sigmaX = self.retrieval_clusters["sigmaX"]
@@ -441,10 +477,9 @@ class EventPersistence:
                         bounding_box["right"],
                     ]
                 )
-            if date:
-                if date.get("start") and date.get("end"):
-                    select_args.append("fits_files.date BETWEEN %s AND %s")
-                    select_argv.extend([date["start"], date["end"]])
+            if date_range is not None:
+                select_args.append("fits_files.date BETWEEN %s AND %s")
+                select_argv.extend(date_range)
             if fits_id:
                 if isinstance(fits_id, list):
                     # If searching multiple fits files, set up parameters and append tuples to arg values
