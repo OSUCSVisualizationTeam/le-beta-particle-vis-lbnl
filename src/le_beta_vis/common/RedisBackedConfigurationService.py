@@ -61,7 +61,7 @@ class RedisBackedConfigurationService(ConfigurationService):
         "gui:mosaic:scaling_function": str,
 
         # GUI - Historical
-        "gui:historical:default_query_hours": int,
+        "gui:historical:default_time_preset": str,
         "gui:historical:live_update_rate_ms": int,
         "gui:historical:mode": str,
 

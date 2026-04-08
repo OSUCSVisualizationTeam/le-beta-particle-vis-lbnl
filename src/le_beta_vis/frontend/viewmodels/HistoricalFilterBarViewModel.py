@@ -15,11 +15,14 @@ from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,
 )
 
-# Maps config default_query_hours to a preset key
-_HOURS_TO_PRESET = {24: "24h", 72: "3d", 168: "7d", 720: "30d"}
-
-# Maps preset key to number of hours for date computation
+# Maps preset key to number of hours for date computation.
+# "all" and "custom" are intentionally absent: "all" means no date filter
+# at all, and "custom" means the caller supplies explicit datetimes.
 _PRESET_TO_HOURS = {"24h": 24, "3d": 72, "7d": 168, "30d": 720}
+
+# Valid preset keys, including the windowed presets plus the two
+# special modes. Used to validate the default_time_preset config value.
+_VALID_PRESETS = frozenset({"all", "24h", "3d", "7d", "30d", "custom"})
 
 
 class HistoricalFilterBarViewModel:
@@ -38,12 +41,16 @@ class HistoricalFilterBarViewModel:
         self._config = configService
         self._physics = physicsManager
 
-        # Resolve default time preset from config
-        default_hours = self._config.get_int(
-            "gui:historical:default_query_hours",
-            24,
+        # Resolve default time preset from config. Unknown values (or an
+        # out-of-range string) collapse to "all" — the safe default that
+        # returns every cluster regardless of date.
+        pref = self._config.get(
+            "gui:historical:default_time_preset",
+            "all",
         )
-        self._default_time_preset = _HOURS_TO_PRESET.get(default_hours, "24h")
+        self._default_time_preset = (
+            pref if pref in _VALID_PRESETS else "all"
+        )
 
         # Filter fields (all default to "no filter")
         self._time_preset: str = self._default_time_preset
@@ -221,18 +228,26 @@ class HistoricalFilterBarViewModel:
         return start, end
 
     def apply_time_preset(self, preset: str) -> None:
-        """Selects a time preset and, for non-custom presets, resolves
-        ``start_datetime`` / ``end_datetime`` to a fresh ``[now-window, now]``
-        range.
+        """Selects a time preset and resolves the date range accordingly.
 
         ``"custom"`` only updates the preset key; the caller (typically the
         Advanced Filter Dialog) is responsible for setting explicit
-        datetimes. Any other preset overwrites whatever datetimes were
-        previously stored, so picking ``"7d"`` from the inline filter bar
-        always queries the most recent 7 days relative to now.
+        datetimes.
+
+        ``"all"`` clears both datetimes so ``build_filter()`` omits the date
+        field entirely and the EPS runs without a ``fits_files.date BETWEEN``
+        clause.
+
+        Any windowed preset (``"24h"``, ``"3d"``, ``"7d"``, ``"30d"``)
+        overwrites the stored datetimes with a fresh ``[now-window, now]``
+        range, so picking one always queries the most recent window.
         """
         self._time_preset = preset
         if preset == "custom":
+            return
+        if preset == "all":
+            self._start_datetime = None
+            self._end_datetime = None
             return
         start, end = self.compute_dates_for_preset(preset)
         self._start_datetime = start

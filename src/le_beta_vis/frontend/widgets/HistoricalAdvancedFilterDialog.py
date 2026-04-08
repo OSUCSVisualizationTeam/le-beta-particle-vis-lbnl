@@ -291,8 +291,12 @@ class HistoricalAdvancedFilterDialog(QDialog):
 
     def _pushToViewModel(self) -> None:
         """Writes all dialog widget values into the VM."""
-        key = self._timeCombo.currentData()
-        self._vm.time_preset = key
+        # The dialog always produces an explicit range from the date edits,
+        # so the resulting filter mode is "custom" by definition. The
+        # dialog's time combo is a quick-fill helper for the date edits,
+        # not a semantic preset choice — a subsequent inline-bar Apply
+        # would otherwise clobber these dates via apply_time_preset().
+        self._vm.time_preset = "custom"
 
         self._vm.start_datetime = self._startEdit.dateTime().toPython()
         self._vm.end_datetime = self._endEdit.dateTime().toPython()

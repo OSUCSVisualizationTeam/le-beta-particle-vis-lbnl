@@ -108,6 +108,7 @@ class _Style:
 
 # Time-preset display labels, in combo order.
 _TIME_PRESETS = [
+    ("all", "All time"),
     ("24h", "Last 24 hours"),
     ("3d", "Last 3 days"),
     ("7d", "Last 7 days"),
