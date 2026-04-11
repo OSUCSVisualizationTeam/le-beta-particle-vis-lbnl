@@ -418,3 +418,86 @@ eps:timeout_ms:
   description: >-
     Timeout in milliseconds for ZMQ send/receive operations
     against the EPS.
+
+# ---------------------------------------------------------------------------
+# Event Handler (pub/sub bus)
+# ---------------------------------------------------------------------------
+
+event_handler:zmq_pub_endpoint:
+  type: str
+  default: "ipc:///tmp/EPCEvents.ipc"
+  description: >-
+    ZMQ IPC address for the EventHandler PUB/SUB bus.  The EPS
+    binds this endpoint and publishes envelopes; the frontend
+    connects a SUB socket and feeds received envelopes into its
+    EventHandler for dispatch.
+
+event_handler:default_queue_size:
+  type: int
+  default: 100
+  description: >-
+    Default bounded capacity of the per-event-type dispatch
+    queue.  Each event name gets its own queue; when full, the
+    overflow policy decides whether to drop oldest, drop newest,
+    or block the producer.
+
+event_handler:default_overflow_policy:
+  type: enum
+  choices: ["drop_oldest", "drop_newest", "block"]
+  default: "drop_oldest"
+  description: >-
+    Default backpressure policy applied when a per-event-type
+    dispatch queue is full.  drop_oldest keeps the most recent
+    events (recommended for screensaver-style visualizations),
+    drop_newest preserves the earliest events, and block
+    back-pressures the producer.
+
+event_handler:default_coalesce_ms:
+  type: int
+  default: 0
+  description: >-
+    Default coalesce window in milliseconds for batched-delivery
+    callbacks.  When greater than zero, envelopes received within
+    the window are collected and delivered as a single list to
+    callbacks registered via register_batch_callback.
+
+event_handler:default_throttle_ms:
+  type: int
+  default: 0
+  description: >-
+    Default trailing-edge throttle window in milliseconds.  When
+    greater than zero, envelopes that arrive less than this many
+    milliseconds after the previous dispatch of the same event
+    type are dropped.
+
+event_handler:worker_join_timeout_ms:
+  type: int
+  default: 2000
+  description: >-
+    Maximum total time in milliseconds EventHandler.shutdown()
+    waits for worker threads to drain their queues before
+    giving up.
+
+event_handler:reconnect_backoff_ms_min:
+  type: int
+  default: 250
+  description: >-
+    Minimum reconnect delay in milliseconds used by
+    ZMQEventHandlerSource after a recv error.  The actual backoff
+    doubles on each failure up to reconnect_backoff_ms_max.
+
+event_handler:reconnect_backoff_ms_max:
+  type: int
+  default: 8000
+  description: >-
+    Maximum reconnect delay in milliseconds (cap of exponential
+    backoff) used by ZMQEventHandlerSource after a recv error.
+
+event_handler:logging_handler_min_level:
+  type: str
+  default: "WARNING"
+  description: >-
+    Minimum Python logging level name (DEBUG/INFO/WARNING/ERROR/
+    CRITICAL) that ZMQEventLoggingHandler will forward as
+    log.* envelopes.  Levels below this are ignored to avoid
+    flooding the event bus.
