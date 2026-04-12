@@ -35,6 +35,21 @@ class EventGridSectionHeaderColors:
     NAV_HOVER_BACKGROUND = "#4a4a4a"
 
 
+class LiveModeColors:
+    """Colors for the Live Mode screensaver."""
+
+    BACKGROUND = "#000000"
+    PANEL_LEFT = "#0d0d0d"
+    GRADIENT_MARKER = "#ffdd00"
+    GRADIENT_LABEL = "#ffffff"
+    STATS_BACKGROUND = "#0a1628"
+    STATS_TEXT = "#e0f0ff"
+    HISTOGRAM_BACKGROUND = "#1a0a0a"
+    HISTOGRAM_BG_DARK = "#111111"
+    HISTOGRAM_FG_DARK = "#dddddd"
+    TITLE_TEXT = "#ffffff"
+
+
 class TooltipStyle:
     """Shared QToolTip stylesheet snippets.
 

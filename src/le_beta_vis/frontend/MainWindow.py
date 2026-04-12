@@ -131,6 +131,15 @@ class MainWindow(QMainWindow):
         self.toggleLiveAction.triggered.connect(self.onToggleLiveMode)
         viewMenu.addAction(self.toggleLiveAction)
 
+        viewMenu.addSeparator()
+
+        screensaverAction = QAction(
+            self.tr("Enter &Screensaver"), self,
+        )
+        screensaverAction.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        screensaverAction.triggered.connect(self._onEnterScreensaver)
+        viewMenu.addAction(screensaverAction)
+
     def _setupHelpMenu(self, menuBar) -> None:
         helpMenu = menuBar.addMenu(self.tr("&Help"))
         aboutAction = QAction(self.tr("About LE Beta Vis"), self)
@@ -148,6 +157,25 @@ class MainWindow(QMainWindow):
 
         vm = AboutViewModel()
         dialog = AboutDialog(vm, parent=self)
+        dialog.exec()
+
+    def _onEnterScreensaver(self) -> None:
+        """Opens the fullscreen Live Mode screensaver."""
+        from le_beta_vis.frontend.livemode.LiveModeViewModel import (
+            LiveModeViewModel,
+        )
+        from le_beta_vis.frontend.livemode.LiveModeView import (
+            LiveModeView,
+        )
+
+        vm = LiveModeViewModel(
+            config=self.viewModel.configService,
+            eventHandler=self.viewModel.eventHandler,
+            repository=self.viewModel.eventRepository,
+            physics=self.viewModel.physicsManager,
+            thumbnailService=self.viewModel.thumbnailService,
+        )
+        dialog = LiveModeView(vm, parent=self)
         dialog.exec()
 
     def _onOpenSettings(self) -> None:

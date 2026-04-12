@@ -501,3 +501,79 @@ event_handler:logging_handler_min_level:
     CRITICAL) that ZMQEventLoggingHandler will forward as
     log.* envelopes.  Levels below this are ignored to avoid
     flooding the event bus.
+
+# ---------------------------------------------------------------------------
+# Live Mode Screensaver
+# ---------------------------------------------------------------------------
+
+gui:livemode:colormap:
+  type: enum
+  choices: [viridis, plasma, inferno, magma, jet, bone, hot, cool, grayscale]
+  default: inferno
+  description: >-
+    Colormap used for all cluster thumbnails in the Live Mode
+    screensaver.
+
+gui:livemode:grid_columns:
+  type: int
+  default: 40
+  description: >-
+    Number of columns in the Live Mode thumbnail grid.
+    rows x columns must be between 20 and 2000.
+
+gui:livemode:grid_rows:
+  type: int
+  default: 25
+  description: >-
+    Number of rows in the Live Mode thumbnail grid.
+    rows x columns must be between 20 and 2000.
+
+gui:livemode:grid_spacing_px:
+  type: int
+  default: 6
+  description: >-
+    Pixel spacing between thumbnail cells in the grid.
+    Minimum enforced: 6.
+
+gui:livemode:advance_interval_ms:
+  type: int
+  default: 3000
+  description: >-
+    Milliseconds between each grid advance step (featured
+    cluster swap).
+
+gui:livemode:animation_duration_ms:
+  type: int
+  default: 400
+  description: >-
+    Duration in milliseconds of the snake-shift displacement
+    animation.  Capped at 1000 ms.
+
+gui:livemode:fallback_timeout_s:
+  type: int
+  default: 60
+  description: >-
+    Seconds after which, if no live cluster.classified events
+    arrive, the screensaver fills its queue from the last FITS
+    in the database.
+
+gui:livemode:featured_size_px:
+  type: int
+  default: 320
+  description: >-
+    Side length in pixels of the large zoomed-in featured
+    cluster image on the left panel of the Live Mode screensaver.
+
+gui:livemode:left_panel_width_pct:
+  type: float
+  default: 0.25
+  description: >-
+    Width of the left detail panel as a fraction of screen width
+    (0.1–0.5).  Default: 0.25 (25%).
+
+gui:livemode:histogram_min_height_pct:
+  type: float
+  default: 0.10
+  description: >-
+    Minimum height of the energy histogram as a fraction of
+    screen height (0.05–0.5).  Default: 0.10 (10%).
