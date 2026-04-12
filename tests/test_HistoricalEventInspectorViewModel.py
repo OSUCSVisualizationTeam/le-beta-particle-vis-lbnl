@@ -16,6 +16,7 @@ import numpy as np
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.frontend.viewmodels.HistoricalEventInspectorViewModel import (
+    ClusterDisplayData,
     HistoricalEventInspectorViewModel,
     _score_css,
 )
@@ -103,133 +104,142 @@ def test_score_css_gray_below_half():
     assert "#7f8c8d" in css
 
 
-# --- formatDetailHtml: particle info ---
+# --- formatClusterData: returns ClusterDisplayData ---
 
 
-def test_html_contains_particle_symbol(vm, cluster):
-    """HTML should include the particle type symbol."""
-    html = vm.formatDetailHtml(cluster)
+def test_format_cluster_data_returns_dataclass(vm, cluster):
+    """formatClusterData should return a ClusterDisplayData instance."""
+    data = vm.formatClusterData(cluster)
+    assert isinstance(data, ClusterDisplayData)
+
+
+# --- formatClusterData: particle info ---
+
+
+def test_data_contains_particle_symbol(vm, cluster):
+    """Data should include the particle type symbol."""
+    data = vm.formatClusterData(cluster)
     # CNN=0.9 >= 0.75 → Tritium → symbol ³H
-    assert "\u00b3H" in html
+    assert "\u00b3H" in data.particle_symbol
 
 
-def test_html_contains_particle_name(vm, cluster):
-    """HTML should include the particle display name."""
-    html = vm.formatDetailHtml(cluster)
-    assert "Tritium" in html
+def test_data_contains_particle_name(vm, cluster):
+    """Data should include the particle display name."""
+    data = vm.formatClusterData(cluster)
+    assert "Tritium" in data.particle_name
 
 
-def test_html_unclassified_particle():
+def test_data_unclassified_particle():
     """Low scores should yield Unclassified / '?' symbol."""
     vm = HistoricalEventInspectorViewModel(threshold=0.75)
     c = _make_cluster(cnn=0.1, nrg=0.2, bdt=0.1)
-    html = vm.formatDetailHtml(c)
-    assert "?" in html
-    assert "Unknown" in html
+    data = vm.formatClusterData(c)
+    assert "?" in data.particle_symbol
+    assert "Unknown" in data.particle_name
 
 
-# --- formatDetailHtml: confidence percentages ---
+# --- formatClusterData: confidence percentages ---
 
 
-def test_html_contains_cnn_percentage(vm, cluster):
-    """HTML should show CNN score as percentage."""
-    html = vm.formatDetailHtml(cluster)
-    assert "90.0%" in html
+def test_data_contains_cnn_percentage(vm, cluster):
+    """Data should show CNN score as percentage."""
+    data = vm.formatClusterData(cluster)
+    assert data.cnn_pct == "90.0%"
 
 
-def test_html_contains_nrg_percentage(vm, cluster):
-    """HTML should show NRG score as percentage."""
-    html = vm.formatDetailHtml(cluster)
-    assert "30.0%" in html
+def test_data_contains_nrg_percentage(vm, cluster):
+    """Data should show NRG score as percentage."""
+    data = vm.formatClusterData(cluster)
+    assert data.nrg_pct == "30.0%"
 
 
-def test_html_contains_bdt_percentage(vm, cluster):
-    """HTML should show BDT score as percentage."""
-    html = vm.formatDetailHtml(cluster)
-    assert "60.0%" in html
+def test_data_contains_bdt_percentage(vm, cluster):
+    """Data should show BDT score as percentage."""
+    data = vm.formatClusterData(cluster)
+    assert data.bdt_pct == "60.0%"
 
 
-# --- formatDetailHtml: cluster ID ---
+# --- formatClusterData: cluster ID ---
 
 
-def test_html_contains_cluster_id(vm, cluster):
-    """HTML should display the cluster ID."""
-    html = vm.formatDetailHtml(cluster)
-    assert "7" in html
+def test_data_contains_cluster_id(vm, cluster):
+    """Data should display the cluster ID."""
+    data = vm.formatClusterData(cluster)
+    assert data.cluster_id == "7"
 
 
-def test_html_cluster_id_none(vm):
-    """HTML should show N/A when clusterId is None."""
+def test_data_cluster_id_none(vm):
+    """Data should show N/A when clusterId is None."""
     c = _make_cluster(cluster_id=None)
-    html = vm.formatDetailHtml(c)
-    assert "N/A" in html
+    data = vm.formatClusterData(c)
+    assert data.cluster_id == "N/A"
 
 
-# --- formatDetailHtml: energy ---
+# --- formatClusterData: energy ---
 
 
-def test_html_energy_kev(vm, cluster):
+def test_data_energy_kev(vm, cluster):
     """When displayKeV is True, energy shows keV + ADU."""
-    html = vm.formatDetailHtml(cluster)
-    assert "keV" in html
-    assert "ADU" in html
+    data = vm.formatClusterData(cluster)
+    assert "keV" in data.energy
+    assert "ADU" in data.energy
 
 
-def test_html_energy_adu_only():
+def test_data_energy_adu_only():
     """When no physics manager, energy shows ADU only."""
     vm = HistoricalEventInspectorViewModel(physics=None, displayKeV=True)
     c = _make_cluster(energy=5000.0)
-    html = vm.formatDetailHtml(c)
-    assert "5000.00 ADU" in html
-    assert "keV" not in html
+    data = vm.formatClusterData(c)
+    assert data.energy == "5000.00 ADU"
+    assert "keV" not in data.energy
 
 
-def test_html_energy_adu_when_kev_disabled(physics):
+def test_data_energy_adu_when_kev_disabled(physics):
     """When displayKeV is False, energy shows ADU even with physics."""
     vm = HistoricalEventInspectorViewModel(physics=physics, displayKeV=False)
     c = _make_cluster(energy=5000.0)
-    html = vm.formatDetailHtml(c)
-    assert "ADU" in html
-    assert "keV" not in html
+    data = vm.formatClusterData(c)
+    assert "ADU" in data.energy
+    assert "keV" not in data.energy
 
 
-# --- formatDetailHtml: geometry ---
+# --- formatClusterData: geometry ---
 
 
-def test_html_geometry(vm, cluster):
-    """HTML should show W×H from bounding box."""
-    html = vm.formatDetailHtml(cluster)
+def test_data_geometry(vm, cluster):
+    """Data should show W×H from bounding box."""
+    data = vm.formatClusterData(cluster)
     # bb: left=20, right=32 → w=12; top=10, bottom=20 → h=10
-    assert "12\u00d710" in html
+    assert data.geometry == "12\u00d710"
 
 
-# --- formatDetailHtml: center ---
+# --- formatClusterData: center ---
 
 
-def test_html_center_relative(vm, cluster):
+def test_data_center_relative(vm, cluster):
     """Center should be relative to bounding box origin."""
-    html = vm.formatDetailHtml(cluster)
+    data = vm.formatClusterData(cluster)
     # centerX=26 - left=20 = 6; centerY=15 - top=10 = 5
-    assert "(6, 5)" in html
+    assert data.center == "(6, 5)"
 
 
-# --- formatDetailHtml: sigma ---
+# --- formatClusterData: sigma ---
 
 
-def test_html_sigma_values(vm, cluster):
-    """HTML should include sigma X and Y values."""
-    html = vm.formatDetailHtml(cluster)
-    assert "1.50" in html
-    assert "2.00" in html
+def test_data_sigma_values(vm, cluster):
+    """Data should include sigma X and Y values."""
+    data = vm.formatClusterData(cluster)
+    assert data.sigma_x == 1.5
+    assert data.sigma_y == 2.0
 
 
-# --- formatDetailHtml: pixels ---
+# --- formatClusterData: pixels ---
 
 
-def test_html_pixel_count(vm, cluster):
-    """HTML should include the pixel count."""
-    html = vm.formatDetailHtml(cluster)
-    assert "42" in html
+def test_data_pixel_count(vm, cluster):
+    """Data should include the pixel count."""
+    data = vm.formatClusterData(cluster)
+    assert data.pixels == 42
 
 
 # --- formatHistogramXLabel ---

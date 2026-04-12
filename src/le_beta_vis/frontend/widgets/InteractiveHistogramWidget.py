@@ -78,6 +78,7 @@ class InteractiveHistogramWidget(QWidget):
         self._bar_item: Optional[pg.BarGraphItem] = None
         self._logarithmicBars = False
         self._display_heights: Optional[np.ndarray] = None
+        self._current_fg: str = _AXIS_FG
         self._initUI()
 
     # --- Public API ---
@@ -101,6 +102,26 @@ class InteractiveHistogramWidget(QWidget):
     def setLogarithmicBars(self, useLogScale: bool) -> None:
         """Configures histogram bars to use a logarithmic scale."""
         self._logarithmicBars = useLogScale
+        if self._model is not None:
+            self._updateBars(self._model)
+
+    def setTheme(self, bg_color: str, fg_color: str) -> None:
+        """Switch the plot to the specified background and foreground.
+
+        Safe to call after construction. The default (light) theme is
+        preserved when this method is never called.
+
+        Args:
+            bg_color: CSS background color string (e.g. ``"#111111"``).
+            fg_color: CSS foreground color for axes and labels.
+        """
+        self._current_fg = fg_color
+        self._plot.setBackground(bg_color)
+        for axis_name in ("left", "bottom"):
+            axis = self._plot.getAxis(axis_name)
+            axis.setPen(pg.mkPen(fg_color, width=1))
+            axis.setTextPen(pg.mkPen(fg_color))
+            axis.setTickPen(pg.mkPen(fg_color, width=1))
         if self._model is not None:
             self._updateBars(self._model)
 
@@ -181,7 +202,7 @@ class InteractiveHistogramWidget(QWidget):
             pen=pg.mkPen(_DEFAULT_EDGE_COLOR, width=0.8),
         )
         plot_item.addItem(self._bar_item)
-        self._plot.setLabel("bottom", model.x_label, color=_AXIS_FG)
+        self._plot.setLabel("bottom", model.x_label, color=self._current_fg)
 
         y_axis = plot_item.getAxis("left")
         if self._logarithmicBars:
@@ -190,10 +211,10 @@ class InteractiveHistogramWidget(QWidget):
                 [(i, _log_tick_label(i)) for i in range(max_exp + 1)]
             ]
             y_axis.setTicks(ticks)
-            self._plot.setLabel("left", "Count (log\u2081\u2080)", color=_AXIS_FG)
+            self._plot.setLabel("left", "Count (log\u2081\u2080)", color=self._current_fg)
         else:
             y_axis.setTicks(None)
-            self._plot.setLabel("left", "Count", color=_AXIS_FG)
+            self._plot.setLabel("left", "Count", color=self._current_fg)
 
     @staticmethod
     def _buildBrushes(

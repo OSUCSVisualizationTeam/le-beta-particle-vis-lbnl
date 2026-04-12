@@ -8,6 +8,7 @@ from .MagnifierGraphicsItem import MagnifierGraphicsItem
 from .VerticalRangeControl import VerticalRangeControl
 from .ProgressOverlay import ProgressOverlay
 from .ClusteringProgressOverlay import ClusteringProgressOverlay
+from .ClusterDetailWidget import ClusterDetailWidget
 from .ClusteredEventWidget import ClusteredEventWidget
 from .EnergyClusterWidget import EnergyClusterWidget
 from .InteractiveHistogramWidget import InteractiveHistogramWidget

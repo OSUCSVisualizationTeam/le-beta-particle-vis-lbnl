@@ -3,6 +3,7 @@
 Pure Python — no Qt dependencies — so it can run in headless CI.
 """
 
+from dataclasses import dataclass
 from typing import Callable, List, Optional
 
 from le_beta_vis.common.Cluster import Cluster
@@ -17,6 +18,34 @@ from le_beta_vis.common.ParticleType import (
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,
 )
+
+
+@dataclass(frozen=True)
+class ClusterDisplayData:
+    """Structured cluster data for display — no HTML, no labels.
+
+    The ViewModel computes all values; the View is responsible for
+    rendering them into a presentable format (HTML, plain text, etc.)
+    with translatable labels via ``tr()``.
+    """
+
+    particle_symbol: str
+    particle_name: str
+    cnn_pct: str
+    cnn_css: str
+    nrg_pct: str
+    nrg_css: str
+    bdt_pct: str
+    bdt_css: str
+    cluster_id: str
+    fits_filename: Optional[str]
+    energy: str
+    sigma_x: float
+    sigma_y: float
+    geometry: str
+    center: str
+    pixels: int
+    date: Optional[str]
 
 
 def _score_css(score: float, threshold: float) -> str:
@@ -37,52 +66,11 @@ def _score_css(score: float, threshold: float) -> str:
     return "color: #7f8c8d; font-weight: bold;"
 
 
-# TODO: The embedded English labels ("Energy:", "Geometry:", etc.)
-# are not translatable because this VM is pure Python and cannot
-# use tr().  When full i18n support is needed, the label strings
-# should be passed as parameters from the View (which has access
-# to tr()).
-HTML_TEMPLATE = """\
-<div>
-  <span style="font-size: 16px; font-weight: bold;">\
-{particle_symbol} &mdash; {particle_name}</span>
-  <br/>
-  <table style="margin-top: 6px;">
-    <tr>
-      <td>CNN:</td>
-      <td style="{cnn_css}">{cnn_pct}</td>
-    </tr>
-    <tr>
-      <td>NRG:</td>
-      <td style="{nrg_css}">{nrg_pct}</td>
-    </tr>
-    <tr>
-      <td>BDT:</td>
-      <td style="{bdt_css}">{bdt_pct}</td>
-    </tr>
-  </table>
-  <hr/>
-  <table style="margin-top: 4px;">
-    <tr><td><b>Cluster ID:</b></td><td>{cluster_id}</td></tr>
-    <tr><td><b>FITS File:</b></td><td>{fits_filename}</td></tr>
-    <tr><td><b>Energy:</b></td><td>{energy}</td></tr>
-    <tr>\
-<td><b>&sigma; spread:</b></td>\
-<td>&sigma;\u2093 = {sigma_x:.2f}, \
-&sigma;\u1d67 = {sigma_y:.2f}</td>\
-</tr>
-    <tr><td><b>Geometry:</b></td><td>{geometry}</td></tr>
-    <tr><td><b>Center:</b></td><td>{center}</td></tr>
-    <tr><td><b>Pixels:</b></td><td>{pixels}</td></tr>
-    <tr><td><b>Date:</b></td><td>{date}</td></tr>
-  </table>
-</div>"""
-
 
 class HistoricalEventInspectorViewModel:
     """Pure Python ViewModel for the event detail inspector.
 
-    Formats cluster data into rich HTML for the view and manages
+    Computes display-ready values from cluster data and manages
     display settings (threshold, keV toggle).  Follows the same
     observer pattern as ``HistoricalViewModel``.
     """
@@ -159,50 +147,37 @@ class HistoricalEventInspectorViewModel:
 
     # --- Formatting ---
 
-    def formatDetailHtml(self, cluster: Cluster) -> str:
-        """Formats cluster data as a rich-text HTML block.
+    def formatClusterData(self, cluster: Cluster) -> ClusterDisplayData:
+        """Extracts display-ready values from a cluster.
+
+        All computation (classification, energy conversion, geometry)
+        happens here.  The returned dataclass carries no HTML and no
+        user-facing labels, so the View can render it with
+        translatable ``tr()`` strings.
 
         Args:
             cluster: The cluster whose details to format.
 
         Returns:
-            An HTML string suitable for ``QLabel.setText()``.
+            A frozen ``ClusterDisplayData`` instance.
         """
         particle_type, _ = classify_particle(cluster, self._threshold)
+        energy = self._formatEnergy(cluster)
+        geometry = self._formatGeometry(cluster)
+        center = self._formatCenter(cluster)
+        cluster_id = (
+            str(cluster.clusterId) if cluster.clusterId is not None else "N/A"
+        )
 
-        # Energy formatting
-        if self._physics and self._displayKeV:
-            energy_kev = self._physics.adu_to_kev(cluster.energy)
-            energy = f"{energy_kev:.4f} keV ({cluster.energy:.0f} ADU)"
-        else:
-            energy = f"{cluster.energy:.2f} ADU"
-
-        # Geometry
-        bb = cluster.boundingBox
-        w = abs(bb.right - bb.left)
-        h = abs(bb.bottom - bb.top)
-        geometry = f"{w}\u00d7{h}"
-
-        # Relative center
-        if cluster.centerX is not None and cluster.centerY is not None:
-            rel_cx = cluster.centerX - bb.left
-            rel_cy = cluster.centerY - bb.top
-            center = f"({rel_cx}, {rel_cy})"
-        else:
-            center = "N/A"
-
-        # Cluster ID
-        cluster_id = str(cluster.clusterId) if cluster.clusterId is not None else "N/A"
-
-        return HTML_TEMPLATE.format(
+        return ClusterDisplayData(
             particle_symbol=particle_type.symbol,
             particle_name=particle_type.display_name,
-            cnn_css=_score_css(cluster.cnnClassification, self._threshold),
             cnn_pct=f"{cluster.cnnClassification * 100:.1f}%",
-            nrg_css=_score_css(cluster.nrgClassification, self._threshold),
+            cnn_css=_score_css(cluster.cnnClassification, self._threshold),
             nrg_pct=f"{cluster.nrgClassification * 100:.1f}%",
-            bdt_css=_score_css(cluster.bdtClassification, self._threshold),
+            nrg_css=_score_css(cluster.nrgClassification, self._threshold),
             bdt_pct=f"{cluster.bdtClassification * 100:.1f}%",
+            bdt_css=_score_css(cluster.bdtClassification, self._threshold),
             cluster_id=cluster_id,
             fits_filename=cluster.fitsFilename,
             energy=energy,
@@ -213,6 +188,28 @@ class HistoricalEventInspectorViewModel:
             pixels=cluster.pixelCount,
             date=cluster.date,
         )
+
+    def _formatEnergy(self, cluster: Cluster) -> str:
+        """Formats the energy value as keV + ADU or ADU-only."""
+        if self._physics and self._displayKeV:
+            energy_kev = self._physics.adu_to_kev(cluster.energy)
+            return f"{energy_kev:.4f} keV ({cluster.energy:.0f} ADU)"
+        return f"{cluster.energy:.2f} ADU"
+
+    def _formatGeometry(self, cluster: Cluster) -> str:
+        """Formats the bounding box as W×H."""
+        bb = cluster.boundingBox
+        w = abs(bb.right - bb.left)
+        h = abs(bb.bottom - bb.top)
+        return f"{w}\u00d7{h}"
+
+    def _formatCenter(self, cluster: Cluster) -> str:
+        """Formats the relative center within the bounding box."""
+        if cluster.centerX is not None and cluster.centerY is not None:
+            rel_cx = cluster.centerX - cluster.boundingBox.left
+            rel_cy = cluster.centerY - cluster.boundingBox.top
+            return f"({rel_cx}, {rel_cy})"
+        return "N/A"
 
     def formatHistogramXLabel(self, cluster: Cluster) -> str:
         """Returns the x-axis label for the energy histogram.
