@@ -22,35 +22,22 @@ from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QHBoxLayout,
-    QLabel,
     QSizePolicy,
-    QVBoxLayout,
     QWidget,
 )
 
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.common.HistogramDataModel import HistogramDataModel
 from le_beta_vis.frontend.theme import LiveModeColors
 from le_beta_vis.frontend.viewmodels.HistoricalEventInspectorViewModel import (
     HistoricalEventInspectorViewModel,
 )
-from le_beta_vis.frontend.widgets.ClusterDetailWidget import (
-    ClusterDetailWidget,
-)
-from le_beta_vis.frontend.widgets.EnergyClusterWidget import (
-    EnergyClusterWidget,
-)
-from le_beta_vis.frontend.widgets.InteractiveHistogramWidget import (
-    InteractiveHistogramWidget,
-)
 
-from ._ScaleGradientWidget import _ScaleGradientWidget
-from ._ThumbnailGridWidget import _ThumbnailGridWidget
+from .widgets.DetectedClusterCollectionWidgetWidget import DetectedClusterCollectionWidgetWidget
+from .widgets.FeaturedClusterWidget import FeaturedClusterWidget
 from .LiveModeViewModel import LiveModeViewModel
 
 logger = logging.getLogger(__name__)
 
-_HISTOGRAM_BINS = 50
 _LEFT_PANEL_MIN_W_FALLBACK = 300
 
 
@@ -106,87 +93,13 @@ class LiveModeView(QDialog):
             int(screen_w * self._vm.left_panel_width_pct),
         )
 
-        self._leftPanel = self._buildLeftPanel()
-        self._leftPanel.setFixedWidth(panel_w)
-        layout.addWidget(self._leftPanel)
+        self._featuredPanel = FeaturedClusterWidget(self._vm, self._inspectorVM)
+        self._featuredPanel.setFixedWidth(panel_w)
+        layout.addWidget(self._featuredPanel)
 
-        right = self._buildRightPanel()
-        right.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(right, stretch=1)
-
-    def _buildLeftPanel(self) -> QWidget:
-        """Constructs the left panel with featured image, gradient, stats, histogram."""
-        panel = QWidget()
-        panel.setStyleSheet(f"background-color: {LiveModeColors.PANEL_LEFT};")
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-
-        self._titleLabel = QLabel(self.tr("Real-time Detection"))
-        self._titleLabel.setStyleSheet(
-            f"color: {LiveModeColors.TITLE_TEXT};" "font-size: 18px; font-weight: bold;"
-        )
-        self._titleLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        layout.addWidget(self._titleLabel)
-
-        featured_row = self._buildFeaturedRow()
-        layout.addWidget(featured_row)
-
-        self._statsWidget = ClusterDetailWidget(
-            self._inspectorVM,
-            show_filename=False,
-        )
-        self._statsWidget.setStyleSheet(
-            f"background-color: {LiveModeColors.STATS_BACKGROUND};"
-            f"color: {LiveModeColors.STATS_TEXT};"
-            "padding: 8px; border-radius: 4px;"
-        )
-        layout.addWidget(self._statsWidget, stretch=0)
-
-        self._histogram = InteractiveHistogramWidget()
-        self._histogram.setPlaceholderText(
-            self.tr("Awaiting cluster data..."),
-        )
-        self._histogram.setMinimumHeight(150)
-        self._histogram.setStyleSheet(
-            f"background-color: {LiveModeColors.HISTOGRAM_BG_DARK};"
-            "border-radius: 4px;"
-        )
-        self._histogram.setTheme(
-            LiveModeColors.HISTOGRAM_BG_DARK,
-            LiveModeColors.HISTOGRAM_FG_DARK,
-        )
-        layout.addWidget(self._histogram, stretch=1)
-
-        return panel
-
-    def _buildFeaturedRow(self) -> QWidget:
-        """Builds the row containing the featured image and gradient bar."""
-        row = QWidget()
-        row_layout = QHBoxLayout(row)
-        row_layout.setContentsMargins(0, 0, 0, 0)
-        row_layout.setSpacing(4)
-
-        self._featuredWidget = EnergyClusterWidget(
-            size=self._vm.featured_size,
-        )
-        self._featuredWidget.setStyleSheet(
-            f"background-color: {LiveModeColors.BACKGROUND};"
-        )
-        row_layout.addWidget(self._featuredWidget)
-
-        self._gradientWidget = _ScaleGradientWidget(
-            colormap=self._vm.colormap,
-        )
-        self._gradientWidget.setUnit("keV")
-        row_layout.addWidget(self._gradientWidget)
-
-        return row
-
-    def _buildRightPanel(self) -> QWidget:
-        """Constructs the right panel containing the thumbnail grid."""
-        self._gridWidget = _ThumbnailGridWidget(self._vm)
-        return self._gridWidget
+        self._clusterCollection = DetectedClusterCollectionWidget(self._vm)
+        self._clusterCollection.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(self._clusterCollection, stretch=1)
 
     # --- ViewModel wiring ---
 
@@ -237,16 +150,16 @@ class LiveModeView(QDialog):
         super().showEvent(event)
         self.showFullScreen()
         self._vm.activate()
-        self._refreshFeaturedSize()
-        self._refreshHistogramMinHeight()
+        self._featuredPanel.refreshFeaturedSize()
+        self._featuredPanel.refreshHistogramMinHeight()
         self._initTimers()
-        self._gridWidget.populate(self._vm.grid)
+        self._clusterCollection.populate(self._vm.grid)
 
     def hideEvent(self, event) -> None:
         """Deactivates the ViewModel and stops timers on hide."""
         super().hideEvent(event)
         self._stopTimers()
-        self._gridWidget.stop()
+        self._clusterCollection.stop()
         self._vm.deactivate()
 
     # --- Dismissal ---
@@ -258,25 +171,6 @@ class LiveModeView(QDialog):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Dismisses the screensaver on any mouse click."""
         self.reject()
-
-    # --- Layout helpers ---
-
-    def _refreshFeaturedSize(self) -> None:
-        """Resize the featured widget to fill available panel width."""
-        panel_w = self._leftPanel.width()
-        margins = 24  # 12px left + 12px right
-        gradient_w = 60 + 4  # gradient widget + spacing
-        avail = panel_w - margins - gradient_w
-        if avail > 0:
-            self._featuredWidget.setFixedSize(avail, avail)
-
-    def _refreshHistogramMinHeight(self) -> None:
-        """Enforce minimum histogram height from screen percentage."""
-        screen = QApplication.primaryScreen()
-        screen_h = screen.availableGeometry().height() if screen else 1080
-        pct = self._vm.histogram_min_height_pct
-        min_h = max(100, int(screen_h * pct))
-        self._histogram.setMinimumHeight(min_h)
 
     # --- Timers ---
 
@@ -314,7 +208,7 @@ class LiveModeView(QDialog):
         """Timer slot: drains incoming queue and advances the grid."""
         count = self._vm.advance()
         if count > 0:
-            self._gridWidget.animateAdvance(self._vm.grid, count)
+            self._clusterCollection.animateAdvance(self._vm.grid, count)
 
     @Slot()
     def _onFallbackTimeout(self) -> None:
@@ -325,12 +219,10 @@ class LiveModeView(QDialog):
     # --- Panel updates ---
 
     def _updateFeaturedPanel(self, cluster: Optional[Cluster]) -> None:
-        """Updates the featured image, gradient, stats, and histogram."""
+        """Updates the featured panel for the given cluster."""
         if cluster is None:
             self._featured_cluster = None
-            self._featuredWidget.clear()
-            self._statsWidget.clear()
-            self._histogram.setData(None)
+            self._featuredPanel.clearFeaturedPanel()
             return
         self._featured_cluster = cluster
         if cluster.data is None:
@@ -339,14 +231,7 @@ class LiveModeView(QDialog):
                 self._onClusterDataReady,
             )
             return
-        self._renderFeaturedPanel(cluster)
-
-    def _renderFeaturedPanel(self, cluster: Cluster) -> None:
-        """Renders all featured panel widgets for a data-bearing cluster."""
-        self._updateFeaturedImage(cluster)
-        self._updateGradient(cluster)
-        self._statsWidget.setCluster(cluster)
-        self._updateHistogram(cluster)
+        self._featuredPanel.renderFeaturedPanel(cluster)
 
     def _onClusterDataReady(
         self,
@@ -368,58 +253,4 @@ class LiveModeView(QDialog):
         if data is None or self._featured_cluster is None:
             return
         self._featured_cluster.data = data
-        self._renderFeaturedPanel(self._featured_cluster)
-
-    def _updateFeaturedImage(self, cluster: Cluster) -> None:
-        """Renders the featured cluster thumbnail."""
-        self._featuredWidget.setCluster(
-            cluster.data,
-            self._vm.colormap,
-        )
-
-    def _updateGradient(self, cluster: Cluster) -> None:
-        """Updates the gradient bar marker based on cluster energy."""
-        self._gradientWidget.setColormap(self._vm.colormap)
-        max_energy = self._currentMaxEnergy()
-        if max_energy <= 0:
-            return
-        physics = self._vm.physics
-        if physics is not None:
-            cluster_kev = physics.adu_to_kev(cluster.energy)
-            max_kev = physics.adu_to_kev(max_energy)
-            ratio = min(1.0, cluster_kev / max_kev) if max_kev > 0 else 0.0
-            self._gradientWidget.setMarkerRatio(ratio)
-            self._gradientWidget.setRange(0.0, float(max_kev))
-        else:
-            ratio = min(1.0, cluster.energy / max_energy)
-            self._gradientWidget.setMarkerRatio(ratio)
-            self._gradientWidget.setRange(0.0, max_energy)
-
-    def _updateHistogram(self, cluster: Cluster) -> None:
-        """Builds and displays an energy histogram from cluster data."""
-        if cluster.data is None:
-            self._histogram.setData(None)
-            return
-        physics = self._vm.physics
-        data = cluster.data.copy()
-        if physics is not None:
-            data = np.vectorize(physics.adu_to_kev)(data)
-            x_label = "Energy (keV)"
-            x_unit = "keV"
-        else:
-            x_label = "Energy (ADU)"
-            x_unit = "ADU"
-        model = HistogramDataModel.from_pixel_data(
-            data,
-            bins=_HISTOGRAM_BINS,
-            x_label=x_label,
-            colormap=self._vm.colormap.value,
-            x_unit=x_unit,
-        )
-        self._histogram.setData(model)
-
-    def _currentMaxEnergy(self) -> float:
-        """Scans the grid for the maximum cluster energy."""
-        grid = self._vm.grid
-        energies = [c.energy for c in grid if c is not None and c.energy > 0]
-        return max(energies) if energies else 1.0
+        self._featuredPanel.renderFeaturedPanel(self._featured_cluster)
