@@ -311,9 +311,10 @@ class LiveModeView(QDialog):
 
     @Slot()
     def _onAdvanceTick(self) -> None:
-        """Timer slot: advances the grid by one snake step."""
-        self._vm.advance()
-        self._gridWidget.animateAdvance(self._vm.grid)
+        """Timer slot: drains incoming queue and advances the grid."""
+        count = self._vm.advance()
+        if count > 0:
+            self._gridWidget.animateAdvance(self._vm.grid, count)
 
     @Slot()
     def _onFallbackTimeout(self) -> None:

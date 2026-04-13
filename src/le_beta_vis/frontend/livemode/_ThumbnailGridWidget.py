@@ -121,11 +121,15 @@ class _ThumbnailGridWidget(QWidget):
     def animateAdvance(
         self,
         new_grid: List[Optional[Cluster]],
+        shift_count: int = 1,
     ) -> None:
-        """Animate one snake-path shift, then update cell content.
+        """Animate a snake-path shift, then update cell content.
 
         Args:
             new_grid: The grid state AFTER the advance.
+            shift_count: Number of positions each cell shifts toward
+                index 0.  Typically equals the number of clusters
+                drained from the incoming queue.
         """
         self._stopAnimation()
         positions = self._computeSnakePositions()
@@ -133,7 +137,7 @@ class _ThumbnailGridWidget(QWidget):
         duration = self._vm.animation_duration_ms
 
         for i, cell in enumerate(self._cells):
-            target = self._targetAfterShift(i, positions)
+            target = self._targetAfterShift(i, positions, shift_count)
             anim = QPropertyAnimation(cell, b"pos", self)
             anim.setDuration(duration)
             anim.setStartValue(cell.pos())
@@ -205,15 +209,18 @@ class _ThumbnailGridWidget(QWidget):
         self,
         index: int,
         positions: List[QPoint],
+        shift_count: int = 1,
     ) -> QPoint:
-        """Computes where cell at index moves after a shift.
+        """Computes where cell at index moves after a multi-step shift.
 
-        Every cell moves one position backward in snake order.
-        The last cell wraps to the entry position.
+        Cells at indices below ``shift_count`` stay in place (they
+        will be repainted by ``populate`` after the animation).
+        All other cells slide ``shift_count`` positions toward
+        index 0.
         """
-        if index == 0:
-            return positions[0]
-        return positions[index - 1]
+        if index < shift_count:
+            return positions[index]
+        return positions[index - shift_count]
 
     def _repositionCells(self) -> None:
         """Moves all cells to their current snake positions."""

@@ -216,20 +216,43 @@ class LiveModeViewModel:
 
     # --- Grid advancement ---
 
-    def advance(self) -> None:
-        """Advance the grid by one snake step.
+    def advance(self) -> int:
+        """Advance the grid by draining all available incoming clusters.
 
-        Pops from the incoming deque into the grid's last position.
-        All items shift one position toward position 0.  The featured
-        cluster is NOT updated here — it is set eagerly when events
-        arrive via ``_on_cluster_event`` or ``_fallback_worker``.
+        Pops up to ``_capacity`` items from the incoming deque and
+        shifts the grid by that many positions.  When no items are
+        queued but the grid still has content, shifts by one with a
+        ``None`` sentinel so the grid slowly empties during idle
+        periods.
+
+        Returns:
+            Number of positions shifted (0 means nothing changed).
         """
         with self._lock:
-            incoming = self._incoming.popleft() if self._incoming else None
-            if incoming is None and all(c is None for c in self._grid):
-                return
-            self._grid = self._grid[1:] + [incoming]
+            batch = self._drain_incoming()
+            if not batch:
+                if all(c is None for c in self._grid):
+                    return 0
+                self._grid = self._grid[1:] + [None]
+                shift_count = 1
+            else:
+                shift_count = len(batch)
+                self._grid = self._grid[shift_count:] + batch
         self._notify_grid_changed()
+        return shift_count
+
+    def _drain_incoming(self) -> List[Optional[Cluster]]:
+        """Drain all available clusters from the incoming deque.
+
+        Must be called under ``self._lock``.
+
+        Returns:
+            List of clusters drained (may be empty).
+        """
+        batch: List[Optional[Cluster]] = []
+        while self._incoming and len(batch) < self._capacity:
+            batch.append(self._incoming.popleft())
+        return batch
 
     # --- Fallback ---
 

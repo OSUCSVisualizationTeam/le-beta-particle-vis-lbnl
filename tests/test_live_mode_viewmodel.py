@@ -264,7 +264,8 @@ class TestAdvance:
     def test_advance_empty_is_noop(
         self, vm: LiveModeViewModel,
     ) -> None:
-        vm.advance()  # should not raise
+        count = vm.advance()
+        assert count == 0
         assert all(c is None for c in vm.grid)
 
     def test_event_sets_featured_immediately(
@@ -652,3 +653,105 @@ class TestFeaturedHold:
         assert vm.featured is not None
         with vm._lock:
             assert vm._featured_set_at > 0.0
+
+
+class TestBatchDrainAdvance:
+    """Tests for batch-drain advance behavior."""
+
+    def test_advance_returns_zero_when_empty_grid(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        assert vm.advance() == 0
+
+    def test_advance_returns_one_when_no_incoming_but_grid_has_content(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        with vm._lock:
+            vm._grid[0] = _make_cluster(500.0)
+        assert vm.advance() == 1
+
+    def test_advance_drains_single_item(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        with vm._lock:
+            vm._incoming.append(_make_cluster(1000.0))
+        count = vm.advance()
+        assert count == 1
+        grid = vm.grid
+        assert grid[-1] is not None
+        assert grid[-1].energy == 1000.0
+
+    def test_advance_drains_multiple_items(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        clusters = [_make_cluster(100.0 * (i + 1)) for i in range(5)]
+        with vm._lock:
+            for c in clusters:
+                vm._incoming.append(c)
+        count = vm.advance()
+        assert count == 5
+        grid = vm.grid
+        # Last 5 positions should have the batch
+        for i in range(5):
+            assert grid[-(5 - i)] is not None
+            assert grid[-(5 - i)].energy == clusters[i].energy
+
+    def test_advance_preserves_grid_length_after_batch(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        initial_len = len(vm.grid)
+        with vm._lock:
+            for i in range(10):
+                vm._incoming.append(_make_cluster(float(i)))
+        vm.advance()
+        assert len(vm.grid) == initial_len
+
+    def test_advance_caps_drain_at_capacity(self) -> None:
+        """Drain never exceeds grid capacity even with oversized queue."""
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 4,
+            "gui:livemode:grid_columns": 5,
+        })
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
+        )
+        capacity = 4 * 5  # 20 (meets min grid count)
+        with vm._lock:
+            for i in range(35):
+                vm._incoming.append(_make_cluster(float(i)))
+        count = vm.advance()
+        assert count == capacity
+        # Remaining items stay in _incoming
+        with vm._lock:
+            assert len(vm._incoming) == 15
+
+    def test_advance_shifts_grid_correctly(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        """Grid should drop first N items and append the batch."""
+        # Prefill grid with identifiable clusters
+        with vm._lock:
+            for i in range(len(vm._grid)):
+                vm._grid[i] = _make_cluster(float(i))
+            # Queue 3 new clusters
+            for j in range(3):
+                vm._incoming.append(_make_cluster(9000.0 + j))
+        count = vm.advance()
+        assert count == 3
+        grid = vm.grid
+        # First items should be what was at indices 3..end of old grid
+        assert grid[0].energy == 3.0
+        # Last 3 should be the new batch
+        assert grid[-3].energy == 9000.0
+        assert grid[-2].energy == 9001.0
+        assert grid[-1].energy == 9002.0
+
+    def test_advance_empty_incoming_inserts_none_at_tail(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        """When incoming is empty, shift by 1 and insert None at tail."""
+        with vm._lock:
+            vm._grid[-1] = _make_cluster(500.0)
+        count = vm.advance()
+        assert count == 1
+        assert vm.grid[-1] is None
