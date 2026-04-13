@@ -6,9 +6,10 @@ and PhysicsConversionManager.
 """
 
 import threading
+import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -517,3 +518,137 @@ class TestGaussianBlob:
     def test_blob_all_positive(self) -> None:
         blob = LiveModeViewModel._gaussian_blob(8, 8, 4, 4, 1.5, 1.5, 500.0)
         assert np.all(blob >= 0)
+
+
+class TestFeaturedHold:
+    """Tests for featured cluster hold timer and queue deduplication."""
+
+    def _make_envelope(self, energy: float = 1000.0) -> EventEnvelope:
+        return EventEnvelope(
+            name="cluster.classified",
+            payload={
+                "sigmaX": 1.5,
+                "sigmaY": 1.5,
+                "total_energy": energy,
+            },
+            source="test",
+        )
+
+    def test_first_event_always_featured(
+        self,
+        vm: LiveModeViewModel,
+        event_handler: _StubEventHandler,
+    ) -> None:
+        """First event becomes featured because _featured_set_at starts at 0."""
+        vm.activate()
+        event_handler.fire(self._make_envelope(2000.0))
+        assert vm.featured is not None
+        assert vm.featured.energy == 2000.0
+
+    def test_second_event_within_hold_not_featured(
+        self,
+        vm: LiveModeViewModel,
+        event_handler: _StubEventHandler,
+    ) -> None:
+        """Events within hold period go to incoming, not featured."""
+        vm.activate()
+        event_handler.fire(self._make_envelope(2000.0))
+        first_featured = vm.featured
+
+        event_handler.fire(self._make_envelope(3000.0))
+        assert vm.featured is first_featured
+        assert vm.featured.energy == 2000.0
+
+    def test_second_event_within_hold_queued_to_incoming(
+        self,
+        vm: LiveModeViewModel,
+        event_handler: _StubEventHandler,
+    ) -> None:
+        """Events within hold period are appended to _incoming."""
+        vm.activate()
+        event_handler.fire(self._make_envelope(2000.0))
+        event_handler.fire(self._make_envelope(3000.0))
+
+        with vm._lock:
+            assert len(vm._incoming) == 1
+            assert vm._incoming[0].energy == 3000.0
+
+    def test_featured_cluster_not_in_incoming(
+        self,
+        vm: LiveModeViewModel,
+        event_handler: _StubEventHandler,
+    ) -> None:
+        """When a cluster becomes featured it is not in _incoming."""
+        vm.activate()
+        event_handler.fire(self._make_envelope(2000.0))
+
+        with vm._lock:
+            assert len(vm._incoming) == 0
+
+    def test_event_after_hold_becomes_featured(
+        self,
+        vm: LiveModeViewModel,
+        event_handler: _StubEventHandler,
+    ) -> None:
+        """After hold period elapses, the next event replaces featured."""
+        vm.activate()
+        event_handler.fire(self._make_envelope(2000.0))
+
+        # Simulate hold period elapsed by backdating _featured_set_at
+        with vm._lock:
+            vm._featured_set_at = time.monotonic() - 10.0
+
+        event_handler.fire(self._make_envelope(5000.0))
+        assert vm.featured is not None
+        assert vm.featured.energy == 5000.0
+
+        with vm._lock:
+            assert len(vm._incoming) == 0
+
+    def test_featured_hold_s_default(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        assert vm.featured_hold_s == 5
+
+    def test_featured_hold_s_clamped_below(self) -> None:
+        config = _StubConfig({"gui:livemode:featured_hold_s": 1})
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
+        )
+        assert vm.featured_hold_s >= 3
+
+    def test_featured_hold_s_clamped_above(self) -> None:
+        config = _StubConfig({"gui:livemode:featured_hold_s": 20})
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
+        )
+        assert vm.featured_hold_s <= 10
+
+    def test_featured_changed_callback_not_fired_during_hold(
+        self,
+        vm: LiveModeViewModel,
+        event_handler: _StubEventHandler,
+    ) -> None:
+        """Callback should not fire when featured doesn't change."""
+        featured_values: List[Optional[Cluster]] = []
+        vm.add_featured_changed_callback(
+            lambda c: featured_values.append(c),
+        )
+        vm.activate()
+        event_handler.fire(self._make_envelope(2000.0))
+        assert len(featured_values) == 1
+
+        event_handler.fire(self._make_envelope(3000.0))
+        assert len(featured_values) == 1  # no second callback
+
+    def test_fallback_resets_featured_set_at(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        """Fallback should set _featured_set_at so post-fallback events
+        respect the hold period."""
+        vm.trigger_fallback()
+        time.sleep(0.5)
+
+        assert vm.featured is not None
+        with vm._lock:
+            assert vm._featured_set_at > 0.0

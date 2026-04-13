@@ -8,6 +8,7 @@ for the View, and handles fallback loading from the database.
 import collections
 import logging
 import threading
+import time
 from typing import Callable, Deque, List, Optional, Tuple
 
 import numpy as np
@@ -68,6 +69,7 @@ class LiveModeViewModel:
         )
         self._grid: List[Optional[Cluster]] = [None] * self._capacity
         self._featured: Optional[Cluster] = None
+        self._featured_set_at: float = 0.0
 
         self._on_grid_changed: List[Callable[[], None]] = []
         self._on_featured_changed: List[Callable[[Optional[Cluster]], None]] = []
@@ -173,6 +175,16 @@ class LiveModeViewModel:
             maximum=0.5,
         )
 
+    @property
+    def featured_hold_s(self) -> int:
+        """Minimum seconds the featured cluster is held before replacement."""
+        return self._config.get_int(
+            "gui:livemode:featured_hold_s",
+            5,
+            minimum=3,
+            maximum=10,
+        )
+
     # --- Lifecycle ---
 
     def activate(self) -> None:
@@ -249,6 +261,7 @@ class LiveModeViewModel:
                 for c in clusters[filled:]:
                     self._incoming.append(c)
                 self._featured = clusters[0]
+                self._featured_set_at = time.monotonic()
             self._notify_featured_changed(clusters[0])
             self._notify_grid_changed()
             logger.info("Fallback loaded %d clusters", len(clusters))
@@ -315,15 +328,25 @@ class LiveModeViewModel:
     def _on_cluster_event(self, envelope: EventEnvelope) -> None:
         """Receives cluster.classified from EventHandler worker.
 
-        Sets the cluster as featured immediately so the left panel
-        updates without waiting for the next grid advance tick.
+        If the hold period for the current featured cluster has elapsed,
+        the new cluster becomes featured and is NOT queued for the grid.
+        Otherwise the cluster is queued normally and the featured panel
+        stays unchanged.
         """
         try:
             cluster = self._cluster_from_payload(envelope.payload)
+            now = time.monotonic()
             with self._lock:
-                self._incoming.append(cluster)
-                self._featured = cluster
-            self._notify_featured_changed(cluster)
+                elapsed = now - self._featured_set_at
+                if elapsed >= self.featured_hold_s:
+                    self._featured = cluster
+                    self._featured_set_at = now
+                    notify_featured = True
+                else:
+                    self._incoming.append(cluster)
+                    notify_featured = False
+            if notify_featured:
+                self._notify_featured_changed(cluster)
             self._notify_grid_changed()
         except Exception:
             logger.exception("Error processing cluster.classified event")

@@ -577,3 +577,11 @@ gui:livemode:histogram_min_height_pct:
   description: >-
     Minimum height of the energy histogram as a fraction of
     screen height (0.05–0.5).  Default: 0.10 (10%).
+
+gui:livemode:featured_hold_s:
+  type: int
+  default: 5
+  description: >-
+    Minimum seconds a cluster remains as the featured (zoomed)
+    cluster before a newer incoming cluster can replace it.
+    Range: 3–10.

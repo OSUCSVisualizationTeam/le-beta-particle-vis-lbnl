@@ -17,7 +17,7 @@ from PySide6.QtCore import (
     Qt,
     Slot,
 )
-from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPixmap
+from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -91,13 +91,9 @@ class LiveModeView(QDialog):
     def _initUI(self) -> None:
         """Builds the fullscreen layout with left and right panels."""
         self.setWindowFlags(
-            Qt.Window
-            | Qt.FramelessWindowHint
-            | Qt.WindowStaysOnTopHint
+            Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
         )
-        self.setStyleSheet(
-            f"background-color: {LiveModeColors.BACKGROUND};"
-        )
+        self.setStyleSheet(f"background-color: {LiveModeColors.BACKGROUND};")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -121,17 +117,14 @@ class LiveModeView(QDialog):
     def _buildLeftPanel(self) -> QWidget:
         """Constructs the left panel with featured image, gradient, stats, histogram."""
         panel = QWidget()
-        panel.setStyleSheet(
-            f"background-color: {LiveModeColors.PANEL_LEFT};"
-        )
+        panel.setStyleSheet(f"background-color: {LiveModeColors.PANEL_LEFT};")
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
         self._titleLabel = QLabel(self.tr("Real-time Detection"))
         self._titleLabel.setStyleSheet(
-            f"color: {LiveModeColors.TITLE_TEXT};"
-            "font-size: 18px; font-weight: bold;"
+            f"color: {LiveModeColors.TITLE_TEXT};" "font-size: 18px; font-weight: bold;"
         )
         self._titleLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(self._titleLabel)
@@ -140,7 +133,8 @@ class LiveModeView(QDialog):
         layout.addWidget(featured_row)
 
         self._statsWidget = ClusterDetailWidget(
-            self._inspectorVM, show_filename=False,
+            self._inspectorVM,
+            show_filename=False,
         )
         self._statsWidget.setStyleSheet(
             f"background-color: {LiveModeColors.STATS_BACKGROUND};"
@@ -207,7 +201,9 @@ class LiveModeView(QDialog):
         Marshals execution to the main thread via QMetaObject.
         """
         QMetaObject.invokeMethod(
-            self, "_onGridChanged", Qt.AutoConnection,
+            self,
+            "_onGridChanged",
+            Qt.AutoConnection,
         )
 
     @Slot()
@@ -222,7 +218,9 @@ class LiveModeView(QDialog):
         """Callback from ViewModel (may be on a background thread)."""
         self._pending_featured_update = cluster
         QMetaObject.invokeMethod(
-            self, "_onFeaturedChanged", Qt.AutoConnection,
+            self,
+            "_onFeaturedChanged",
+            Qt.AutoConnection,
         )
 
     @Slot()
@@ -336,7 +334,8 @@ class LiveModeView(QDialog):
         self._featured_cluster = cluster
         if cluster.data is None:
             self._vm.request_cluster_data(
-                cluster, self._onClusterDataReady,
+                cluster,
+                self._onClusterDataReady,
             )
             return
         self._renderFeaturedPanel(cluster)
@@ -355,7 +354,9 @@ class LiveModeView(QDialog):
         """Background callback when FITS extraction completes."""
         self._pending_featured_data = data
         QMetaObject.invokeMethod(
-            self, "_applyFeaturedData", Qt.AutoConnection,
+            self,
+            "_applyFeaturedData",
+            Qt.AutoConnection,
         )
 
     @Slot()
@@ -371,7 +372,8 @@ class LiveModeView(QDialog):
     def _updateFeaturedImage(self, cluster: Cluster) -> None:
         """Renders the featured cluster thumbnail."""
         self._featuredWidget.setCluster(
-            cluster.data, self._vm.colormap,
+            cluster.data,
+            self._vm.colormap,
         )
 
     def _updateGradient(self, cluster: Cluster) -> None:
@@ -407,7 +409,8 @@ class LiveModeView(QDialog):
             x_label = "Energy (ADU)"
             x_unit = "ADU"
         model = HistogramDataModel.from_pixel_data(
-            data, bins=_HISTOGRAM_BINS,
+            data,
+            bins=_HISTOGRAM_BINS,
             x_label=x_label,
             colormap=self._vm.colormap.value,
             x_unit=x_unit,
@@ -417,8 +420,5 @@ class LiveModeView(QDialog):
     def _currentMaxEnergy(self) -> float:
         """Scans the grid for the maximum cluster energy."""
         grid = self._vm.grid
-        energies = [
-            c.energy for c in grid
-            if c is not None and c.energy > 0
-        ]
+        energies = [c.energy for c in grid if c is not None and c.energy > 0]
         return max(energies) if energies else 1.0
