@@ -23,6 +23,7 @@ from .EPSDataClasses import (
     EPSClusterRecord,
     EPSFitsRecord,
 )
+from .ClusterProvider import ClusterBatch, ClusterProvider, NoOpClusterProvider
 from .EventRepository import EventRepository
 from .MockEventRepository import MockEventRepository
 from .NoOpEventRepository import NoOpEventRepository

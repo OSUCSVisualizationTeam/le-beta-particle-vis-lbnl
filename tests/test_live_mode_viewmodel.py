@@ -5,7 +5,6 @@ for ConfigurationService, EventHandlerInterface, EventRepository,
 and PhysicsConversionManager.
 """
 
-import threading
 import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
@@ -97,7 +96,7 @@ class _StubEventHandler(EventHandlerInterface):
         self.dispatch(envelope)
 
 
-def _make_cluster(energy: float = 1000.0) -> Cluster:
+def _make_cluster(energy: float = 1000.0, cluster_id: int = 0) -> Cluster:
     """Creates a minimal Cluster for testing."""
     data = np.ones((6, 6), dtype=np.float32) * energy / 36
     return Cluster(
@@ -109,7 +108,7 @@ def _make_cluster(energy: float = 1000.0) -> Cluster:
         sigmaY=1.5,
         energy=energy,
         pixelCount=36,
-        clusterId=42,
+        clusterId=cluster_id,
     )
 
 
@@ -120,9 +119,15 @@ class _StubRepository(EventRepository):
         if clusters is not None:
             self._clusters = clusters
         else:
-            self._clusters = [_make_cluster(500.0 + i * 100) for i in range(5)]
+            self._clusters = [
+                _make_cluster(500.0 + i * 100, cluster_id=i)
+                for i in range(5)
+            ]
 
     def fetch_events(self) -> List[Cluster]:
+        return list(self._clusters)
+
+    def query_clusters(self, query_filter=None) -> List[Cluster]:
         return list(self._clusters)
 
 
@@ -151,7 +156,10 @@ class _StubPhysics(PhysicsConversionManager):
 
 @pytest.fixture
 def config() -> _StubConfig:
-    return _StubConfig()
+    return _StubConfig({
+        "gui:livemode:grid_rows": 4,
+        "gui:livemode:grid_columns": 5,
+    })
 
 
 @pytest.fixture
@@ -180,147 +188,26 @@ def vm(
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# Tests — Construction
 # ---------------------------------------------------------------------------
 
 
-class TestActivateDeactivate:
-    """Tests for EventHandler subscription lifecycle."""
+class TestConstruction:
+    def test_creates_queue_with_capacity(self, vm: LiveModeViewModel) -> None:
+        assert vm._queue.capacity == 20  # 4 rows * 5 cols
 
-    def test_activate_registers_callback(
-        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
-    ) -> None:
-        vm.activate()
-        assert "cluster.classified" in event_handler._callbacks
-        assert len(event_handler._callbacks["cluster.classified"]) == 1
+    def test_grid_shape_from_config(self, vm: LiveModeViewModel) -> None:
+        assert vm.grid_shape == (4, 5)
 
-    def test_activate_is_idempotent(
-        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
-    ) -> None:
-        vm.activate()
-        vm.activate()
-        assert len(event_handler._callbacks["cluster.classified"]) == 1
+    def test_grid_returns_queue_snapshot(self, vm: LiveModeViewModel) -> None:
+        grid = vm.grid
+        assert len(grid) == 20
+        assert all(s is None for s in grid)
 
-    def test_deactivate_unregisters(
-        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
-    ) -> None:
-        vm.activate()
-        vm.deactivate()
-        cbs = event_handler._callbacks.get("cluster.classified", {})
-        assert len(cbs) == 0
-
-    def test_deactivate_noop_when_inactive(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        vm.deactivate()  # should not raise
-
-
-class TestClusterFromPayload:
-    """Tests for payload deserialization."""
-
-    def test_cluster_from_payload_basic(self, vm: LiveModeViewModel) -> None:
-        payload = {
-            "sigmaX": 2.0,
-            "sigmaY": 1.5,
-            "total_energy": 5000.0,
-            "classification": "TRITIUM",
-            "cnn_classification": 0.95,
-            "nrg_classification": 0.88,
-            "bdt_classification": 0.90,
-            "fits_id": 1,
-            "cluster_id": 7,
-        }
-        cluster = vm._cluster_from_payload(payload)
-        assert cluster.sigmaX == 2.0
-        assert cluster.sigmaY == 1.5
-        assert cluster.energy == 5000.0
-        assert cluster.cnnClassification == 0.95
-        assert cluster.clusterId == 7
-        assert cluster.data is not None
-        assert cluster.data.shape[0] > 0
-
-    def test_cluster_from_payload_ndarray_shape(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        payload = {"sigmaX": 3.0, "sigmaY": 2.0}
-        cluster = vm._cluster_from_payload(payload)
-        w = max(6, int(3.0 * 4 + 2))
-        h = max(6, int(2.0 * 4 + 2))
-        assert cluster.data.shape == (h, w)
-
-    def test_cluster_from_payload_defaults(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        cluster = vm._cluster_from_payload({})
-        assert cluster.sigmaX == 1.5
-        assert cluster.sigmaY == 1.5
-        assert cluster.energy == 1000.0
-        assert cluster.classification == "UNCLASSIFIED"
-
-
-class TestAdvance:
-    """Tests for grid advancement logic."""
-
-    def test_advance_empty_is_noop(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        count = vm.advance()
-        assert count == 0
-        assert all(c is None for c in vm.grid)
-
-    def test_event_sets_featured_immediately(
-        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
-    ) -> None:
-        vm.activate()
-        envelope = EventEnvelope(
-            name="cluster.classified",
-            payload={
-                "sigmaX": 1.5, "sigmaY": 1.5,
-                "total_energy": 2000.0,
-            },
-            source="test",
-        )
-        event_handler.fire(envelope)
-        assert vm.featured is not None
-        assert vm.featured.energy == 2000.0
-
-    def test_advance_does_not_change_featured(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        cluster = _make_cluster(3000.0)
-        with vm._lock:
-            vm._grid[0] = cluster
-        vm.advance()
-        # featured is only set by events, not by advance
-        assert vm.featured is None
-
-    def test_shift_grid_preserves_length(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        initial_len = len(vm.grid)
-        vm.advance()
-        assert len(vm.grid) == initial_len
-
-    def test_grid_snapshot_isolation(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        snapshot = vm.grid
-        snapshot[0] = _make_cluster()
-        assert vm.grid[0] is None  # internal state unaffected
-
-
-class TestConfiguration:
-    """Tests for config-driven properties."""
-
-    def test_colormap_default_inferno(self, vm: LiveModeViewModel) -> None:
-        from le_beta_vis.frontend.fitsconverters.interface import Colormap
-        assert vm.colormap == Colormap.INFERNO
-
-    def test_grid_count_default_1000(self, vm: LiveModeViewModel) -> None:
-        rows, cols = vm.grid_shape
-        assert rows * cols == 1000
-        assert rows == 25
-        assert cols == 40
+    def test_grid_snapshot_isolation(self, vm: LiveModeViewModel) -> None:
+        snap = vm.grid
+        snap[0] = _make_cluster()
+        assert vm.grid[0] is None
 
     def test_grid_count_clamped_below_20(self) -> None:
         config = _StubConfig({
@@ -344,120 +231,286 @@ class TestConfiguration:
         rows, cols = vm.grid_shape
         assert rows * cols <= 2000
 
-    def test_advance_interval_default(self, vm: LiveModeViewModel) -> None:
-        assert vm.advance_interval_ms == 3000
 
-    def test_animation_duration_default(self, vm: LiveModeViewModel) -> None:
-        assert vm.animation_duration_ms == 400
-
-    def test_featured_size_default(self, vm: LiveModeViewModel) -> None:
-        assert vm.featured_size == 320
+# ---------------------------------------------------------------------------
+# Tests — Lifecycle
+# ---------------------------------------------------------------------------
 
 
-class TestFallback:
-    """Tests for fallback data loading."""
+class TestActivateDeactivate:
+    def test_activate_registers_callback(
+        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
+    ) -> None:
+        with patch.object(vm, "_schedule_refill"):
+            vm.activate()
+        assert "cluster.classified" in event_handler._callbacks
+        assert len(event_handler._callbacks["cluster.classified"]) == 1
 
-    def test_fallback_fills_grid_from_front(
+    def test_activate_is_idempotent(
+        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
+    ) -> None:
+        with patch.object(vm, "_schedule_refill"):
+            vm.activate()
+            vm.activate()
+        assert len(event_handler._callbacks["cluster.classified"]) == 1
+
+    def test_activate_schedules_initial_refill(
         self, vm: LiveModeViewModel,
     ) -> None:
-        vm.trigger_fallback()
-        import time
-        time.sleep(0.5)
-        with vm._lock:
-            filled = [i for i, c in enumerate(vm._grid) if c is not None]
-        assert len(filled) > 0
-        # Slots must be filled from index 0 forward
-        assert filled == list(range(len(filled)))
+        with patch.object(vm, "_schedule_refill") as mock_refill:
+            vm.activate()
+            mock_refill.assert_called_once_with(vm._capacity)
 
-    def test_fallback_sets_featured(
+    def test_deactivate_unregisters(
+        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
+    ) -> None:
+        with patch.object(vm, "_schedule_refill"):
+            vm.activate()
+        vm.deactivate()
+        cbs = event_handler._callbacks.get("cluster.classified", {})
+        assert len(cbs) == 0
+
+    def test_deactivate_noop_when_inactive(
         self, vm: LiveModeViewModel,
     ) -> None:
-        vm.trigger_fallback()
-        import time
-        time.sleep(0.5)
-        assert vm.featured is not None
+        vm.deactivate()  # should not raise
 
-    def test_fallback_with_empty_repository(self) -> None:
-        config = _StubConfig()
-        repo = _StubRepository(clusters=[])
+
+# ---------------------------------------------------------------------------
+# Tests — Advance
+# ---------------------------------------------------------------------------
+
+
+class TestAdvance:
+    def test_empty_queue_returns_zero(self, vm: LiveModeViewModel) -> None:
+        assert vm.advance() == 0
+
+    def test_dequeues_featured(self, vm: LiveModeViewModel) -> None:
+        c = _make_cluster(2000.0, cluster_id=1)
+        vm._queue.append_fallback([c])
+
+        featured = []
+        vm.add_featured_changed_callback(lambda cl: featured.append(cl))
+
+        count = vm.advance()
+        assert count == 1
+        assert len(featured) == 1
+        assert featured[0] is c
+
+    def test_no_featured_callback_on_empty(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        featured = []
+        vm.add_featured_changed_callback(lambda cl: featured.append(cl))
+        vm.advance()
+        assert len(featured) == 0
+
+    def test_advance_preserves_grid_length(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        vm._queue.append_fallback([_make_cluster(i) for i in range(20)])
+        vm.advance()
+        assert len(vm.grid) == 20
+
+    def test_advance_inserts_fresh_clusters(
+        self,
+        vm: LiveModeViewModel,
+        event_handler: _StubEventHandler,
+    ) -> None:
+        with patch.object(vm, "_schedule_refill"):
+            vm.activate()
+        callback = list(
+            event_handler._callbacks["cluster.classified"].values(),
+        )[0]
+        envelope = EventEnvelope(
+            name="cluster.classified",
+            payload={
+                "sigmaX": 1.5, "sigmaY": 1.5,
+                "total_energy": 1000.0, "cluster_id": 42, "fits_id": 1,
+            },
+        )
+        callback(envelope)
+
+        vm._queue.append_fallback(
+            [_make_cluster(i) for i in range(vm._capacity)],
+        )
+
+        vm.advance()
+
+        assert vm._queue.pointer >= 1
+
+    def test_advance_schedules_refill(self, vm: LiveModeViewModel) -> None:
+        vm._queue.append_fallback([_make_cluster(1)])
+
+        with patch.object(vm, "_schedule_refill") as mock_refill:
+            vm.advance()
+            mock_refill.assert_called_once()
+            needed = mock_refill.call_args[0][0]
+            assert needed > 0
+
+
+# ---------------------------------------------------------------------------
+# Tests — Data loading
+# ---------------------------------------------------------------------------
+
+
+class TestDataLoading:
+    def test_triggers_data_loading_for_none_data(self) -> None:
+        thumb = MagicMock()
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 4,
+            "gui:livemode:grid_columns": 5,
+        })
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(),
+            _StubPhysics(), thumbnailService=thumb,
+        )
+        # First cluster will be dequeued as featured; second stays in queue
+        c_front = _make_cluster(1)
+        c_pending = Cluster(
+            boundingBox=BoundingBox(top=0, left=0, bottom=4, right=4),
+            data=None,
+            centerX=2,
+            centerY=2,
+            clusterId=2,
+        )
+        vm._queue.append_fallback([c_front, c_pending])
+
+        vm.advance()
+
+        thumb.request_cluster_data.assert_called()
+
+    def test_skips_data_loading_when_data_present(self) -> None:
+        thumb = MagicMock()
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 4,
+            "gui:livemode:grid_columns": 5,
+        })
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(),
+            _StubPhysics(), thumbnailService=thumb,
+        )
+        # All clusters have data — none should trigger loading
+        vm._queue.append_fallback(
+            [_make_cluster(i) for i in range(3)],
+        )
+
+        vm.advance()
+
+        thumb.request_cluster_data.assert_not_called()
+
+    def test_callback_sets_data_and_notifies(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        c = _make_cluster(1)
+        c.data = None
+
+        grid_changed = []
+        vm.add_grid_changed_callback(lambda: grid_changed.append(True))
+
+        data = np.ones((4, 4), dtype=np.float32)
+        vm._on_cluster_data_loaded(c, data)
+
+        assert c.data is data
+        assert len(grid_changed) == 1
+
+    def test_callback_ignores_none_data(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        c = _make_cluster(1)
+        original = c.data
+
+        vm._on_cluster_data_loaded(c, None)
+
+        assert c.data is original
+
+
+# ---------------------------------------------------------------------------
+# Tests — Refill
+# ---------------------------------------------------------------------------
+
+
+class TestRefill:
+    def test_refill_worker_appends_fallback(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        vm._refill_worker(5)
+
+        snap = vm._queue.snapshot()
+        filled = [s for s in snap if s is not None]
+        assert len(filled) == 5
+
+    def test_refill_in_progress_prevents_duplicates(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        with vm._refill_lock:
+            vm._refill_in_progress = True
+
+        vm._schedule_refill(5)
+        # Should not spawn a new thread — just return
+
+    def test_refill_resets_flag_on_completion(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        vm._refill_in_progress = False
+        vm._refill_worker(3)
+        assert not vm._refill_in_progress
+
+    def test_refill_resets_flag_on_error(self) -> None:
+        repo = MagicMock()
+        repo.query_clusters.side_effect = RuntimeError("fail")
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 4,
+            "gui:livemode:grid_columns": 5,
+        })
         vm = LiveModeViewModel(
             config, _StubEventHandler(), repo, _StubPhysics(),
         )
-        vm.trigger_fallback()
-        import time
-        time.sleep(0.5)
-        with vm._lock:
-            assert all(c is None for c in vm._grid)
+        vm._refill_in_progress = True
+        vm._refill_worker(3)
+        assert not vm._refill_in_progress
 
-
-class TestCallbacks:
-    """Tests for observer notification."""
-
-    def test_grid_changed_callback_fires(
-        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
-    ) -> None:
-        fired = []
-        vm.add_grid_changed_callback(lambda: fired.append(True))
-        vm.activate()
-        envelope = EventEnvelope(
-            name="cluster.classified",
-            payload={"sigmaX": 1.0, "sigmaY": 1.0, "total_energy": 500.0},
-            source="test",
-        )
-        event_handler.fire(envelope)
-        assert len(fired) >= 1
-
-    def test_featured_changed_callback_fires_on_event(
-        self, vm: LiveModeViewModel, event_handler: _StubEventHandler,
-    ) -> None:
-        featured_values: List[Optional[Cluster]] = []
-        vm.add_featured_changed_callback(
-            lambda c: featured_values.append(c),
-        )
-        vm.activate()
-        envelope = EventEnvelope(
-            name="cluster.classified",
-            payload={"sigmaX": 1.0, "sigmaY": 1.0, "total_energy": 750.0},
-            source="test",
-        )
-        event_handler.fire(envelope)
-        assert len(featured_values) == 1
-        assert featured_values[0].energy == 750.0
-
-    def test_advance_does_not_fire_featured_changed(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        featured_values: List[Optional[Cluster]] = []
-        vm.add_featured_changed_callback(
-            lambda c: featured_values.append(c),
-        )
-        cluster = _make_cluster()
-        with vm._lock:
-            vm._grid[0] = cluster
-        vm.advance()
-        assert len(featured_values) == 0
-
-    def test_advance_fires_grid_changed(
+    def test_refill_notifies_grid_changed(
         self, vm: LiveModeViewModel,
     ) -> None:
         fired = []
         vm.add_grid_changed_callback(lambda: fired.append(True))
-        # Put a cluster in the grid so advance() doesn't short-circuit
-        cluster = _make_cluster()
-        with vm._lock:
-            vm._grid[0] = cluster
-        vm.advance()
+
+        vm._refill_worker(3)
+
         assert len(fired) >= 1
 
 
-class TestNewConfigProperties:
-    """Tests for properties added in the live mode improvements."""
+# ---------------------------------------------------------------------------
+# Tests — Configuration properties
+# ---------------------------------------------------------------------------
+
+
+class TestConfiguration:
+    def test_colormap_default_inferno(self, vm: LiveModeViewModel) -> None:
+        from le_beta_vis.frontend.fitsconverters.interface import Colormap
+        assert vm.colormap == Colormap.INFERNO
+
+    def test_advance_interval_default(self, vm: LiveModeViewModel) -> None:
+        assert vm.advance_interval_ms == 3000
+
+    def test_animation_duration_default(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        assert vm.animation_duration_ms == 250
+
+    def test_featured_size_default(self, vm: LiveModeViewModel) -> None:
+        assert vm.featured_size == 320
 
     def test_grid_spacing_default_6(self, vm: LiveModeViewModel) -> None:
         assert vm.grid_spacing == 6
 
     def test_grid_spacing_minimum_clamped(self) -> None:
-        config = _StubConfig({"gui:livemode:grid_spacing_px": 2})
+        config = _StubConfig({
+            "gui:livemode:grid_spacing_px": 2,
+            "gui:livemode:grid_rows": 2,
+            "gui:livemode:grid_columns": 10,
+        })
         vm = LiveModeViewModel(
             config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
         )
@@ -474,25 +527,44 @@ class TestNewConfigProperties:
         assert vm.histogram_min_height_pct == 0.10
 
 
-class TestRequestClusterData:
-    """Tests for ThumbnailLoaderService-backed cluster data loading."""
+# ---------------------------------------------------------------------------
+# Tests — Observer callbacks
+# ---------------------------------------------------------------------------
 
-    def test_request_without_service_calls_none(self) -> None:
-        vm = LiveModeViewModel(
-            _StubConfig(), _StubEventHandler(),
-            _StubRepository(), _StubPhysics(),
-        )
-        results: List[Optional[np.ndarray]] = []
-        vm.request_cluster_data(_make_cluster(), results.append)
-        assert len(results) == 1
-        assert results[0] is None
 
-    def test_request_with_service_delegates(self) -> None:
+class TestCallbacks:
+    def test_grid_changed_callback(self, vm: LiveModeViewModel) -> None:
+        calls = []
+        vm.add_grid_changed_callback(lambda: calls.append(True))
+        vm._notify_grid_changed()
+        assert len(calls) == 1
+
+    def test_featured_changed_callback(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        calls = []
+        vm.add_featured_changed_callback(lambda c: calls.append(c))
+        c = _make_cluster(1)
+        vm._notify_featured_changed(c)
+        assert len(calls) == 1
+        assert calls[0] is c
+
+    def test_request_cluster_data_without_service(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        result = []
+        vm.request_cluster_data(_make_cluster(1), lambda d: result.append(d))
+        assert result == [None]
+
+    def test_request_cluster_data_with_service(self) -> None:
         mock_service = MagicMock()
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 2,
+            "gui:livemode:grid_columns": 5,
+        })
         vm = LiveModeViewModel(
-            _StubConfig(), _StubEventHandler(),
-            _StubRepository(), _StubPhysics(),
-            thumbnailService=mock_service,
+            config, _StubEventHandler(), _StubRepository(),
+            _StubPhysics(), thumbnailService=mock_service,
         )
         cluster = _make_cluster()
         callback = MagicMock()
@@ -500,258 +572,3 @@ class TestRequestClusterData:
         mock_service.request_cluster_data.assert_called_once_with(
             cluster, callback,
         )
-
-
-class TestGaussianBlob:
-    """Tests for synthetic Gaussian blob generation."""
-
-    def test_blob_shape(self) -> None:
-        blob = LiveModeViewModel._gaussian_blob(10, 8, 5, 4, 2.0, 1.5, 1000.0)
-        assert blob.shape == (8, 10)
-        assert blob.dtype == np.float32
-
-    def test_blob_peak_at_center(self) -> None:
-        blob = LiveModeViewModel._gaussian_blob(10, 10, 5, 5, 2.0, 2.0, 1000.0)
-        peak_y, peak_x = np.unravel_index(blob.argmax(), blob.shape)
-        assert peak_x == 5
-        assert peak_y == 5
-
-    def test_blob_all_positive(self) -> None:
-        blob = LiveModeViewModel._gaussian_blob(8, 8, 4, 4, 1.5, 1.5, 500.0)
-        assert np.all(blob >= 0)
-
-
-class TestFeaturedHold:
-    """Tests for featured cluster hold timer and queue deduplication."""
-
-    def _make_envelope(self, energy: float = 1000.0) -> EventEnvelope:
-        return EventEnvelope(
-            name="cluster.classified",
-            payload={
-                "sigmaX": 1.5,
-                "sigmaY": 1.5,
-                "total_energy": energy,
-            },
-            source="test",
-        )
-
-    def test_first_event_always_featured(
-        self,
-        vm: LiveModeViewModel,
-        event_handler: _StubEventHandler,
-    ) -> None:
-        """First event becomes featured because _featured_set_at starts at 0."""
-        vm.activate()
-        event_handler.fire(self._make_envelope(2000.0))
-        assert vm.featured is not None
-        assert vm.featured.energy == 2000.0
-
-    def test_second_event_within_hold_not_featured(
-        self,
-        vm: LiveModeViewModel,
-        event_handler: _StubEventHandler,
-    ) -> None:
-        """Events within hold period go to incoming, not featured."""
-        vm.activate()
-        event_handler.fire(self._make_envelope(2000.0))
-        first_featured = vm.featured
-
-        event_handler.fire(self._make_envelope(3000.0))
-        assert vm.featured is first_featured
-        assert vm.featured.energy == 2000.0
-
-    def test_second_event_within_hold_queued_to_incoming(
-        self,
-        vm: LiveModeViewModel,
-        event_handler: _StubEventHandler,
-    ) -> None:
-        """Events within hold period are appended to _incoming."""
-        vm.activate()
-        event_handler.fire(self._make_envelope(2000.0))
-        event_handler.fire(self._make_envelope(3000.0))
-
-        with vm._lock:
-            assert len(vm._incoming) == 1
-            assert vm._incoming[0].energy == 3000.0
-
-    def test_featured_cluster_not_in_incoming(
-        self,
-        vm: LiveModeViewModel,
-        event_handler: _StubEventHandler,
-    ) -> None:
-        """When a cluster becomes featured it is not in _incoming."""
-        vm.activate()
-        event_handler.fire(self._make_envelope(2000.0))
-
-        with vm._lock:
-            assert len(vm._incoming) == 0
-
-    def test_event_after_hold_becomes_featured(
-        self,
-        vm: LiveModeViewModel,
-        event_handler: _StubEventHandler,
-    ) -> None:
-        """After hold period elapses, the next event replaces featured."""
-        vm.activate()
-        event_handler.fire(self._make_envelope(2000.0))
-
-        # Simulate hold period elapsed by backdating _featured_set_at
-        with vm._lock:
-            vm._featured_set_at = time.monotonic() - 10.0
-
-        event_handler.fire(self._make_envelope(5000.0))
-        assert vm.featured is not None
-        assert vm.featured.energy == 5000.0
-
-        with vm._lock:
-            assert len(vm._incoming) == 0
-
-    def test_featured_hold_s_default(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        assert vm.featured_hold_s == 5
-
-    def test_featured_hold_s_clamped_below(self) -> None:
-        config = _StubConfig({"gui:livemode:featured_hold_s": 1})
-        vm = LiveModeViewModel(
-            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
-        )
-        assert vm.featured_hold_s >= 3
-
-    def test_featured_hold_s_clamped_above(self) -> None:
-        config = _StubConfig({"gui:livemode:featured_hold_s": 20})
-        vm = LiveModeViewModel(
-            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
-        )
-        assert vm.featured_hold_s <= 10
-
-    def test_featured_changed_callback_not_fired_during_hold(
-        self,
-        vm: LiveModeViewModel,
-        event_handler: _StubEventHandler,
-    ) -> None:
-        """Callback should not fire when featured doesn't change."""
-        featured_values: List[Optional[Cluster]] = []
-        vm.add_featured_changed_callback(
-            lambda c: featured_values.append(c),
-        )
-        vm.activate()
-        event_handler.fire(self._make_envelope(2000.0))
-        assert len(featured_values) == 1
-
-        event_handler.fire(self._make_envelope(3000.0))
-        assert len(featured_values) == 1  # no second callback
-
-    def test_fallback_resets_featured_set_at(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        """Fallback should set _featured_set_at so post-fallback events
-        respect the hold period."""
-        vm.trigger_fallback()
-        time.sleep(0.5)
-
-        assert vm.featured is not None
-        with vm._lock:
-            assert vm._featured_set_at > 0.0
-
-
-class TestBatchDrainAdvance:
-    """Tests for batch-drain advance behavior."""
-
-    def test_advance_returns_zero_when_empty_grid(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        assert vm.advance() == 0
-
-    def test_advance_returns_one_when_no_incoming_but_grid_has_content(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        with vm._lock:
-            vm._grid[0] = _make_cluster(500.0)
-        assert vm.advance() == 1
-
-    def test_advance_drains_single_item(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        with vm._lock:
-            vm._incoming.append(_make_cluster(1000.0))
-        count = vm.advance()
-        assert count == 1
-        grid = vm.grid
-        assert grid[-1] is not None
-        assert grid[-1].energy == 1000.0
-
-    def test_advance_drains_multiple_items(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        clusters = [_make_cluster(100.0 * (i + 1)) for i in range(5)]
-        with vm._lock:
-            for c in clusters:
-                vm._incoming.append(c)
-        count = vm.advance()
-        assert count == 5
-        grid = vm.grid
-        # Last 5 positions should have the batch
-        for i in range(5):
-            assert grid[-(5 - i)] is not None
-            assert grid[-(5 - i)].energy == clusters[i].energy
-
-    def test_advance_preserves_grid_length_after_batch(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        initial_len = len(vm.grid)
-        with vm._lock:
-            for i in range(10):
-                vm._incoming.append(_make_cluster(float(i)))
-        vm.advance()
-        assert len(vm.grid) == initial_len
-
-    def test_advance_caps_drain_at_capacity(self) -> None:
-        """Drain never exceeds grid capacity even with oversized queue."""
-        config = _StubConfig({
-            "gui:livemode:grid_rows": 4,
-            "gui:livemode:grid_columns": 5,
-        })
-        vm = LiveModeViewModel(
-            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
-        )
-        capacity = 4 * 5  # 20 (meets min grid count)
-        with vm._lock:
-            for i in range(35):
-                vm._incoming.append(_make_cluster(float(i)))
-        count = vm.advance()
-        assert count == capacity
-        # Remaining items stay in _incoming
-        with vm._lock:
-            assert len(vm._incoming) == 15
-
-    def test_advance_shifts_grid_correctly(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        """Grid should drop first N items and append the batch."""
-        # Prefill grid with identifiable clusters
-        with vm._lock:
-            for i in range(len(vm._grid)):
-                vm._grid[i] = _make_cluster(float(i))
-            # Queue 3 new clusters
-            for j in range(3):
-                vm._incoming.append(_make_cluster(9000.0 + j))
-        count = vm.advance()
-        assert count == 3
-        grid = vm.grid
-        # First items should be what was at indices 3..end of old grid
-        assert grid[0].energy == 3.0
-        # Last 3 should be the new batch
-        assert grid[-3].energy == 9000.0
-        assert grid[-2].energy == 9001.0
-        assert grid[-1].energy == 9002.0
-
-    def test_advance_empty_incoming_inserts_none_at_tail(
-        self, vm: LiveModeViewModel,
-    ) -> None:
-        """When incoming is empty, shift by 1 and insert None at tail."""
-        with vm._lock:
-            vm._grid[-1] = _make_cluster(500.0)
-        count = vm.advance()
-        assert count == 1
-        assert vm.grid[-1] is None

@@ -32,7 +32,9 @@ from le_beta_vis.frontend.viewmodels.HistoricalEventInspectorViewModel import (
     HistoricalEventInspectorViewModel,
 )
 
-from .widgets.DetectedClusterCollectionWidgetWidget import DetectedClusterCollectionWidgetWidget
+from .widgets.DetectedClusterCollectionWidget import (
+    DetectedClusterCollectionWidget,
+)
 from .widgets.FeaturedClusterWidget import FeaturedClusterWidget
 from .LiveModeViewModel import LiveModeViewModel
 
@@ -66,7 +68,6 @@ class LiveModeView(QDialog):
             displayKeV=True,
         )
         self._advance_timer: Optional[QTimer] = None
-        self._fallback_timer: Optional[QTimer] = None
         self._featured_cluster: Optional[Cluster] = None
         self._pending_featured_data: Optional[np.ndarray] = None
         self._pending_featured_update: Optional[Cluster] = None
@@ -98,7 +99,9 @@ class LiveModeView(QDialog):
         layout.addWidget(self._featuredPanel)
 
         self._clusterCollection = DetectedClusterCollectionWidget(self._vm)
-        self._clusterCollection.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._clusterCollection.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Expanding
+        )
         layout.addWidget(self._clusterCollection, stretch=1)
 
     # --- ViewModel wiring ---
@@ -121,8 +124,17 @@ class LiveModeView(QDialog):
 
     @Slot()
     def _onGridChanged(self) -> None:
-        """Main-thread slot: resets fallback timer on live data arrival."""
-        self._resetFallbackTimer()
+        """Main-thread slot: repopulates grid on background data arrival.
+
+        Also triggers the first advance on initial load so the
+        featured panel populates immediately once fallback data
+        is available.
+        """
+        self._clusterCollection.populate(self._vm.grid)
+        if self._featured_cluster is None:
+            count = self._vm.advance()
+            if count > 0:
+                self._clusterCollection.populate(self._vm.grid)
 
     def _onFeaturedChangedFromBg(
         self,
@@ -175,46 +187,24 @@ class LiveModeView(QDialog):
     # --- Timers ---
 
     def _initTimers(self) -> None:
-        """Creates and starts the advance and fallback timers."""
+        """Creates and starts the advance timer."""
         self._advance_timer = QTimer(self)
         self._advance_timer.setInterval(self._vm.advance_interval_ms)
         self._advance_timer.timeout.connect(self._onAdvanceTick)
         self._advance_timer.start()
 
-        self._fallback_timer = QTimer(self)
-        self._fallback_timer.setSingleShot(True)
-        self._fallback_timer.setInterval(
-            self._vm.fallback_timeout_s * 1000,
-        )
-        self._fallback_timer.timeout.connect(self._onFallbackTimeout)
-        self._fallback_timer.start()
-
     def _stopTimers(self) -> None:
-        """Stops and cleans up both timers."""
+        """Stops and cleans up the advance timer."""
         if self._advance_timer is not None:
             self._advance_timer.stop()
             self._advance_timer = None
-        if self._fallback_timer is not None:
-            self._fallback_timer.stop()
-            self._fallback_timer = None
-
-    def _resetFallbackTimer(self) -> None:
-        """Restarts the fallback timer on live event arrival."""
-        if self._fallback_timer is not None:
-            self._fallback_timer.start()
 
     @Slot()
     def _onAdvanceTick(self) -> None:
-        """Timer slot: drains incoming queue and advances the grid."""
+        """Timer slot: dequeues featured and advances the grid."""
         count = self._vm.advance()
         if count > 0:
             self._clusterCollection.animateAdvance(self._vm.grid, count)
-
-    @Slot()
-    def _onFallbackTimeout(self) -> None:
-        """Timer slot: triggers fallback data load from database."""
-        logger.info("Fallback timeout reached, loading from database")
-        self._vm.trigger_fallback()
 
     # --- Panel updates ---
 
