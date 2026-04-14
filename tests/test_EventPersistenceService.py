@@ -541,6 +541,127 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
         self.assertEqual(result["clusters"][0]["cluster_id"], 1)
 
 
+class TestEventPersistenceRecentRetrieval(unittest.TestCase):
+    """Test cases for the RecentRetrieval sorted/paginated endpoint."""
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_retrieve_recent_clusters_uses_order_and_pagination(
+        self, mock_db_connect, mock_init_server, mock_config,
+    ):
+        """SQL must order by date DESC and apply LIMIT/OFFSET."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, None)
+
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_db_connect.return_value = mock_connection
+
+        mock_cursor.fetchall.return_value = []
+
+        ep = EventPersistence()
+        ep.conn = mock_connection
+        ep.retrieval_recent_clusters = {"limit": 25, "offset": 50}
+
+        ep.retrieve_recent_clusters()
+
+        mock_cursor.execute.assert_called_once()
+        sql, params = mock_cursor.execute.call_args[0]
+        self.assertIn("ORDER BY fits_files.date DESC", sql)
+        self.assertIn("LIMIT %s OFFSET %s", sql)
+        self.assertEqual(params, (25, 50))
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_retrieve_recent_clusters_shapes_response(
+        self, mock_db_connect, mock_init_server, mock_config,
+    ):
+        """Result flows through process_retrieval_clusters."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, None)
+
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_db_connect.return_value = mock_connection
+
+        mock_cursor.fetchall.return_value = [
+            {
+                "fitsFile": 7,
+                "clusterID": 101,
+                "hdu_id": 0,
+                "box_top": 1,
+                "box_left": 2,
+                "box_bottom": 3,
+                "box_right": 4,
+                "data": b"bytes",
+                "totalEnergy": 1234,
+                "sigmaX": 1.1,
+                "sigmaY": 2.2,
+                "classification": "alpha",
+                "pixelCount": 12,
+                "filename": "newest.fits",
+                "date": "2026-04-14",
+            }
+        ]
+
+        ep = EventPersistence()
+        ep.conn = mock_connection
+        ep.retrieval_recent_clusters = {"limit": 1, "offset": 0}
+
+        result = ep.retrieve_recent_clusters()
+
+        self.assertEqual(result["result"], "success")
+        self.assertEqual(len(result["clusters"]), 1)
+        self.assertEqual(result["clusters"][0]["cluster_id"], 101)
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch.object(EventPersistence, 'retrieve_recent_clusters')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_cluster_event_dispatches_recent_retrieval(
+        self, mock_db_connect, mock_retrieve_recent, mock_init_server, mock_config,
+    ):
+        """cluster_event routes 'RecentRetrieval' to retrieve_recent_clusters."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, None)
+
+        mock_socket = MagicMock()
+        mock_retrieve_recent.return_value = {
+            "result": "success",
+            "clusters": [],
+        }
+
+        ep = EventPersistence()
+        request = {"Action": "RecentRetrieval", "limit": 10, "offset": 20}
+        ep.cluster_event(request, mock_socket)
+
+        mock_retrieve_recent.assert_called_once()
+        self.assertEqual(ep.retrieval_recent_clusters["limit"], 10)
+        self.assertEqual(ep.retrieval_recent_clusters["offset"], 20)
+        mock_socket.send_json.assert_called_once()
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "success")
+
+
 class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
     """Test cases for process_retrieval_fits method"""
 

@@ -46,6 +46,16 @@ class NoOpEventRepository(EventRepository):
         )
         on_error("NoOpEventRepository: query_clusters called but " "EPS is unavailable")
 
+    def query_recent_clusters(
+        self, limit: int, offset: int = 0
+    ) -> List[Cluster]:
+        """Returns an empty list — EPS is unavailable."""
+        logger.warning(
+            "NoOpEventRepository: query_recent_clusters called but "
+            "EPS is unavailable"
+        )
+        return []
+
     def store_cluster(self, request: ClusterStoreRequest) -> Optional[int]:
         """Returns None — EPS is unavailable."""
         logger.warning(

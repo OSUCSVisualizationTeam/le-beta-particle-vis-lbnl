@@ -130,6 +130,11 @@ class _StubRepository(EventRepository):
     def query_clusters(self, query_filter=None) -> List[Cluster]:
         return list(self._clusters)
 
+    def query_recent_clusters(
+        self, limit: int, offset: int = 0
+    ) -> List[Cluster]:
+        return list(self._clusters[offset : offset + limit])
+
 
 class _StubPhysics(PhysicsConversionManager):
     """Stub PhysicsConversionManager with a fixed conversion factor."""
@@ -458,7 +463,7 @@ class TestRefill:
 
     def test_refill_resets_flag_on_error(self) -> None:
         repo = MagicMock()
-        repo.query_clusters.side_effect = RuntimeError("fail")
+        repo.query_recent_clusters.side_effect = RuntimeError("fail")
         config = _StubConfig({
             "gui:livemode:grid_rows": 4,
             "gui:livemode:grid_columns": 5,

@@ -55,6 +55,24 @@ class EventRepository(ABC):
         """
         raise NotImplementedError
 
+    def query_recent_clusters(
+        self, limit: int, offset: int = 0
+    ) -> List[Cluster]:
+        """Return newest-first clusters, bounded by limit/offset.
+
+        Ordered server-side by FITS date descending.  Used by the
+        Live Mode fallback provider to page through historical
+        clusters without client-side sorting.
+
+        Args:
+            limit: Maximum number of clusters to return.
+            offset: Number of rows to skip from the newest.
+
+        Returns:
+            Matching ``Cluster`` objects, newest first.
+        """
+        raise NotImplementedError
+
     def store_cluster(
         self,
         request: ClusterStoreRequest

@@ -126,15 +126,11 @@ class LiveModeView(QDialog):
     def _onGridChanged(self) -> None:
         """Main-thread slot: repopulates grid on background data arrival.
 
-        Also triggers the first advance on initial load so the
-        featured panel populates immediately once fallback data
-        is available.
+        Defers the repaint while an advance animation is running so
+        mid-slide pixmap restamping cannot cause visible jitter when
+        a fallback refill or a FITS data load completes.
         """
-        self._clusterCollection.populate(self._vm.grid)
-        if self._featured_cluster is None:
-            count = self._vm.advance()
-            if count > 0:
-                self._clusterCollection.populate(self._vm.grid)
+        self._clusterCollection.scheduleRepaint(self._vm.grid)
 
     def _onFeaturedChangedFromBg(
         self,

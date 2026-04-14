@@ -212,57 +212,12 @@ class TestFreshPayloadConversion:
 # =====================================================================
 # FallbackClusterProvider
 # =====================================================================
+#
+# Pagination/wrap-around behavior lives in tests/test_FallbackClusterProvider.py.
+# The only remaining check here is the MockEventRepository integration.
 
 
 class TestFallbackFetch:
-    def test_returns_sorted_by_date_desc(self):
-        repo = MagicMock()
-        c1 = _make_cluster(1, date="2026-01-01")
-        c2 = _make_cluster(2, date="2026-04-10")
-        c3 = _make_cluster(3, date="2026-02-15")
-        repo.query_clusters.return_value = [c1, c2, c3]
-
-        provider = FallbackClusterProvider(repo)
-        result = provider.fetch(10)
-
-        assert result[0].clusterId == 2  # newest
-        assert result[1].clusterId == 3
-        assert result[2].clusterId == 1  # oldest
-
-    def test_respects_count(self):
-        repo = MagicMock()
-        repo.query_clusters.return_value = [
-            _make_cluster(i, date=f"2026-01-{i+1:02d}")
-            for i in range(10)
-        ]
-
-        provider = FallbackClusterProvider(repo)
-        result = provider.fetch(3)
-        assert len(result) == 3
-
-    def test_handles_none_dates(self):
-        repo = MagicMock()
-        c1 = _make_cluster(1, date=None)
-        c2 = _make_cluster(2, date="2026-04-10")
-        c3 = _make_cluster(3, date=None)
-        repo.query_clusters.return_value = [c1, c2, c3]
-
-        provider = FallbackClusterProvider(repo)
-        result = provider.fetch(10)
-
-        assert result[0].clusterId == 2  # has date
-        # None-date clusters sort to end
-        assert result[1].date is None
-        assert result[2].date is None
-
-    def test_returns_empty_on_error(self):
-        repo = MagicMock()
-        repo.query_clusters.side_effect = RuntimeError("ZMQ down")
-
-        provider = FallbackClusterProvider(repo)
-        result = provider.fetch(10)
-        assert result == []
-
     def test_uses_mock_event_repository(self):
         """Integration test with the actual MockEventRepository."""
         repo = MockEventRepository()

@@ -16,6 +16,7 @@ from .Cluster import Cluster
 from .ParticleType import ParticleType, classify_particle, CLASSIFICATION_THRESHOLD
 from .EPSDataClasses import (
     ClusterQueryFilter,
+    ClusterRecentQueryFilter,
     ClusterStoreRequest,
     ClassificationUpdateRequest,
     FitsQueryFilter,

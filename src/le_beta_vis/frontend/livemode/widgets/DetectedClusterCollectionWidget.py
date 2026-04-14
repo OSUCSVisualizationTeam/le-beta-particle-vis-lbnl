@@ -11,6 +11,7 @@ from typing import List, Optional
 
 import numpy as np
 from PySide6.QtCore import (
+    QAbstractAnimation,
     QEasingCurve,
     QParallelAnimationGroup,
     QPoint,
@@ -92,6 +93,7 @@ class DetectedClusterCollectionWidget(QWidget):
         self._cell_size = 1
         self._cells: List[_ThumbnailCell] = []
         self._anim_group: Optional[QParallelAnimationGroup] = None
+        self._deferred_grid: Optional[List[Optional[Cluster]]] = None
         self._createCells()
 
     # --- Public ---
@@ -107,6 +109,28 @@ class DetectedClusterCollectionWidget(QWidget):
         for i, cell in enumerate(self._cells):
             cluster = grid[i] if i < len(grid) else None
             cell.setClusterPixmap(cluster, colormap, self._cell_size, empty_pm)
+
+    def isAnimating(self) -> bool:
+        """True while a snake-shift animation group is running."""
+        return (
+            self._anim_group is not None
+            and self._anim_group.state() == QAbstractAnimation.Running
+        )
+
+    def scheduleRepaint(self, grid: List[Optional[Cluster]]) -> None:
+        """Repaint immediately, or defer until any active animation ends.
+
+        During an active ``animateAdvance`` the positional pixmap
+        mapping is in the middle of shifting; calling ``populate``
+        mid-flight would paint post-advance content onto cells that
+        are still physically at their old positions and cause
+        visible jitter. When animating, the latest grid is stashed
+        and applied from ``_onAnimationFinished``.
+        """
+        if self.isAnimating():
+            self._deferred_grid = grid
+            return
+        self.populate(grid)
 
     def animateAdvance(
         self,
@@ -223,6 +247,9 @@ class DetectedClusterCollectionWidget(QWidget):
         if hasattr(self, "_pending_grid"):
             self.populate(self._pending_grid)
             del self._pending_grid
+        if self._deferred_grid is not None:
+            self.populate(self._deferred_grid)
+            self._deferred_grid = None
         self._repositionCells()
         self.advanceFinished.emit()
 

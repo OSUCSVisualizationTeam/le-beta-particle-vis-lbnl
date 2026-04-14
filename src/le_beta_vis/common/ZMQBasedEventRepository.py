@@ -22,6 +22,7 @@ from .CCDCaptureModel import CCDCaptureModel
 from .EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
+    ClusterRecentQueryFilter,
     ClusterStoreRequest,
     EPSClusterRecord,
     EPSFitsRecord,
@@ -154,6 +155,36 @@ class ZMQBasedEventRepository(EventRepository):
             fitsFilename = record.filename
             fits_date = record.date
             cluster = self._map_to_cluster(record, fitsFilename, fits_date)
+            if cluster is not None:
+                clusters.append(cluster)
+        return clusters
+
+    def query_recent_clusters(
+        self, limit: int, offset: int = 0
+    ) -> List[Cluster]:
+        """Sends a RecentRetrieval request to the EPS Cluster socket."""
+        request = ClusterRecentQueryFilter(
+            limit=limit, offset=offset
+        ).to_eps_dict()
+
+        response = self._send_cluster(request)
+        if response is None:
+            return []
+
+        if response.get("result") != "success":
+            logger.warning(
+                "EPS recent cluster query returned failure: %s",
+                response.get("result"),
+            )
+            return []
+
+        raw_clusters = response.get("clusters", [])
+        clusters: List[Cluster] = []
+        for raw in raw_clusters:
+            record = EPSClusterRecord.from_eps_dict(raw)
+            cluster = self._map_to_cluster(
+                record, record.filename, record.date
+            )
             if cluster is not None:
                 clusters.append(cluster)
         return clusters

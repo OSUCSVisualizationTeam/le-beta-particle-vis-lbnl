@@ -105,6 +105,13 @@ class MockEventRepository(EventRepository):
 
         self.fetch_events(callback=_filter_and_forward, on_error=on_error)
 
+    def query_recent_clusters(
+        self, limit: int, offset: int = 0
+    ) -> List[Cluster]:
+        """Returns a bounded slice of synthetic clusters, offset-paginated."""
+        clusters = self.fetch_events()
+        return clusters[offset : offset + limit]
+
     @staticmethod
     def _matches(
         cluster: Cluster, qf: ClusterQueryFilter
