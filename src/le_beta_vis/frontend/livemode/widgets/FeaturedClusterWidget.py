@@ -108,7 +108,10 @@ class FeaturedClusterWidget(QWidget):
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(4)
 
-        self._featuredWidget = EnergyClusterWidget(size=64)
+        self._featuredWidget = EnergyClusterWidget(
+            size=64, enable_hover_tooltip=True,
+        )
+        self._featuredWidget.set_kev_converter(self._vm.physics.adu_to_kev)
         self._featuredWidget.setStyleSheet(
             f"background-color: {LiveModeColors.BACKGROUND};"
         )

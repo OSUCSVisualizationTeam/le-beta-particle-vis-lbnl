@@ -100,7 +100,10 @@ class HistoricalEventInspector(QWidget):
 
         # Left column: cluster image
         leftCol = QVBoxLayout()
-        self._imageWidget = EnergyClusterWidget(size=_HIGH_RES_SIZE)
+        self._imageWidget = EnergyClusterWidget(
+            size=_HIGH_RES_SIZE, enable_hover_tooltip=True,
+        )
+        self._imageWidget.set_kev_converter(self._vm.physics.adu_to_kev)
         leftCol.addWidget(self._imageWidget)
         leftCol.addStretch()
         top.addLayout(leftCol)
