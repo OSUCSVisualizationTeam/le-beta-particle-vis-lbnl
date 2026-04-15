@@ -246,20 +246,6 @@ gui:historical:default_time_preset:
     windowed presets resolve to a [now-window, now] range each
     time they are applied.
 
-gui:historical:live_update_rate_ms:
-  type: int
-  default: 1000
-  description: >-
-    Refresh rate (in milliseconds) for the live monitoring dashboard.
-
-gui:historical:mode:
-  type: enum
-  choices: ["live", "historical"]
-  default: "historical"
-  description: >-
-    Operational mode of the Historical View.
-    Values: live, historical.
-
 gui:historical:classification_threshold:
   type: float
   default: 0.75
@@ -509,21 +495,21 @@ event_handler:logging_handler_min_level:
 gui:livemode:colormap:
   type: enum
   choices: [viridis, plasma, inferno, magma, jet, bone, hot, cool, grayscale]
-  default: inferno
+  default: jet
   description: >-
     Colormap used for all cluster thumbnails in the Live Mode
     screensaver.
 
 gui:livemode:grid_columns:
   type: int
-  default: 40
+  default: 16
   description: >-
     Number of columns in the Live Mode thumbnail grid.
     rows x columns must be between 20 and 2000.
 
 gui:livemode:grid_rows:
   type: int
-  default: 25
+  default: 12
   description: >-
     Number of rows in the Live Mode thumbnail grid.
     rows x columns must be between 20 and 2000.

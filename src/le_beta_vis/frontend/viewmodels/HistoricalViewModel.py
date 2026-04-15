@@ -1,7 +1,6 @@
 import logging
 import threading
 from typing import List, Callable, Optional, Set
-from enum import Enum
 
 import numpy as np
 
@@ -20,17 +19,11 @@ from le_beta_vis.common.ThumbnailLoaderService import ThumbnailLoaderService
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
 
 
-class HistoricalMode(str, Enum):
-    LIVE = "live"
-    HISTORICAL = "historical"
-
-
 class HistoricalViewModel:
     """ViewModel for the Historical Event Analysis mode.
 
-    Manages mode state (Live vs Historical), event data from an
-    ``EventRepository``, and the currently selected event for
-    the Detail Inspector.
+    Manages event data from an ``EventRepository`` and the currently
+    selected event for the Detail Inspector.
 
     Pure Python class — no Qt dependencies.
     """
@@ -50,10 +43,6 @@ class HistoricalViewModel:
         self._histogramRenderer: HistogramRenderer = (
             histogramRenderer or MatplotlibHistogramRenderer()
         )
-
-        # Mode state
-        mode_str = self._config.get("gui:historical:mode", HistoricalMode.HISTORICAL)
-        self._mode = HistoricalMode(mode_str)
 
         # Event state
         self._events: List[Cluster] = []
@@ -88,11 +77,6 @@ class HistoricalViewModel:
         self._on_load_error_callbacks: List[Callable[[str], None]] = []
         self._on_thumbnail_ready_callbacks: List[Callable[[int, np.ndarray], None]] = []
     # --- Properties ---
-
-    @property
-    def mode(self) -> HistoricalMode:
-        """Current operational mode (live or historical)."""
-        return self._mode
 
     @property
     def events(self) -> List[Cluster]:
@@ -151,34 +135,6 @@ class HistoricalViewModel:
         )
 
     # --- Commands ---
-
-    def setMode(self, mode: HistoricalMode) -> None:
-        """Sets the operational mode.
-
-        Args:
-            mode: The new mode to switch to.
-
-        Raises:
-            ValueError: If *mode* is not a valid HistoricalMode.
-        """
-        if not isinstance(mode, HistoricalMode):
-            try:
-                mode = HistoricalMode(mode)
-            except ValueError:
-                raise ValueError(f"Invalid mode: {mode}")
-
-        if self._mode != mode:
-            self._mode = mode
-            self._notify_mode_changed()
-
-    def toggleMode(self) -> None:
-        """Toggles between Live and Historical mode."""
-        new_mode = (
-            HistoricalMode.HISTORICAL
-            if self._mode == HistoricalMode.LIVE
-            else HistoricalMode.LIVE
-        )
-        self.setMode(new_mode)
 
     def setQueryFilter(self, query_filter: Optional[ClusterQueryFilter]) -> None:
         """Sets filter criteria for the next ``loadEvents`` call.
@@ -372,10 +328,6 @@ class HistoricalViewModel:
         for callback in events_loaded_callbacks:
             callback(events)
         self._notify_events_changed()
-
-    def _notify_mode_changed(self) -> None:
-        for callback in self._on_mode_changed_callbacks:
-            callback(self._mode)
 
     def _notify_events_changed(self) -> None:
         with self._state_lock:

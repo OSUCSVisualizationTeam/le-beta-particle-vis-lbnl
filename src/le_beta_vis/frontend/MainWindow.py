@@ -12,10 +12,7 @@ from .viewmodels.MainViewModel import MainViewModel
 from .views.RawDataView import RawDataView
 from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
-from .viewmodels.HistoricalViewModel import (
-    HistoricalViewModel,
-    HistoricalMode,
-)
+from .viewmodels.HistoricalViewModel import HistoricalViewModel
 from le_beta_vis.common.ClusterExtractorFactory import (
     create_cluster_extractor,
 )
@@ -32,7 +29,6 @@ class MainWindow(QMainWindow):
         self._setupViewModels()
         self._setupViews()
         self.setupMenuBar()
-        self._bindCallbacks()
 
     # -- Initialization helpers ------------------------------------------------
 
@@ -81,9 +77,6 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.rawDataView, self.tr("Raw Data Analysis"))
         self.tabs.addTab(self.historicalView, self.tr("Historical Analysis"))
 
-    def _bindCallbacks(self) -> None:
-        self.historicalViewModel.add_mode_changed_callback(self.onModeChanged)
-
     # -- Menu bar --------------------------------------------------------------
 
     def setupMenuBar(self) -> None:
@@ -91,7 +84,6 @@ class MainWindow(QMainWindow):
         self._setupFileMenu(menuBar)
         self._setupViewMenu(menuBar)
         self._setupHelpMenu(menuBar)
-        self.onModeChanged(self.historicalViewModel.mode)
 
     def _setupFileMenu(self, menuBar) -> None:
         fileMenu = menuBar.addMenu(self.tr("&File"))
@@ -125,20 +117,10 @@ class MainWindow(QMainWindow):
     def _setupViewMenu(self, menuBar) -> None:
         viewMenu = menuBar.addMenu(self.tr("&View"))
 
-        self.toggleLiveAction = QAction(self.tr("Switch to Live Mode"), self)
-        self.toggleLiveAction.setCheckable(True)
-        self.toggleLiveAction.setChecked(False)
-        self.toggleLiveAction.triggered.connect(self.onToggleLiveMode)
-        viewMenu.addAction(self.toggleLiveAction)
-
-        viewMenu.addSeparator()
-
-        screensaverAction = QAction(
-            self.tr("Enter &Screensaver"), self,
-        )
-        screensaverAction.setShortcut(QKeySequence("Ctrl+Shift+S"))
-        screensaverAction.triggered.connect(self._onEnterScreensaver)
-        viewMenu.addAction(screensaverAction)
+        liveModeAction = QAction(self.tr("Live Mode"), self)
+        liveModeAction.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        liveModeAction.triggered.connect(self._onEnterScreensaver)
+        viewMenu.addAction(liveModeAction)
 
     def _setupHelpMenu(self, menuBar) -> None:
         helpMenu = menuBar.addMenu(self.tr("&Help"))
@@ -198,18 +180,3 @@ class MainWindow(QMainWindow):
         if filePath:
             self.tabs.setCurrentWidget(self.rawDataView)
             self.rawDataViewModel.loadFile(filePath)
-
-    def onToggleLiveMode(self) -> None:
-        """Handle the toggle action from the menu."""
-        if self.tabs.currentWidget() == self.rawDataView:
-            self.tabs.setCurrentWidget(self.historicalView)
-        self.historicalViewModel.toggleMode()
-
-    def onModeChanged(self, mode: HistoricalMode) -> None:
-        """Callback from ViewModel when mode changes."""
-        is_live = mode == HistoricalMode.LIVE
-        self.toggleLiveAction.setChecked(is_live)
-        if is_live:
-            self.toggleLiveAction.setText(self.tr("Switch to Historical Mode"))
-        else:
-            self.toggleLiveAction.setText(self.tr("Switch to Live Mode"))

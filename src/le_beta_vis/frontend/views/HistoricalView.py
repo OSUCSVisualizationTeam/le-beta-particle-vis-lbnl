@@ -11,10 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..viewmodels.HistoricalViewModel import (
-    HistoricalViewModel,
-    HistoricalMode,
-)
+from ..viewmodels.HistoricalViewModel import HistoricalViewModel
 from ..viewmodels.HistoricalFilterBarViewModel import (
     HistoricalFilterBarViewModel,
 )
@@ -32,8 +29,6 @@ from ..widgets.ProgressOverlay import ProgressOverlay
 class _Style:
     BROWSER_PANEL = "background-color: #2d2d2d;"
     INSPECTOR_PANEL = "background-color: #f0f0f0; color: #000000;"
-    MODE_LIVE = "color: red; font-weight: bold;"
-    MODE_HISTORICAL = "color: #cccccc;"
 
 
 class HistoricalView(QWidget):
@@ -119,15 +114,9 @@ class HistoricalView(QWidget):
         self._connectViewModelCallbacks()
         self._configureInspector()
         self._configureGridWidget()
-        self._updateMode()
 
     def _connectViewModelCallbacks(self) -> None:
         """Registers ViewModel observers and grid signals."""
-        self.viewModel.add_mode_changed_callback(
-            lambda mode: QMetaObject.invokeMethod(
-                self, "_updateMode", Qt.AutoConnection
-            )
-        )
         self.viewModel.add_events_changed_callback(
             lambda: QMetaObject.invokeMethod(self, "_updateEvents", Qt.AutoConnection)
         )
@@ -176,17 +165,6 @@ class HistoricalView(QWidget):
         )
 
     # --- Slots ---
-
-    @Slot()
-    def _updateMode(self) -> None:
-        mode = self.viewModel.mode
-        lbl = self._filterBar.modeLabel
-        if mode == HistoricalMode.LIVE:
-            lbl.setText(self.tr("LIVE MONITORING"))
-            lbl.setStyleSheet(_Style.MODE_LIVE)
-        else:
-            lbl.setText(self.tr("Historical"))
-            lbl.setStyleSheet(_Style.MODE_HISTORICAL)
 
     @Slot()
     def _updateEvents(self) -> None:
