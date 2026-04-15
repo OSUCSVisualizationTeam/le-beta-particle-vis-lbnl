@@ -9,7 +9,7 @@ import json
 import logging
 import math
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 import threading
 
 import numpy as np
@@ -36,7 +36,6 @@ _DEFAULT_CLUSTER_IPC = "ipc:///tmp/EPCCluster.ipc"
 _DEFAULT_FITS_IPC = "ipc:///tmp/EPCFits.ipc"
 _DEFAULT_TIMEOUT_MS = 5000
 
-
 class ZMQBasedEventRepository(EventRepository):
     """Concrete ``EventRepository`` backed by the EPS ZMQ protocol.
 
@@ -52,16 +51,84 @@ class ZMQBasedEventRepository(EventRepository):
         self._config = config
         self._ctx = context or zmq.Context.instance()
 
+    def _run_async(self,
+                   function: Callable,
+                   callback: Callable,
+                   on_error: Callable
+                   ) -> None:
+        """Helper method to run Event Repository retrieval functions asynchronously."""
+        def async_wrapper():
+            try:
+                result = function()
+                callback(result)
+            except Exception as exc:
+                logger.warning("Error in async operation: %s", exc, exc_info=True)
+                on_error(str(exc))
+        thread = threading.Thread(target=async_wrapper, daemon=True)
+        thread.start()
+
+    # ------------------------------------------------------------------
+    # Async Wrappers for Public API
+    # ------------------------------------------------------------------
+
+    def fetch_events(
+            self,
+            callback: Callable,
+            on_error: Callable
+    ) -> None:
+        """Returns all cluster events from the EPS asynchronously."""
+        self._run_async(
+            function=lambda: self.query_clusters_sync(query_filter=None),
+            callback=callback,
+            on_error=on_error
+        )
+
+    def query_clusters(
+        self,
+        query_filter: Optional[ClusterQueryFilter],
+        callback: Callable,
+        on_error: Callable
+    ) -> None:
+        """Initiates a query_cluster function asnychronously with the _run_async function."""
+        self._run_async(
+            function=lambda: self.query_clusters_sync(query_filter=query_filter),
+            callback=callback,
+            on_error=on_error
+        )
+
+    def query_fits(
+        self,
+        query_filter: Optional[FitsQueryFilter],
+        callback: Callable,
+        on_error: Callable
+    ) -> None:
+        """Initiates a query_fits function asnychronously with the _run_async function."""
+        self._run_async(
+            function=lambda: self.query_fits_sync(query_filter=query_filter),
+            callback=callback,
+            on_error=on_error
+        )
+
+    def query_fits_clusters(
+        self,
+        query_filter: Optional[FitsClusterQueryFilter],
+        callback: Callable,
+        on_error: Callable
+    ) -> None:
+        """Initiates a query_fits_clusters function asnychronously with the _run_async function."""
+        self._run_async(
+            function=lambda: self.query_fits_clusters_sync(query_filter=query_filter),
+            callback=callback,
+            on_error=on_error
+        )
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def fetch_events(self) -> List[Cluster]:
-        """Returns all cluster events from the EPS."""
-        return self.query_clusters(query_filter=None)
-
-    def query_clusters(
-        self, query_filter: Optional[ClusterQueryFilter] = None
+    def query_clusters_sync(
+        self,
+        query_filter: Optional[ClusterQueryFilter] = None
     ) -> List[Cluster]:
         """Sends a filtered retrieval request to the EPS Cluster socket."""
         if query_filter is not None:
@@ -78,7 +145,7 @@ class ZMQBasedEventRepository(EventRepository):
                 "EPS cluster query returned failure: %s",
                 response.get("result"),
             )
-            return []
+            raise Exception(f"EPS cluster query failed: {response.get('result')}")
 
         raw_clusters = response.get("clusters", [])
         clusters: List[Cluster] = []
@@ -117,7 +184,7 @@ class ZMQBasedEventRepository(EventRepository):
             return False
         return True
 
-    def query_fits(
+    def query_fits_sync(
         self, query_filter: Optional[FitsQueryFilter] = None
     ) -> List[EPSFitsRecord]:
         """Sends a retrieval request to the EPS FITS socket."""
@@ -133,11 +200,11 @@ class ZMQBasedEventRepository(EventRepository):
                 "EPS fits query returned failure: %s",
                 response.get("result"),
             )
-            return []
+            raise Exception(f"EPS fits query failed: {response.get('result')}")
         raw_files = response.get("fits", [])
         return [EPSFitsRecord.from_eps_dict(f) for f in raw_files]
 
-    def query_fits_clusters(
+    def query_fits_clusters_sync(
         self, query_filter: Optional[FitsClusterQueryFilter] = None
     ) -> List[EPSFitsRecord]:
         """Sends a retrieval request to the EPS FITS socket."""
@@ -153,7 +220,7 @@ class ZMQBasedEventRepository(EventRepository):
                 "EPS fits query returned failure: %s",
                 response.get("result"),
             )
-            return []
+            raise Exception(f"EPS fits query failed: {response.get('result')}")
         raw_clusters = response.get("clusters", [])
         clusters: List[Cluster] = []
         for raw in raw_clusters:
