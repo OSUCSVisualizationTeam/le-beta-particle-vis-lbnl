@@ -7,20 +7,26 @@ from .interface import Colormap
 from .opencv import OpenCVBasedConverter
 
 
-def _pad_to_square(buffer: np.ndarray) -> np.ndarray:
+def _pad_to_square(
+    buffer: np.ndarray, target_side: Optional[int] = None,
+) -> np.ndarray:
     """Centers *buffer* inside a square canvas filled with zeros.
 
-    Handles both 2D grayscale and 3D ``(H, W, 3)`` RGB buffers.
-    Returns ``buffer`` unchanged when it is already square.
-    Zero is the correct fill value: both the grayscale and the
-    OpenCV colormap pipelines map a zero-energy pixel to black,
-    so padded pixels are visually indistinguishable from a real
-    empty cell.
+    Callers are expected to pass the raw float energy buffer — the
+    colormap then paints zero-energy pixels with its own "bottom of
+    range" shade, so padded borders blend naturally with the darkest
+    real pixels rather than rendering as literal RGB black.
+
+    When ``target_side`` is given, pads to that size instead of
+    ``max(h, w)``; useful for rendering a grid of clusters against a
+    shared canvas so relative spatial sizes are preserved. The
+    caller is responsible for choosing a side no smaller than
+    ``max(h, w)``.
     """
     h, w = buffer.shape[:2]
-    if h == w:
+    side = target_side if target_side is not None else max(h, w)
+    if h == side and w == side:
         return buffer
-    side = max(h, w)
     pad_top = (side - h) // 2
     pad_bottom = side - h - pad_top
     pad_left = (side - w) // 2
@@ -37,6 +43,7 @@ def generate_cluster_thumbnail(
     colormap: Optional[Colormap] = None,
     fallback_size: Tuple[int, int] = (48, 48),
     pad_to_square: bool = False,
+    target_side: Optional[int] = None,
 ) -> np.ndarray:
     """Generates a uint8 buffer from cluster energy data.
 
@@ -51,10 +58,15 @@ def generate_cluster_thumbnail(
         fallback_size: (height, width) returned when data is
             None or empty.
         pad_to_square: When True, pads the shorter axis with zeros
-            (black) so the result is square. Useful when the consumer
-            paints the thumbnail into a square cell without aspect
-            preservation, since pre-squaring the buffer prevents
-            stretching downstream.
+            so the result is square. Padding is applied in energy
+            space before the colormap is sampled, so padded pixels
+            inherit the colormap's zero-value shade instead of
+            rendering as literal black.
+        target_side: When given together with ``pad_to_square``,
+            pads to exactly this side length. Lets callers align
+            many clusters against a shared canvas so relative sizes
+            are preserved across a grid. Must be no smaller than
+            ``max(data.shape[:2])``.
 
     Returns:
         A contiguous uint8 numpy array (2D grayscale or 3D RGB).
@@ -65,27 +77,21 @@ def generate_cluster_thumbnail(
         else:
             buffer = np.zeros(fallback_size, dtype=np.uint8)
         if pad_to_square:
-            return _pad_to_square(buffer)
+            return _pad_to_square(buffer, target_side=target_side)
         return buffer
+
+    float_data = data.astype(float)
+    if pad_to_square:
+        float_data = _pad_to_square(float_data, target_side=target_side)
 
     if colormap is not None:
         converter = OpenCVBasedConverter()
-        vmax = float(np.max(data))
+        vmax = float(np.max(float_data))
         if vmax <= 0:
             vmax = 1.0
-        buffer = converter.convert(
-            data.astype(float),
-            colormap,
-            (0.0, vmax),
-        )
-    else:
-        converter = FastPixmapConverter()
-        buffer = converter.convert(
-            data.astype(float),
-            Colormap.VIRIDIS,
-            (0.0, float("inf")),
-        )
+        return converter.convert(float_data, colormap, (0.0, vmax))
 
-    if pad_to_square:
-        return _pad_to_square(buffer)
-    return buffer
+    converter = FastPixmapConverter()
+    return converter.convert(
+        float_data, Colormap.VIRIDIS, (0.0, float("inf")),
+    )

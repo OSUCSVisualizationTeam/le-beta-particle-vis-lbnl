@@ -43,6 +43,7 @@ class _ThumbnailCell(QLabel):
         colormap: Optional[Colormap],
         cell_size: int,
         empty_pixmap: Optional[QPixmap] = None,
+        target_side: Optional[int] = None,
     ) -> None:
         """Renders a cluster thumbnail into this cell.
 
@@ -51,6 +52,9 @@ class _ThumbnailCell(QLabel):
             colormap: Colormap for rendering.
             cell_size: Target side length in pixels.
             empty_pixmap: Pre-rendered pixmap for empty cells.
+            target_side: Shared bbox side across all cells in the
+                same repaint so small clusters are not upscaled to
+                fill the cell, preserving relative spatial scale.
         """
         if cluster is None or cluster.data is None:
             if empty_pixmap is not None:
@@ -60,7 +64,12 @@ class _ThumbnailCell(QLabel):
                 pm.fill(Qt.black)
                 self.setPixmap(pm)
             return
-        self.setPixmap(EnergyClusterWidget.to_pixmap(cluster.data, colormap, cell_size))
+        self.setPixmap(
+            EnergyClusterWidget.to_pixmap(
+                cluster.data, colormap, cell_size,
+                target_side=target_side,
+            )
+        )
 
 
 class DetectedClusterCollectionWidget(QWidget):
@@ -106,9 +115,13 @@ class DetectedClusterCollectionWidget(QWidget):
         """
         colormap = self._vm.colormap
         empty_pm = self._makeEmptyPixmap(colormap, self._cell_size)
+        target_side = self._computeCommonBboxSide(grid)
         for i, cell in enumerate(self._cells):
             cluster = grid[i] if i < len(grid) else None
-            cell.setClusterPixmap(cluster, colormap, self._cell_size, empty_pm)
+            cell.setClusterPixmap(
+                cluster, colormap, self._cell_size, empty_pm,
+                target_side=target_side,
+            )
 
     def isAnimating(self) -> bool:
         """True while a snake-shift animation group is running."""
@@ -190,6 +203,24 @@ class DetectedClusterCollectionWidget(QWidget):
         return EnergyClusterWidget.to_pixmap(
             np.zeros((1, 1), dtype=np.float32), colormap, cell_size
         )
+
+    @staticmethod
+    def _computeCommonBboxSide(
+        grid: List[Optional[Cluster]],
+    ) -> Optional[int]:
+        """Returns the largest bbox side across data-bearing clusters.
+
+        All cells pad to this shared side so a 5×5 cluster and a
+        40×40 cluster render at proportionally different on-screen
+        sizes, preserving relative spatial scale. Returns ``None``
+        when the grid has no cluster data.
+        """
+        sides = [
+            max(c.data.shape[:2])
+            for c in grid
+            if c is not None and c.data is not None and c.data.size > 0
+        ]
+        return max(sides) if sides else None
 
     def _computeCellSize(self) -> int:
         """Derives cell side length from available widget space."""

@@ -47,6 +47,7 @@ class EnergyClusterWidget(QLabel):
         data: np.ndarray,
         colormap: Optional[Colormap] = None,
         size: Optional[int] = None,
+        target_side: Optional[int] = None,
     ) -> QPixmap:
         """Converts cluster energy data to a QPixmap.
 
@@ -58,12 +59,18 @@ class EnergyClusterWidget(QLabel):
             data: 2D numpy array of energy values.
             colormap: Colormap enum or None for grayscale.
             size: If given, scales the pixmap to this square size.
+            target_side: Shared square canvas side for the padding
+                step; lets callers align a grid of clusters against a
+                common reference so relative sizes are preserved.
 
         Returns:
             A QPixmap ready for display.
         """
         buffer = generate_cluster_thumbnail(
-            data, colormap=colormap, pad_to_square=True
+            data,
+            colormap=colormap,
+            pad_to_square=True,
+            target_side=target_side,
         )
         h, w = buffer.shape[:2]
         if buffer.ndim == 3:
