@@ -15,6 +15,7 @@ from le_beta_vis.common.ParticleType import ParticleType
 from le_beta_vis.frontend.viewmodels.HistoricalFilterBarViewModel import (
     HistoricalFilterBarViewModel,
     _PRESET_TO_HOURS,
+    _VALID_PRESETS,
 )
 
 
@@ -43,35 +44,29 @@ def vm(config, physics):
 
 
 class TestInitialization:
-    def test_default_time_preset_24h(self, config, physics):
-        """Default query hours 24 maps to '24h' preset."""
-        config.set("gui:historical:default_query_hours", 24)
+    def test_default_time_preset_all(self, config, physics):
+        """The factory default is 'all' (no date filter)."""
+        # Mock defaults to "all"; ensure the VM picks it up.
         vm = HistoricalFilterBarViewModel(config, physics)
-        assert vm.time_preset == "24h"
+        assert vm.time_preset == "all"
 
-    def test_default_time_preset_3d(self, config, physics):
-        """Default query hours 72 maps to '3d' preset."""
-        config.set("gui:historical:default_query_hours", 72)
+    @pytest.mark.parametrize("preset", ["all", "24h", "3d", "7d", "30d"])
+    def test_default_time_preset_from_config(self, config, physics, preset):
+        """Any valid preset string in config is respected."""
+        config.set("gui:historical:default_time_preset", preset)
         vm = HistoricalFilterBarViewModel(config, physics)
-        assert vm.time_preset == "3d"
+        assert vm.time_preset == preset
 
-    def test_default_time_preset_7d(self, config, physics):
-        """Default query hours 168 maps to '7d' preset."""
-        config.set("gui:historical:default_query_hours", 168)
+    def test_default_time_preset_unknown_falls_back_to_all(
+        self, config, physics
+    ):
+        """Unknown config values collapse to 'all'."""
+        config.set("gui:historical:default_time_preset", "bogus")
         vm = HistoricalFilterBarViewModel(config, physics)
-        assert vm.time_preset == "7d"
+        assert vm.time_preset == "all"
 
-    def test_default_time_preset_30d(self, config, physics):
-        """Default query hours 720 maps to '30d' preset."""
-        config.set("gui:historical:default_query_hours", 720)
-        vm = HistoricalFilterBarViewModel(config, physics)
-        assert vm.time_preset == "30d"
-
-    def test_default_time_preset_unknown_hours(self, config, physics):
-        """Unknown default_query_hours falls back to '24h'."""
-        config.set("gui:historical:default_query_hours", 999)
-        vm = HistoricalFilterBarViewModel(config, physics)
-        assert vm.time_preset == "24h"
+    def test_all_preset_is_in_valid_presets(self):
+        assert "all" in _VALID_PRESETS
 
     def test_energy_unit_label_kev(self, vm):
         """Energy unit label defaults to 'keV'."""
@@ -256,7 +251,7 @@ class TestReset:
 
     def test_restores_default_time_preset(self, config, physics):
         """reset() restores the default time preset from config."""
-        config.set("gui:historical:default_query_hours", 168)
+        config.set("gui:historical:default_time_preset", "7d")
         vm = HistoricalFilterBarViewModel(config, physics)
         vm.time_preset = "30d"
         vm.reset()
@@ -343,6 +338,45 @@ class TestDateTimeProperties:
         assert vm.start_datetime is None
 
 
+# --- datetime forwarding into ClusterQueryFilter ---
+
+
+class TestDateTimeForwarding:
+    def test_dates_forwarded_to_filter(self, vm):
+        """build_filter() forwards both datetimes into ClusterQueryFilter."""
+        start = datetime(2025, 1, 1, 0, 0, 0)
+        end = datetime(2025, 12, 31, 23, 59, 59)
+        vm.start_datetime = start
+        vm.end_datetime = end
+        f = vm.build_filter()
+        assert f.date_start == start
+        assert f.date_end == end
+
+    def test_no_dates_yields_none(self, vm):
+        """Default state produces a filter with no date range set."""
+        f = vm.build_filter()
+        assert f.date_start is None
+        assert f.date_end is None
+
+    def test_start_setter_rejects_string(self, vm):
+        with pytest.raises(TypeError):
+            vm.start_datetime = "2025-01-01"
+
+    def test_end_setter_rejects_int(self, vm):
+        with pytest.raises(TypeError):
+            vm.end_datetime = 12345
+
+    def test_start_setter_accepts_none_after_value(self, vm):
+        vm.start_datetime = datetime(2025, 1, 1)
+        vm.start_datetime = None
+        assert vm.start_datetime is None
+
+    def test_end_setter_accepts_none_after_value(self, vm):
+        vm.end_datetime = datetime(2025, 1, 1)
+        vm.end_datetime = None
+        assert vm.end_datetime is None
+
+
 # --- compute_dates_for_preset() ---
 
 
@@ -370,3 +404,107 @@ class TestComputeDatesForPreset:
             "24h"
         )
         assert abs((datetime.now() - end).total_seconds()) < 2
+
+
+# --- apply_time_preset() ---
+
+
+class TestApplyTimePreset:
+    @pytest.mark.parametrize("preset,hours", list(_PRESET_TO_HOURS.items()))
+    def test_non_custom_preset_resolves_to_fresh_range(self, vm, preset, hours):
+        """Selecting any non-custom preset writes a fresh [now-window, now]."""
+        vm.apply_time_preset(preset)
+        assert vm.time_preset == preset
+        assert vm.start_datetime is not None
+        assert vm.end_datetime is not None
+        delta = vm.end_datetime - vm.start_datetime
+        assert delta == timedelta(hours=hours)
+        # End should be very close to now
+        assert abs((datetime.now() - vm.end_datetime).total_seconds()) < 2
+
+    def test_default_preset_resolves_when_starting_from_clean_state(self, vm):
+        """On app start, clicking Apply with the default preset must yield
+        a well-defined filter. The factory default is 'all' (no date
+        filter), so the resulting ClusterQueryFilter has no date fields.
+        """
+        assert vm.time_preset == "all"
+        assert vm.start_datetime is None
+        assert vm.end_datetime is None
+        vm.apply_time_preset(vm.time_preset)
+        f = vm.build_filter()
+        assert f.date_start is None
+        assert f.date_end is None
+        assert "date" not in f.to_eps_dict()
+
+    def test_custom_preset_preserves_existing_dates(self, vm):
+        """'custom' must NOT overwrite manually-set datetimes."""
+        manual_start = datetime(2025, 6, 1, 0, 0, 0)
+        manual_end = datetime(2025, 6, 30, 23, 59, 59)
+        vm.start_datetime = manual_start
+        vm.end_datetime = manual_end
+        vm.apply_time_preset("custom")
+        assert vm.time_preset == "custom"
+        assert vm.start_datetime == manual_start
+        assert vm.end_datetime == manual_end
+
+    def test_non_custom_overwrites_previous_custom_dates(self, vm):
+        """Picking a window preset must discard prior custom dates."""
+        vm.start_datetime = datetime(2020, 1, 1)
+        vm.end_datetime = datetime(2020, 12, 31)
+        vm.apply_time_preset("7d")
+        # The new range should be relative to now, not 2020
+        assert vm.start_datetime.year >= datetime.now().year - 1
+        assert (vm.end_datetime - vm.start_datetime) == timedelta(hours=168)
+
+    def test_all_preset_clears_datetimes(self, vm):
+        """'all' means no date filter — both datetimes are cleared."""
+        # Pre-populate with arbitrary dates.
+        vm.start_datetime = datetime(2022, 10, 4, 0, 0, 0)
+        vm.end_datetime = datetime(2022, 10, 10, 0, 0, 0)
+        vm.apply_time_preset("all")
+        assert vm.time_preset == "all"
+        assert vm.start_datetime is None
+        assert vm.end_datetime is None
+
+    def test_all_preset_build_filter_omits_date(self, vm):
+        """After apply_time_preset('all'), build_filter carries no date."""
+        vm.start_datetime = datetime(2022, 10, 4, 0, 0, 0)
+        vm.end_datetime = datetime(2022, 10, 10, 0, 0, 0)
+        vm.apply_time_preset("all")
+        f = vm.build_filter()
+        assert f.date_start is None
+        assert f.date_end is None
+        # to_eps_dict must not include the "date" key either.
+        assert "date" not in f.to_eps_dict()
+
+    def test_all_preset_after_windowed_preset(self, vm):
+        """Switching from a windowed preset to 'all' clears the range."""
+        vm.apply_time_preset("7d")
+        assert vm.start_datetime is not None
+        vm.apply_time_preset("all")
+        assert vm.start_datetime is None
+        assert vm.end_datetime is None
+
+    def test_custom_dates_survive_inline_bar_apply(self, vm):
+        """Regression: the Advanced Filter Dialog sets custom dates and
+        time_preset='custom'. A subsequent inline-bar Apply calls
+        apply_time_preset(vm.time_preset) — which is 'custom' — and must
+        leave the manually-chosen range intact.
+        """
+        # Simulate dialog write: explicit range + custom mode.
+        manual_start = datetime(2025, 6, 1, 0, 0, 0)
+        manual_end = datetime(2025, 6, 30, 23, 59, 59)
+        vm.start_datetime = manual_start
+        vm.end_datetime = manual_end
+        vm.time_preset = "custom"
+
+        # Simulate inline-bar Apply click.
+        vm.apply_time_preset(vm.time_preset)
+
+        # Custom range must survive.
+        assert vm.time_preset == "custom"
+        assert vm.start_datetime == manual_start
+        assert vm.end_datetime == manual_end
+        f = vm.build_filter()
+        assert f.date_start == manual_start
+        assert f.date_end == manual_end

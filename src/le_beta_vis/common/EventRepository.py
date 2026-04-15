@@ -7,6 +7,7 @@ from .EPSDataClasses import (
     ClusterQueryFilter,
     ClusterStoreRequest,
     EPSFitsRecord,
+    FitsClusterQueryFilter,
 )
 
 onCluster = Callable[[List[Cluster]], None]
@@ -91,5 +92,20 @@ class EventRepository(ABC):
 
         Returns:
             Matching FITS records.
+        """
+        raise NotImplementedError
+
+    def query_fits_clusters(
+        self, query_filter: Optional[FitsClusterQueryFilter] = None
+    ) -> List[Cluster]:
+        """Retrieve clusters filtered by FITS metadata.
+
+        Args:
+            query_filter: Optional filter criteria.  ``None``
+                means return clusters for all FITS files.
+
+        Returns:
+            Matching ``Cluster`` objects, enriched with FITS
+            filename and date from the backend response.
         """
         raise NotImplementedError

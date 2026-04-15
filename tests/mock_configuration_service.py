@@ -16,14 +16,12 @@ class MockConfigurationService(ConfigurationService):
         self._store: Dict[str, Any] = {
             # Global / Infrastructure
             "global:db:connection_string": "mysql://localhost/mlccd_viz",
-            "global:redis:host": "localhost",
-            "global:redis:port": 6379,
-            "global:redis:channel_events": "events/new_class",
             # Physics (From Design Q&A section)
             "global:physics:kev_conversion": 1.02857e-5,
             "global:physics:ped_width": 1400,
             # Interactive Raw Data Analysis (GUI)
             "gui:raw_analysis:default_colormap": "viridis",
+            "gui:raw_analysis:default_scaling_function": "linear",
             "gui:raw_analysis:vis_range_min": 0.0,
             "gui:raw_analysis:vis_range_max": 20.0,
             "gui:raw_analysis:filter_gaussian_sigma": 1.5,
@@ -52,7 +50,7 @@ class MockConfigurationService(ConfigurationService):
             "gui:mosaic:thumbnail_height": 100,
             "gui:mosaic:scaling_function": "log",
             # Historical Event Analysis (GUI)
-            "gui:historical:default_query_hours": 24,
+            "gui:historical:default_time_preset": "all",
             "gui:historical:live_update_rate_ms": 1000,
             "gui:historical:mode": "historical",
             "gui:historical:classification_threshold": 0.75,

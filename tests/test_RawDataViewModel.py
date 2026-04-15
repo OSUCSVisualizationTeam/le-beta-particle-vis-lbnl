@@ -6,6 +6,7 @@
 # and interaction with CCDCaptureModel without using Qt.
 
 import sys
+import threading
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -14,7 +15,7 @@ import pytest
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
-from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter
+from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter, ScalingFunction
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     RawDataViewModel,
@@ -414,3 +415,109 @@ def test_request_render_skips_when_no_data():
 
     # Queue should be empty — render was skipped
     assert vm._render_queue.empty()
+
+
+def test_request_render_coalescing_does_not_raise():
+    """Rapid concurrent _request_render calls must not raise or deadlock.
+
+    Verifies the put_nowait/Full guard is safe under concurrent callers.
+    With the old get_nowait()/put() pair, two racing threads could both
+    drain the queue and then both block on put(), deadlocking the UI thread.
+    """
+    config = MockConfigurationService()
+    physics = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics)
+
+    errors: list = []
+
+    def call_many() -> None:
+        for _ in range(200):
+            try:
+                vm._request_render()
+            except Exception as exc:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=call_many) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5.0)
+
+    assert not errors, f"_request_render raised: {errors}"
+    assert vm._render_queue.qsize() <= 1
+
+
+def test_current_buffer_lock_allows_concurrent_access():
+    """Concurrent reads and writes of _current_buffer must not raise.
+
+    Verifies that _buffer_lock serialises access so no RuntimeError or
+    corruption occurs when the render thread writes while the UI thread reads.
+    """
+    config = MockConfigurationService()
+    physics = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics)
+
+    errors: list = []
+
+    def read_buffer() -> None:
+        for _ in range(500):
+            try:
+                _ = vm.currentBuffer
+            except Exception as exc:
+                errors.append(exc)
+
+    def write_buffer() -> None:
+        for _ in range(500):
+            try:
+                with vm._buffer_lock:
+                    vm._current_buffer = None
+            except Exception as exc:
+                errors.append(exc)
+
+    threads = [
+        threading.Thread(target=read_buffer),
+        threading.Thread(target=read_buffer),
+        threading.Thread(target=write_buffer),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5.0)
+
+    assert not errors, f"concurrent buffer access raised: {errors}"
+
+
+# ---------------------------------------------------------------------------
+# Scaling function tests (issue #83)
+# ---------------------------------------------------------------------------
+
+
+def test_initial_scaling_from_config():
+    """Test that RawDataViewModel initializes its scaling function from config."""
+    config = MockConfigurationService()
+    config.set("gui:raw_analysis:default_scaling_function", "log")
+    physics_manager = PhysicsConversionManagerImpl(config)
+
+    vm = RawDataViewModel(config, physics_manager)
+    assert vm.scalingFunction == "log"
+
+
+def test_set_scaling_function_triggers_render(view_model):
+    """Test that setScalingFunction updates state and triggers render."""
+    mock_capture = MagicMock()
+    mock_capture.rawData.return_value = np.zeros((10, 10))
+    view_model._captures = [mock_capture]
+    view_model._activeIndex = 0
+
+    view_model.setScalingFunction("sqrt")
+
+    assert view_model.scalingFunction == "sqrt"
+    _, kwargs = view_model._converter.convert.call_args
+    assert kwargs["scaling"] == ScalingFunction.SQRT
+
+
+def test_set_scaling_function_invalid_is_noop(view_model):
+    """Test that an invalid scaling function string is silently ignored."""
+    original = view_model.scalingFunction
+    view_model.setScalingFunction("invalid")
+    assert view_model.scalingFunction == original

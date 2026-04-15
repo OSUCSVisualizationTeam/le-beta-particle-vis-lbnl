@@ -6,6 +6,7 @@
 
 Uses mock ZMQ context/sockets — no real IPC connections.
 """
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -20,6 +21,7 @@ from le_beta_vis.common.EPSDataClasses import (
     ClusterQueryFilter,
     ClusterStoreRequest,
     EPSClusterRecord,
+    FitsClusterQueryFilter,
     FitsQueryFilter,
 )
 from le_beta_vis.common.ZMQBasedEventRepository import (
@@ -136,6 +138,40 @@ class TestQueryClusters:
 
 
 # -------------------------------------------------------------------
+# Date filter wiring (issue #146)
+# -------------------------------------------------------------------
+
+
+class TestDateFilterWiring:
+    """End-to-end check that datetime objects survive ClusterQueryFilter
+    construction, get serialized to MySQL DATETIME literal format, and
+    arrive at the ZMQ socket as plain strings inside the JSON payload."""
+
+    def test_date_filter_sent_as_strftime_strings(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+        qf = ClusterQueryFilter(
+            date_start=datetime(2025, 1, 1, 8, 0, 0),
+            date_end=datetime(2025, 12, 31, 23, 59, 59),
+        )
+        repo.query_clusters(qf)
+
+        sent = sock.send_json.call_args[0][0]
+        assert sent["date"] == {
+            "start": "2025-01-01 08:00:00",
+            "end": "2025-12-31 23:59:59",
+        }
+
+    def test_no_date_filter_omits_date_key(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+        repo.query_clusters(ClusterQueryFilter(fits_id=1))
+
+        sent = sock.send_json.call_args[0][0]
+        assert "date" not in sent
+
+
+# -------------------------------------------------------------------
 # store_cluster
 # -------------------------------------------------------------------
 
@@ -234,6 +270,121 @@ class TestQueryFits:
         ctx, sock = _mock_context({"result": "failure"})
         repo = _make_repo(ctx)
         assert repo.query_fits() == []
+
+
+# -------------------------------------------------------------------
+# query_fits_clusters
+# -------------------------------------------------------------------
+
+
+class TestQueryFitsClusters:
+
+    def _enriched_response(self):
+        return {
+            "result": "success",
+            "clusters": [
+                {
+                    "fits_id": 3,
+                    "hdu_id": 0,
+                    "cluster_id": 77,
+                    "bounding_box": {
+                        "top": 5, "left": 6, "bottom": 12, "right": 15,
+                    },
+                    "data": [0.0, 0.0, 0.0],
+                    "total_energy": 250.0,
+                    "sigmaX": 1.1,
+                    "sigmaY": 1.3,
+                    "classification": "tritium",
+                    "total_pixels": 14,
+                    "filename": "enriched.fits",
+                    "date": "2026-04-07",
+                },
+            ],
+        }
+
+    def test_success_returns_clusters(self):
+        ctx, sock = _mock_context(self._enriched_response())
+        repo = _make_repo(ctx)
+
+        clusters = repo.query_fits_clusters(FitsClusterQueryFilter(fits_id=3))
+
+        assert len(clusters) == 1
+        c = clusters[0]
+        assert isinstance(c, Cluster)
+        assert c.fitsId == 3
+        assert c.clusterId == 77
+        assert c.energy == 250.0
+        assert c.sigmaX == 1.1
+        assert c.sigmaY == 1.3
+        assert c.pixelCount == 14
+        # Proves enriched-response path: filename/date pulled from the
+        # cluster record, not a secondary query_fits() call.
+        assert c.fitsFilename == "enriched.fits"
+        assert c.date == "2026-04-07"
+
+    def test_no_per_cluster_fits_calls(self):
+        """Regression fence for the fixed N+1 pattern and dead-code bug.
+
+        The method must issue exactly ONE ZMQ request — the Clusters
+        retrieval — regardless of how many clusters come back.
+        """
+        response = {
+            "result": "success",
+            "clusters": [
+                {
+                    "fits_id": i,
+                    "hdu_id": 0,
+                    "cluster_id": 100 + i,
+                    "bounding_box": {"top": 0, "left": 0, "bottom": 2, "right": 2},
+                    "data": [0.0],
+                    "total_energy": 10.0,
+                    "sigmaX": 0.5,
+                    "sigmaY": 0.5,
+                    "classification": "",
+                    "total_pixels": 4,
+                    "filename": f"f{i}.fits",
+                    "date": "2026-04-07",
+                }
+                for i in range(5)
+            ],
+        }
+        ctx, sock = _mock_context(response)
+        repo = _make_repo(ctx)
+
+        clusters = repo.query_fits_clusters()
+
+        assert len(clusters) == 5
+        assert sock.send_json.call_count == 1
+
+    def test_failure_returns_empty(self):
+        ctx, sock = _mock_context({"result": "failure"})
+        repo = _make_repo(ctx)
+        assert repo.query_fits_clusters() == []
+
+    def test_filter_sent_to_socket(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+
+        repo.query_fits_clusters(FitsClusterQueryFilter(fits_id=7))
+
+        sent = sock.send_json.call_args[0][0]
+        assert sent["Action"] == "Clusters"
+        assert sent["fits_id"] == 7
+
+    def test_none_filter_sends_bare_clusters_action(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+
+        repo.query_fits_clusters(None)
+
+        sent = sock.send_json.call_args[0][0]
+        assert sent == {"Action": "Clusters"}
+
+    def test_import_from_common(self):
+        """Regression fence for #143 — DTO must be exported from common."""
+        from le_beta_vis.common import FitsClusterQueryFilter as Exported
+
+        assert Exported is FitsClusterQueryFilter
 
 
 # -------------------------------------------------------------------

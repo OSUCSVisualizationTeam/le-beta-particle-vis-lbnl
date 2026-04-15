@@ -12,6 +12,7 @@ from .EPSDataClasses import (
     ClusterQueryFilter,
     ClusterStoreRequest,
     EPSFitsRecord,
+    FitsClusterQueryFilter,
 )
 from .EventRepository import EventRepository
 

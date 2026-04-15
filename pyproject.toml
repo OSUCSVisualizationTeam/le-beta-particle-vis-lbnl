@@ -21,7 +21,6 @@ dependencies = [
     "python-dotenv",
     "pyyaml",
     "pyzmq",
-    "redis",
     "scikit-image",
     "scipy",
     "superqt",

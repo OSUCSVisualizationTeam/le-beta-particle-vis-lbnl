@@ -19,6 +19,7 @@ from .EPSDataClasses import (
     ClusterStoreRequest,
     ClassificationUpdateRequest,
     FitsQueryFilter,
+    FitsClusterQueryFilter,
     EPSClusterRecord,
     EPSFitsRecord,
 )

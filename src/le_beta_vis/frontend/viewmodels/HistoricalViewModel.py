@@ -1,3 +1,5 @@
+import logging
+import threading
 from typing import List, Callable, Optional, Set
 from enum import Enum
 
@@ -69,6 +71,10 @@ class HistoricalViewModel:
             30,
         )
 
+        # Threading
+        self._load_thread: Optional[threading.Thread] = None
+        self._logger = logging.getLogger(__name__)
+
         # Callbacks
         self._on_events_loaded_callbacks: List[Callable[[List[Cluster]], None]] = []
         self._on_error_callbacks: List[Callable[[str], None]] = []
@@ -76,6 +82,7 @@ class HistoricalViewModel:
         self._on_events_changed_callbacks: List[Callable[[], None]] = []
         self._on_selected_event_changed_callbacks: List[Callable[[], None]] = []
         self._on_loading_changed_callbacks: List[Callable[[bool], None]] = []
+        self._on_load_error_callbacks: List[Callable[[str], None]] = []
         self._on_thumbnail_ready_callbacks: List[Callable[[int, np.ndarray], None]] = []
     # --- Properties ---
 
@@ -241,13 +248,16 @@ class HistoricalViewModel:
             cb(key, thumbnail)
 
     def loadEvents(self) -> None:
-        """Fetches events from the repository and notifies observers.
+        """Starts an asynchronous background fetch from the repository.
 
-        Sets loading state before/after the fetch.  When a query
-        filter is set, ``query_clusters`` is attempted first; if the
-        repository does not implement it, falls back to
-        ``fetch_events``.
+        No-op if a load is already in flight.  Sets loading state
+        synchronously on the calling thread, then spawns a daemon
+        thread for the repository call.  Observers are notified
+        from the background thread — Views should marshal back to
+        the main thread via ``Qt.AutoConnection``.
         """
+        if self._loading:
+            return
         self._thumbnail_service.clear()
         self._setLoading(True)
         if self._query_filter is not None:
@@ -257,6 +267,15 @@ class HistoricalViewModel:
                 self._repository.fetch_events(callback=self._notify_loaded, on_error=self._notify_error)
         else:
             self._repository.fetch_events(callback=self._notify_loaded, on_error=self._notify_error)
+
+    def _run_repository_query(self) -> List[Cluster]:
+        """Executes the repository call with query filter fallback."""
+        if self._query_filter is not None:
+            try:
+                return self._repository.query_clusters(self._query_filter)
+            except NotImplementedError:
+                return self._repository.fetch_events()
+        return self._repository.fetch_events()
 
     def selectEvent(self, index: int) -> None:
         """Selects an event by index.

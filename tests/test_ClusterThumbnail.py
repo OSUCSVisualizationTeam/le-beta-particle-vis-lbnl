@@ -88,3 +88,52 @@ def test_none_colormap_returns_grayscale():
     data = np.random.rand(5, 5) * 100
     result = generate_cluster_thumbnail(data, colormap=None)
     assert result.ndim == 2
+
+
+def test_pad_to_square_default_false():
+    """Default behavior preserves the input shape (no padding)."""
+    data = np.random.rand(3, 9) * 100
+    result = generate_cluster_thumbnail(data)
+    assert result.shape == (3, 9)
+
+
+def test_pad_to_square_grayscale_non_square():
+    """pad_to_square=True pads a non-square grayscale buffer to a square."""
+    data = np.random.rand(3, 9) * 100
+    result = generate_cluster_thumbnail(data, pad_to_square=True)
+    assert result.shape == (9, 9)
+    assert result.dtype == np.uint8
+    # Padding rows above and below the data block must be zero.
+    # 3 rows centered in 9 -> top pad = (9-3)//2 = 3, bottom pad = 3.
+    assert (result[:3, :] == 0).all()
+    assert (result[-3:, :] == 0).all()
+    # The 3 middle rows contain the converted data and may be non-zero.
+    assert result[3:6, :].shape == (3, 9)
+
+
+def test_pad_to_square_rgb_non_square():
+    """pad_to_square=True pads an RGB buffer to a square with zero fill."""
+    data = np.random.rand(3, 9) * 100
+    result = generate_cluster_thumbnail(
+        data, colormap=Colormap.VIRIDIS, pad_to_square=True
+    )
+    assert result.shape == (9, 9, 3)
+    assert result.dtype == np.uint8
+    assert (result[:3, :, :] == 0).all()
+    assert (result[-3:, :, :] == 0).all()
+
+
+def test_pad_to_square_no_op_on_square():
+    """pad_to_square=True is a no-op when the input is already square."""
+    data = np.random.rand(7, 7) * 100
+    result = generate_cluster_thumbnail(data, pad_to_square=True)
+    assert result.shape == (7, 7)
+
+
+def test_pad_to_square_tall_grayscale():
+    """A tall (more rows than cols) input is padded horizontally."""
+    data = np.random.rand(9, 3) * 100
+    result = generate_cluster_thumbnail(data, pad_to_square=True)
+    assert result.shape == (9, 9)
+    assert (result[:, :3] == 0).all()
+    assert (result[:, -3:] == 0).all()

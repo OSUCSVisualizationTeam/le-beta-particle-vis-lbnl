@@ -1,7 +1,10 @@
+import logging
+
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QDoubleSpinBox,
+    QPushButton,
     QSizePolicy,
     QLabel,
     QStackedLayout,
@@ -11,6 +14,9 @@ from PySide6.QtCore import Qt, Signal, QEvent
 from superqt import QRangeSlider
 from typing import Tuple
 from le_beta_vis.frontend.fitsconverters.colormaps import generate_gradient_pixmap
+from le_beta_vis.frontend.theme import TooltipStyle
+
+logger = logging.getLogger(__name__)
 
 
 # Private namespace for widget styles
@@ -34,9 +40,6 @@ class _Style:
             background: transparent;
         }
     """
-    TOOLTIP = (
-        "color: black; background-color: white; padding: 2px; border: 1px solid #ccc;"
-    )
     SPINBOX = """
         QDoubleSpinBox {
             background-color: #3d3d3d;
@@ -50,6 +53,23 @@ class _Style:
         }
     """
     LABEL = "color: #eeeeee; font-size: 10px; font-weight: bold;"
+    AUTO_RANGE_BUTTON = f"""
+        QPushButton {{
+            background-color: #3d3d3d;
+            color: #eeeeee;
+            border: 1px solid #555555;
+            border-radius: 3px;
+            padding: 3px 6px;
+            font-size: 10px;
+        }}
+        QPushButton:hover {{
+            background-color: #4a4a4a;
+        }}
+        QPushButton:pressed {{
+            background-color: #2d2d2d;
+        }}
+        {TooltipStyle.QSS}
+    """
 
 
 class GradientBar(QLabel):
@@ -136,11 +156,14 @@ class VerticalRangeControl(QWidget):
         self._setupSpinBoxes()
         self._setupSliderStack()
 
+        self._setupAutoRangeButton()
+
         self.mainLayout.addWidget(self.lblAbsMax)
         self.mainLayout.addWidget(self.spinMax)
         self.mainLayout.addWidget(self.midContainer)
         self.mainLayout.addWidget(self.spinMin)
         self.mainLayout.addWidget(self.lblAbsMin)
+        self.mainLayout.addWidget(self.btnAutoRange)
 
     def _setupLabels(self):
         """Initializes the absolute range labels."""
@@ -196,6 +219,21 @@ class VerticalRangeControl(QWidget):
         stackLayout.addWidget(self.slider)
         stackLayout.setCurrentWidget(self.slider)
 
+    def _setupAutoRangeButton(self) -> None:
+        """Creates the Auto Range button that resets to full data extent."""
+        self.btnAutoRange = QPushButton(self.tr("\u27f3 Auto"))
+        self.btnAutoRange.setToolTip(
+            self.tr("Reset range to cover the full data extent")
+        )
+        self.btnAutoRange.setStyleSheet(_Style.AUTO_RANGE_BUTTON)
+        self.btnAutoRange.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.btnAutoRange.clicked.connect(self.resetToFullRange)
+
+    def resetToFullRange(self) -> None:
+        """Resets the active range to cover the full data extent."""
+        self.setValues(self._abs_min, self._abs_max)
+        self.rangeChanged.emit(self._abs_min, self._abs_max)
+
     def eventFilter(self, obj, event):
         if obj == self.slider and event.type() == QEvent.MouseMove:
             height = self.slider.height()
@@ -213,7 +251,7 @@ class VerticalRangeControl(QWidget):
 
     def _getTooltipText(self, value: float) -> str:
         """Generates styled HTML for the energy tooltip."""
-        return f"<span style='{_Style.TOOLTIP}'>{self._formatLabel(value)}</span>"
+        return f"<span style='{TooltipStyle.BODY}'>{self._formatLabel(value)}</span>"
 
     def setAbsoluteRange(self, abs_min: float, abs_max: float):
         """
@@ -222,6 +260,14 @@ class VerticalRangeControl(QWidget):
         :param abs_min: The new absolute minimum value.
         :param abs_max: The new absolute maximum value.
         """
+        if abs_min >= abs_max:
+            logger.warning(
+                "setAbsoluteRange called with degenerate range (%s >= %s); ignoring",
+                abs_min,
+                abs_max,
+            )
+            return
+
         self._abs_min = abs_min
         self._abs_max = abs_max
 
