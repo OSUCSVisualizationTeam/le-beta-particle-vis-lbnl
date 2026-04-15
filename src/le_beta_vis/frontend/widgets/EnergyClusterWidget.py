@@ -25,6 +25,8 @@ class EnergyClusterWidget(QLabel):
     ) -> None:
         super().__init__(parent)
         self._size = size
+        self._data: Optional[np.ndarray] = None
+        self._colormap: Optional[Colormap] = None
         self.setFixedSize(size, size)
         self.setAlignment(Qt.AlignCenter)
 
@@ -39,8 +41,24 @@ class EnergyClusterWidget(QLabel):
             data: 2D numpy array of energy values.
             colormap: Colormap enum or None for grayscale.
         """
+        self._data = data
+        self._colormap = colormap
         pixmap = self.to_pixmap(data, colormap, self._size)
         self.setPixmap(pixmap)
+
+    def setDisplaySize(self, size: int) -> None:
+        """Resize the widget and re-render the cached cluster at the new size.
+
+        Args:
+            size: Side length in pixels for the square thumbnail.
+        """
+        if size <= 0 or size == self._size:
+            return
+        self._size = size
+        self.setFixedSize(size, size)
+        if self._data is not None:
+            pixmap = self.to_pixmap(self._data, self._colormap, size)
+            self.setPixmap(pixmap)
 
     @staticmethod
     def to_pixmap(
@@ -92,4 +110,6 @@ class EnergyClusterWidget(QLabel):
 
     def clear(self) -> None:
         """Clears the thumbnail label."""
+        self._data = None
+        self._colormap = None
         super().clear()

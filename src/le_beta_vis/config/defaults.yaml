@@ -559,13 +559,6 @@ gui:livemode:fallback_timeout_s:
     Deprecated.  Formerly controlled the idle timeout before
     fallback data loading.  The pipeline now refills continuously.
 
-gui:livemode:featured_size_px:
-  type: int
-  default: 320
-  description: >-
-    Side length in pixels of the large zoomed-in featured
-    cluster image on the left panel of the Live Mode screensaver.
-
 gui:livemode:left_panel_width_pct:
   type: float
   default: 0.25

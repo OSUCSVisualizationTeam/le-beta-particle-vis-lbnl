@@ -504,9 +504,6 @@ class TestConfiguration:
     ) -> None:
         assert vm.animation_duration_ms == 250
 
-    def test_featured_size_default(self, vm: LiveModeViewModel) -> None:
-        assert vm.featured_size == 320
-
     def test_grid_spacing_default_6(self, vm: LiveModeViewModel) -> None:
         assert vm.grid_spacing == 6
 

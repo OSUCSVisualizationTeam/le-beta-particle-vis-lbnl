@@ -108,9 +108,7 @@ class FeaturedClusterWidget(QWidget):
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(4)
 
-        self._featuredWidget = EnergyClusterWidget(
-            size=self._vm.featured_size,
-        )
+        self._featuredWidget = EnergyClusterWidget(size=64)
         self._featuredWidget.setStyleSheet(
             f"background-color: {LiveModeColors.BACKGROUND};"
         )
@@ -149,7 +147,12 @@ class FeaturedClusterWidget(QWidget):
         gradient_w = 60 + 4  # gradient widget + spacing
         avail = self.width() - margins - gradient_w
         if avail > 0:
-            self._featuredWidget.setFixedSize(avail, avail)
+            self._featuredWidget.setDisplaySize(avail)
+
+    def resizeEvent(self, event) -> None:
+        """Keep the featured thumbnail filling the available panel width."""
+        super().resizeEvent(event)
+        self.refreshFeaturedSize()
 
     def refreshHistogramMinHeight(self) -> None:
         """Enforce minimum histogram height from screen percentage."""

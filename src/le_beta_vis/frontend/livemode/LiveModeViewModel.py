@@ -93,15 +93,6 @@ class LiveModeViewModel:
             return Colormap.INFERNO
 
     @property
-    def featured_size(self) -> int:
-        """Featured cluster image size in pixels."""
-        return self._config.get_int(
-            "gui:livemode:featured_size_px",
-            320,
-            minimum=64,
-        )
-
-    @property
     def advance_interval_ms(self) -> int:
         """Milliseconds between grid advance steps."""
         return self._config.get_int(
