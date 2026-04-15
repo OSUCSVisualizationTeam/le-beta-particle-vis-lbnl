@@ -66,7 +66,8 @@ class NoOpEventRepository(EventRepository):
             "NoOpEventRepository: update_classification called "
             "but EPS is unavailable"
         )
-        on_error(False)
+        on_error("NoOpEventRepository: update_classification called "
+            "but EPS is unavailable")
 
     def query_fits(
             self,

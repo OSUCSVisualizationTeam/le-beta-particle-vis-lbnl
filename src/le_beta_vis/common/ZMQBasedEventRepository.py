@@ -171,11 +171,17 @@ class ZMQBasedEventRepository(EventRepository):
             return None
         return response.get("cluster_id")
 
-    def update_classification(self, request: ClassificationUpdateRequest) -> bool:
+    def update_classification(
+            self,
+            request: ClassificationUpdateRequest,
+            callback: Callable,
+            on_error: Callable
+    ) -> None:
         """Sends a classification update to the EPS Cluster socket."""
-        response = self._send_cluster(request.to_eps_dict())
+        response = self._send_cluster(request.to_eps_dict(), callback, on_error)
         if response is None:
-            return False
+            on_error("Failed to update classification")
+            return
         if response.get("result") != "success":
             logger.warning(
                 "EPS update_classification returned failure: %s",

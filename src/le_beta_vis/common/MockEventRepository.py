@@ -96,7 +96,7 @@ class MockEventRepository(EventRepository):
 
         Applies Python-side filtering to match EPS behaviour.
         """
-        clusters = self.fetch_events()
+        clusters = self.fetch_events(query_filter, callback, on_error)
         if query_filter is None:
             callback(clusters)
         filtered_clusters = [c for c in clusters if self._matches(c, query_filter)]

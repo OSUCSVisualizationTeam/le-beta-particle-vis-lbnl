@@ -70,12 +70,13 @@ class HistoricalViewModel:
         )
 
         # Callbacks
+        self._on_events_loaded_callbacks: List[Callable[[List[Cluster]], None]] = []
+        self._on_error_callbacks: List[Callable[[str], None]] = []
         self._on_mode_changed_callbacks: List[Callable[[HistoricalMode], None]] = []
         self._on_events_changed_callbacks: List[Callable[[], None]] = []
         self._on_selected_event_changed_callbacks: List[Callable[[], None]] = []
         self._on_loading_changed_callbacks: List[Callable[[bool], None]] = []
         self._on_thumbnail_ready_callbacks: List[Callable[[int, np.ndarray], None]] = []
-
     # --- Properties ---
 
     @property
@@ -249,19 +250,13 @@ class HistoricalViewModel:
         """
         self._thumbnail_service.clear()
         self._setLoading(True)
-        try:
-            if self._query_filter is not None:
-                try:
-                    self._events = self._repository.query_clusters(self._query_filter)
-                except NotImplementedError:
-                    self._events = self._repository.fetch_events()
-            else:
-                self._events = self._repository.fetch_events()
-            self._selectedIndex = 0 if self._events else -1
-        finally:
-            self._setLoading(False)
-        self._notify_events_changed()
-        self._notify_selected_event_changed()
+        if self._query_filter is not None:
+            try:
+                self._repository.query_clusters(self._query_filter, callback=self._notify_loaded, on_error=self._notify_error)
+            except NotImplementedError:
+                self._repository.fetch_events(callback=self._notify_loaded, on_error=self._notify_error)
+        else:
+            self._repository.fetch_events(callback=self._notify_loaded, on_error=self._notify_error)
 
     def selectEvent(self, index: int) -> None:
         """Selects an event by index.
@@ -277,6 +272,12 @@ class HistoricalViewModel:
             self._notify_selected_event_changed()
 
     # --- Observer Pattern ---
+
+    def add_event_loading_callback(
+            self, callback: Callable[[List[Cluster]], None]
+    ) -> None:
+        """Registers a callback for when events are loaded."""
+        self._on_events_loaded_callbacks.append(callback)
 
     def add_mode_changed_callback(
         self, callback: Callable[[HistoricalMode], None]
@@ -296,12 +297,24 @@ class HistoricalViewModel:
         """Registers a callback for loading state changes."""
         self._on_loading_changed_callbacks.append(callback)
 
+    def add_error_callback(self, callback: Callable[[str], None]) -> None:
+        """Registers a callback for error messages."""
+        self._on_error_callbacks.append(callback)
+
     # --- Private helpers ---
 
     def _setLoading(self, loading: bool) -> None:
         if self._loading != loading:
             self._loading = loading
             self._notify_loading_changed()
+
+    def _notify_loaded(self, events: List[Cluster]) -> None:
+        self._events = events
+        self._setLoading(False)
+        self._selectedIndex = 0 if len(self._events) > 0 else -1
+        for callback in self._on_events_loaded_callbacks:
+            callback(events)
+        self._notify_events_changed()
 
     def _notify_mode_changed(self) -> None:
         for callback in self._on_mode_changed_callbacks:
@@ -318,3 +331,7 @@ class HistoricalViewModel:
     def _notify_loading_changed(self) -> None:
         for callback in self._on_loading_changed_callbacks:
             callback(self._loading)
+
+    def _notify_error(self, error: str) -> None:
+        for callback in self._on_error_callbacks:
+            callback(error)
