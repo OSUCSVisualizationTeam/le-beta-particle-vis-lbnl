@@ -169,22 +169,15 @@ class FeaturedClusterWidget(QWidget):
         )
 
     def _updateGradient(self, cluster: Cluster) -> None:
-        """Updates the gradient bar marker based on cluster energy."""
+        """Calibrates the gradient legend to the featured thumbnail's scale."""
         self._gradientWidget.setColormap(self._vm.colormap)
-        max_energy = self._currentMaxEnergy()
-        if max_energy <= 0:
-            return
+        vmax_adu = self._clusterPeakPixel(cluster)
         physics = self._vm.physics
         if physics is not None:
-            cluster_kev = physics.adu_to_kev(cluster.energy)
-            max_kev = physics.adu_to_kev(max_energy)
-            ratio = min(1.0, cluster_kev / max_kev) if max_kev > 0 else 0.0
-            self._gradientWidget.setMarkerRatio(ratio)
-            self._gradientWidget.setRange(0.0, float(max_kev))
+            vmax = float(physics.adu_to_kev(vmax_adu))
         else:
-            ratio = min(1.0, cluster.energy / max_energy)
-            self._gradientWidget.setMarkerRatio(ratio)
-            self._gradientWidget.setRange(0.0, max_energy)
+            vmax = vmax_adu
+        self._gradientWidget.setRange(0.0, vmax)
 
     def _updateHistogram(self, cluster: Cluster) -> None:
         """Builds and displays an energy histogram from cluster data."""
@@ -209,8 +202,9 @@ class FeaturedClusterWidget(QWidget):
         )
         self._histogram.setData(model)
 
-    def _currentMaxEnergy(self) -> float:
-        """Scans the ViewModel grid for the maximum cluster energy."""
-        grid = self._vm.grid
-        energies = [c.energy for c in grid if c is not None and c.energy > 0]
-        return max(energies) if energies else 1.0
+    def _clusterPeakPixel(self, cluster: Cluster) -> float:
+        """Peak pixel value (ADU) of the featured cluster, matching thumbnail vmax."""
+        if cluster.data is None or cluster.data.size == 0:
+            return 1.0
+        peak = float(np.max(cluster.data))
+        return peak if peak > 0 else 1.0

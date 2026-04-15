@@ -1,16 +1,16 @@
-"""Vertical colormap gradient bar with an energy marker triangle.
+"""Vertical colormap gradient bar labeled with an energy range.
 
 Displays the active colormap as a vertical gradient strip between
-max/min energy labels.  A left-pointing triangle marks the position
-of the featured cluster's peak energy relative to the observed maximum.
+max/min energy labels, serving as a color→energy key for the
+adjacent featured cluster thumbnail.
 """
 
 from typing import Optional
 
 import numpy as np
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from le_beta_vis.frontend.fitsconverters.cluster_thumbnail import (
@@ -21,11 +21,10 @@ from le_beta_vis.frontend.theme import LiveModeColors
 
 _STRIP_WIDTH = 20
 _TOTAL_WIDTH = 60
-_MARKER_SIZE = 8
 
 
 class _GradientStripWidget(QWidget):
-    """Inner widget that paints the gradient strip and marker triangle.
+    """Inner widget that paints the vertical colormap strip.
 
     Args:
         parent: Optional parent widget.
@@ -34,9 +33,8 @@ class _GradientStripWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._colormap: Optional[Colormap] = None
-        self._marker_ratio: float = 1.0
         self._gradient_cache: Optional[QImage] = None
-        self.setFixedWidth(_STRIP_WIDTH + _MARKER_SIZE + 2)
+        self.setFixedWidth(_STRIP_WIDTH)
 
     def setColormap(self, colormap: Colormap) -> None:
         """Update the displayed colormap."""
@@ -44,17 +42,11 @@ class _GradientStripWidget(QWidget):
         self._gradient_cache = None
         self.update()
 
-    def setMarkerRatio(self, ratio: float) -> None:
-        """Set the marker position as a 0.0-1.0 ratio."""
-        self._marker_ratio = max(0.0, min(1.0, ratio))
-        self.update()
-
     def paintEvent(self, event) -> None:
-        """Draw gradient strip and marker triangle."""
+        """Draw the gradient strip."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         self._drawGradientStrip(painter)
-        self._drawMarkerTriangle(painter)
         painter.end()
 
     def _drawGradientStrip(self, painter: QPainter) -> None:
@@ -64,25 +56,7 @@ class _GradientStripWidget(QWidget):
             return
         if self._gradient_cache is None or self._gradient_cache.height() != h:
             self._gradient_cache = self._buildGradientImage(h)
-        x = _MARKER_SIZE + 2
-        painter.drawImage(x, 0, self._gradient_cache)
-
-    def _drawMarkerTriangle(self, painter: QPainter) -> None:
-        """Draws a left-pointing triangle at the marker position."""
-        h = self.height()
-        y = int((1.0 - self._marker_ratio) * h)
-        y = max(0, min(h - 1, y))
-        x_tip = _MARKER_SIZE
-        triangle = QPolygonF(
-            [
-                QPointF(x_tip, y),
-                QPointF(x_tip - _MARKER_SIZE, y - _MARKER_SIZE // 2),
-                QPointF(x_tip - _MARKER_SIZE, y + _MARKER_SIZE // 2),
-            ]
-        )
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(LiveModeColors.GRADIENT_MARKER))
-        painter.drawPolygon(triangle)
+        painter.drawImage(0, 0, self._gradient_cache)
 
     def _buildGradientImage(self, height: int) -> QImage:
         """Creates a vertical gradient QImage from the colormap."""
@@ -167,14 +141,6 @@ class _ScaleGradientWidget(QWidget):
     def setColormap(self, colormap: Colormap) -> None:
         """Update the displayed colormap."""
         self._strip.setColormap(colormap)
-
-    def setMarkerRatio(self, ratio: float) -> None:
-        """Set the marker position as a 0.0-1.0 ratio.
-
-        Args:
-            ratio: cluster peak energy / observed max energy.
-        """
-        self._strip.setMarkerRatio(ratio)
 
     def setRange(self, vmin: float, vmax: float) -> None:
         """Set the displayed energy range and update labels.

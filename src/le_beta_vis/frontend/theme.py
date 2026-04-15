@@ -40,7 +40,6 @@ class LiveModeColors:
 
     BACKGROUND = "#000000"
     PANEL_LEFT = "#0d0d0d"
-    GRADIENT_MARKER = "#ffdd00"
     GRADIENT_LABEL = "#ffffff"
     STATS_BACKGROUND = "#0a1628"
     STATS_TEXT = "#e0f0ff"
