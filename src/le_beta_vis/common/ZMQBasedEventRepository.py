@@ -177,17 +177,27 @@ class ZMQBasedEventRepository(EventRepository):
             callback: Callable,
             on_error: Callable
     ) -> None:
+        """Sends a classification update to the EPS Cluster socket asynchronously."""
+        self._run_async(
+            function=lambda: self.update_classification_sync(request),
+            callback=callback,
+            on_error=on_error,
+        )
+
+    def update_classification_sync(
+            self,
+            request: ClassificationUpdateRequest,
+    ) -> bool:
         """Sends a classification update to the EPS Cluster socket."""
-        response = self._send_cluster(request.to_eps_dict(), callback, on_error)
+        response = self._send_cluster(request.to_eps_dict())
         if response is None:
-            on_error("Failed to update classification")
-            return
+            raise Exception("Failed to update classification")
         if response.get("result") != "success":
             logger.warning(
                 "EPS update_classification returned failure: %s",
                 response.get("result"),
             )
-            return False
+            raise Exception(f"EPS update_classification failed: {response.get('result')}")
         return True
 
     def query_fits_sync(

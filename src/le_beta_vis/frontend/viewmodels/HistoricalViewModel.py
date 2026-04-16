@@ -330,7 +330,10 @@ class HistoricalViewModel:
     def _notify_loaded(self, events: List[Cluster]) -> None:
         self._events = events
         self._setLoading(False)
-        self._selectedIndex = 0 if len(self._events) > 0 else -1
+        if len(self._events) > 0:
+            self._selectedIndex = 0
+        else:
+            self._selectedIndex = -1
         for callback in self._on_events_loaded_callbacks:
             callback(events)
         self._notify_events_changed()
@@ -352,5 +355,6 @@ class HistoricalViewModel:
             callback(self._loading)
 
     def _notify_error(self, error: str) -> None:
+        self._setLoading(False)
         for callback in self._on_error_callbacks:
             callback(error)

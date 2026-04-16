@@ -96,11 +96,14 @@ class MockEventRepository(EventRepository):
 
         Applies Python-side filtering to match EPS behaviour.
         """
-        clusters = self.fetch_events(query_filter, callback, on_error)
-        if query_filter is None:
-            callback(clusters)
-        filtered_clusters = [c for c in clusters if self._matches(c, query_filter)]
-        callback(filtered_clusters)
+        def _filter_and_forward(clusters: List[Cluster]) -> None:
+            if query_filter is None:
+                callback(clusters)
+                return
+            filtered_clusters = [c for c in clusters if self._matches(c, query_filter)]
+            callback(filtered_clusters)
+
+        self.fetch_events(callback=_filter_and_forward, on_error=on_error)
 
     @staticmethod
     def _matches(
