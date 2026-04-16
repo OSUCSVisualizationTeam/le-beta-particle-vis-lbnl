@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 import zmq
+import datetime
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
