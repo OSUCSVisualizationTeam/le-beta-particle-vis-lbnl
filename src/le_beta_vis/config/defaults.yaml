@@ -535,16 +535,6 @@ gui:livemode:animation_duration_ms:
     Duration in milliseconds of the snake-shift displacement
     animation.  Capped at 1000 ms.
 
-# DEPRECATED — The unified IncomingDataQueue pipeline now refills
-# automatically on every advance tick.  This key is kept for
-# backward compatibility with existing user config files.
-gui:livemode:fallback_timeout_s:
-  type: int
-  default: 60
-  description: >-
-    Deprecated.  Formerly controlled the idle timeout before
-    fallback data loading.  The pipeline now refills continuously.
-
 gui:livemode:left_panel_width_pct:
   type: float
   default: 0.25
@@ -559,12 +549,3 @@ gui:livemode:histogram_min_height_pct:
     Minimum height of the energy histogram as a fraction of
     screen height (0.05–0.5).  Default: 0.10 (10%).
 
-# DEPRECATED — Featured rotation is now driven by advance_interval_ms
-# (one dequeue per tick).  This key is kept for backward compatibility.
-gui:livemode:featured_hold_s:
-  type: int
-  default: 5
-  description: >-
-    Deprecated.  Formerly controlled the minimum hold time for
-    the featured cluster.  Featured rotation is now driven by
-    advance_interval_ms.
