@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 import zmq
-import datetime
+from datetime import datetime
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
@@ -207,7 +207,13 @@ class TestDateFilterWiring:
             date_start=datetime(2025, 1, 1, 8, 0, 0),
             date_end=datetime(2025, 12, 31, 23, 59, 59),
         )
-        repo.query_clusters(qf)
+        done = threading.Event()
+        repo.query_clusters(
+            qf,
+            callback=lambda _: done.set(),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
 
         sent = sock.send_json.call_args[0][0]
         assert sent["date"] == {
@@ -218,7 +224,13 @@ class TestDateFilterWiring:
     def test_no_date_filter_omits_date_key(self):
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
-        repo.query_clusters(ClusterQueryFilter(fits_id=1))
+        done = threading.Event()
+        repo.query_clusters(
+            ClusterQueryFilter(fits_id=1),
+            callback=lambda _: done.set(),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
 
         sent = sock.send_json.call_args[0][0]
         assert "date" not in sent
