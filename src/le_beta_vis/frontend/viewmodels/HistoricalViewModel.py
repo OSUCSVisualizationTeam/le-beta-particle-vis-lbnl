@@ -320,6 +320,10 @@ class HistoricalViewModel:
         """Registers a callback for error messages."""
         self._on_error_callbacks.append(callback)
 
+    def add_load_error_callback(self, callback: Callable[[str], None]) -> None:
+        """Registers a callback for errors during event loading."""
+        self._on_load_error_callbacks.append(callback)
+
     # --- Private helpers ---
 
     def _setLoading(self, loading: bool) -> None:
