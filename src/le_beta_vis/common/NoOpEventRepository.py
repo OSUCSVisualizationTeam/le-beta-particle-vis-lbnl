@@ -4,17 +4,14 @@ Every method returns an empty/default value and logs a warning.
 """
 
 import logging
-from typing import List, Optional
+from typing import Optional
 
-from .Cluster import Cluster
 from .EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
     ClusterStoreRequest,
-    EPSFitsRecord,
-    FitsClusterQueryFilter,
 )
-from .EventRepository import EventRepository
+from .EventRepository import EventRepository, onCluster, onError, onFits, onUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -26,21 +23,28 @@ class NoOpEventRepository(EventRepository):
     and return safe defaults.
     """
 
-    def fetch_events(self) -> List[Cluster]:
+    def fetch_events(
+            self,
+            callback: onCluster,
+            on_error: onError
+            ) -> None:
         """Returns an empty list — EPS is unavailable."""
         logger.warning(
             "NoOpEventRepository: fetch_events called but " "EPS is unavailable"
         )
-        return []
+        on_error("NoOpEventRepository: fetch_events called but " "EPS is unavailable")
 
     def query_clusters(
-        self, query_filter: Optional[ClusterQueryFilter] = None
-    ) -> List[Cluster]:
+        self,
+        query_filter: Optional[ClusterQueryFilter],
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
         """Returns an empty list — EPS is unavailable."""
         logger.warning(
             "NoOpEventRepository: query_clusters called but " "EPS is unavailable"
         )
-        return []
+        on_error("NoOpEventRepository: query_clusters called but " "EPS is unavailable")
 
     def store_cluster(self, request: ClusterStoreRequest) -> Optional[int]:
         """Returns None — EPS is unavailable."""
@@ -49,27 +53,28 @@ class NoOpEventRepository(EventRepository):
         )
         return None
 
-    def update_classification(self, request: ClassificationUpdateRequest) -> bool:
+    def update_classification(
+            self,
+            request: ClassificationUpdateRequest,
+            callback: onUpdate,
+            on_error: onError
+        ) -> None:
         """Returns False — EPS is unavailable."""
         logger.warning(
             "NoOpEventRepository: update_classification called "
             "but EPS is unavailable"
         )
-        return False
+        on_error("NoOpEventRepository: update_classification called "
+            "but EPS is unavailable")
 
-    def query_fits(self, fits_id: Optional[int] = None) -> List[EPSFitsRecord]:
+    def query_fits(
+            self,
+            fits_id: Optional[int],
+            callback: onFits,
+            on_error: onError
+    ) -> None:
         """Returns an empty list — EPS is unavailable."""
         logger.warning(
             "NoOpEventRepository: query_fits called but " "EPS is unavailable"
         )
-        return []
-
-    def query_fits_clusters(
-        self, query_filter: Optional[FitsClusterQueryFilter] = None
-    ) -> List[Cluster]:
-        """Returns an empty list — EPS is unavailable."""
-        logger.warning(
-            "NoOpEventRepository: query_fits_clusters called but "
-            "EPS is unavailable"
-        )
-        return []
+        on_error("NoOpEventRepository: query_fits called but " "EPS is unavailable")

@@ -1,11 +1,11 @@
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 import numpy as np
 
 from .BoundingBox import BoundingBox
 from .Cluster import Cluster
 from .EPSDataClasses import ClusterQueryFilter
-from .EventRepository import EventRepository
+from .EventRepository import EventRepository, onCluster, onError
 
 
 def _gaussian_blob(
@@ -51,7 +51,11 @@ class MockEventRepository(EventRepository):
     Event Grid and Detail Inspector.
     """
 
-    def fetch_events(self) -> List[Cluster]:
+    def fetch_events(
+            self,
+            callback: onCluster,
+            on_error: onError,
+    ) -> None:
         """Returns a list of synthetic Cluster objects."""
         clusters: List[Cluster] = []
         for spec in _MOCK_SPECS:
@@ -80,19 +84,26 @@ class MockEventRepository(EventRepository):
                 bdtClassification=bdt,
             )
             clusters.append(cluster)
-        return clusters
+        callback(clusters)
 
     def query_clusters(
-        self, query_filter: Optional[ClusterQueryFilter] = None
-    ) -> List[Cluster]:
+        self,
+        query_filter: Optional[ClusterQueryFilter],
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
         """Returns synthetic clusters, optionally filtered.
 
         Applies Python-side filtering to match EPS behaviour.
         """
-        clusters = self.fetch_events()
-        if query_filter is None:
-            return clusters
-        return [c for c in clusters if self._matches(c, query_filter)]
+        def _filter_and_forward(clusters: List[Cluster]) -> None:
+            if query_filter is None:
+                callback(clusters)
+                return
+            filtered_clusters = [c for c in clusters if self._matches(c, query_filter)]
+            callback(filtered_clusters)
+
+        self.fetch_events(callback=_filter_and_forward, on_error=on_error)
 
     @staticmethod
     def _matches(

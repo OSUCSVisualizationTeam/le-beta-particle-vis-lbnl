@@ -28,3 +28,10 @@ class ServicesManager:
         """Stop EPS and Polling threads from service manager."""
         self.EPS.stop()
         self.Polling.stop()
+
+    def restart(self):
+        """Restart EPS and Polling threads from service manager."""
+        self.stop_all()
+        self.EPS = EPSRunner()
+        self.Polling = PollingRunner()
+        self.start_all()

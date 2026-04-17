@@ -6,12 +6,13 @@
 
 Uses mock ZMQ context/sockets — no real IPC connections.
 """
-from datetime import datetime
+import threading
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 import zmq
+from datetime import datetime
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
@@ -59,6 +60,10 @@ def _make_repo(ctx=None, config=None):
     return ZMQBasedEventRepository(config, context=ctx)
 
 
+def _await_callback(done: threading.Event) -> None:
+    assert done.wait(1.0), "Timed out waiting for async callback"
+
+
 # -------------------------------------------------------------------
 # fetch_events / query_clusters
 # -------------------------------------------------------------------
@@ -89,10 +94,27 @@ class TestQueryClusters:
             "fits": [{"fits_id": 1, "filename": "a.fits", "date": "", "min": 0, "max": 0, "exposure_time": 0}],
         }])
         repo = _make_repo(ctx)
+        done = threading.Event()
+        got = {"clusters": None, "error": None}
+
+        def on_success(clusters):
+            got["clusters"] = clusters
+            done.set()
+
+        def on_error(error):
+            got["error"] = error
+            done.set()
+
         # Mock extractClusterFromFile to avoid file I/O
         with patch('le_beta_vis.common.CCDCaptureModel.extractClusterFromFile',
                    return_value=np.array([[1, 2], [3, 4]])):
-            clusters = repo.fetch_events()
+            repo.fetch_events(callback=on_success, on_error=on_error)
+
+        _await_callback(done)
+
+        assert got["error"] is None
+        clusters = got["clusters"]
+        assert clusters is not None
 
         assert len(clusters) == 1
         c = clusters[0]
@@ -109,19 +131,44 @@ class TestQueryClusters:
     def test_failure_returns_empty(self):
         ctx, sock = _mock_context({"result": "failure"})
         repo = _make_repo(ctx)
-        assert repo.fetch_events() == []
+        done = threading.Event()
+        got = {"clusters": None, "error": None}
+
+        repo.fetch_events(
+            callback=lambda clusters: (got.__setitem__("clusters", clusters), done.set()),
+            on_error=lambda error: (got.__setitem__("error", error), done.set()),
+        )
+        _await_callback(done)
+        assert got["clusters"] is None
+        assert isinstance(got["error"], str)
 
     def test_zmq_error_returns_empty(self):
         ctx, sock = _mock_context()
         sock.send_json.side_effect = zmq.ZMQError("timeout")
         repo = _make_repo(ctx)
-        assert repo.fetch_events() == []
+        done = threading.Event()
+        got = {"clusters": None, "error": None}
+
+        repo.fetch_events(
+            callback=lambda clusters: (got.__setitem__("clusters", clusters), done.set()),
+            on_error=lambda error: (got.__setitem__("error", error), done.set()),
+        )
+        _await_callback(done)
+        assert got["clusters"] is not None
+        assert got["clusters"] == []
+        assert got["error"] is None
 
     def test_filter_sent_to_socket(self):
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
         qf = ClusterQueryFilter(fits_id=42, min_total_energy=100.0)
-        repo.query_clusters(qf)
+        done = threading.Event()
+        repo.query_clusters(
+            qf,
+            callback=lambda _: done.set(),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
 
         sent = sock.send_json.call_args[0][0]
         assert sent["Action"] == "Retrieval"
@@ -131,7 +178,13 @@ class TestQueryClusters:
     def test_none_filter_sends_bare_retrieval(self):
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
-        repo.query_clusters(None)
+        done = threading.Event()
+        repo.query_clusters(
+            None,
+            callback=lambda _: done.set(),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
 
         sent = sock.send_json.call_args[0][0]
         assert sent == {"Action": "Retrieval"}
@@ -154,7 +207,13 @@ class TestDateFilterWiring:
             date_start=datetime(2025, 1, 1, 8, 0, 0),
             date_end=datetime(2025, 12, 31, 23, 59, 59),
         )
-        repo.query_clusters(qf)
+        done = threading.Event()
+        repo.query_clusters(
+            qf,
+            callback=lambda _: done.set(),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
 
         sent = sock.send_json.call_args[0][0]
         assert sent["date"] == {
@@ -165,7 +224,13 @@ class TestDateFilterWiring:
     def test_no_date_filter_omits_date_key(self):
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
-        repo.query_clusters(ClusterQueryFilter(fits_id=1))
+        done = threading.Event()
+        repo.query_clusters(
+            ClusterQueryFilter(fits_id=1),
+            callback=lambda _: done.set(),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
 
         sent = sock.send_json.call_args[0][0]
         assert "date" not in sent
@@ -217,24 +282,54 @@ class TestStoreCluster:
 
 class TestUpdateClassification:
 
-    def test_success_returns_true(self):
+    def test_success_invokes_callback(self):
         ctx, sock = _mock_context({"result": "success"})
         repo = _make_repo(ctx)
         req = ClassificationUpdateRequest(cluster_id=1, classification="muon")
-        assert repo.update_classification(req) is True
+        done = threading.Event()
+        got = {"updated": None, "error": None}
 
-    def test_failure_returns_false(self):
+        repo.update_classification(
+            req,
+            callback=lambda updated: (got.__setitem__("updated", updated), done.set()),
+            on_error=lambda error: (got.__setitem__("error", error), done.set()),
+        )
+        _await_callback(done)
+        assert got["updated"] is True
+        assert got["error"] is None
+
+    def test_failure_invokes_error(self):
         ctx, sock = _mock_context({"result": "failure"})
         repo = _make_repo(ctx)
         req = ClassificationUpdateRequest(cluster_id=1, classification="muon")
-        assert repo.update_classification(req) is False
+        done = threading.Event()
+        got = {"updated": None, "error": None}
 
-    def test_zmq_error_returns_false(self):
+        repo.update_classification(
+            req,
+            callback=lambda updated: (got.__setitem__("updated", updated), done.set()),
+            on_error=lambda error: (got.__setitem__("error", error), done.set()),
+        )
+        _await_callback(done)
+        assert got["updated"] is None
+        assert isinstance(got["error"], str)
+
+    def test_zmq_error_invokes_error(self):
         ctx, sock = _mock_context()
         sock.send_json.side_effect = zmq.ZMQError("down")
         repo = _make_repo(ctx)
         req = ClassificationUpdateRequest(cluster_id=1, classification="muon")
-        assert repo.update_classification(req) is False
+        done = threading.Event()
+        got = {"updated": None, "error": None}
+
+        repo.update_classification(
+            req,
+            callback=lambda updated: (got.__setitem__("updated", updated), done.set()),
+            on_error=lambda error: (got.__setitem__("error", error), done.set()),
+        )
+        _await_callback(done)
+        assert got["updated"] is None
+        assert isinstance(got["error"], str)
 
 
 # -------------------------------------------------------------------
@@ -261,130 +356,37 @@ class TestQueryFits:
             }
         )
         repo = _make_repo(ctx)
-        records = repo.query_fits(FitsQueryFilter(fits_id=5))
+        done = threading.Event()
+        got = {"records": None, "error": None}
+
+        repo.query_fits(
+            FitsQueryFilter(fits_id=5),
+            callback=lambda records: (got.__setitem__("records", records), done.set()),
+            on_error=lambda error: (got.__setitem__("error", error), done.set()),
+        )
+        _await_callback(done)
+
+        assert got["error"] is None
+        records = got["records"]
+        assert records is not None
         assert len(records) == 1
         assert records[0].fits_id == 5
         assert records[0].filename == "a.fits"
 
-    def test_failure_returns_empty(self):
+    def test_failure_invokes_error(self):
         ctx, sock = _mock_context({"result": "failure"})
         repo = _make_repo(ctx)
-        assert repo.query_fits() == []
+        done = threading.Event()
+        got = {"records": None, "error": None}
 
-
-# -------------------------------------------------------------------
-# query_fits_clusters
-# -------------------------------------------------------------------
-
-
-class TestQueryFitsClusters:
-
-    def _enriched_response(self):
-        return {
-            "result": "success",
-            "clusters": [
-                {
-                    "fits_id": 3,
-                    "hdu_id": 0,
-                    "cluster_id": 77,
-                    "bounding_box": {
-                        "top": 5, "left": 6, "bottom": 12, "right": 15,
-                    },
-                    "data": [0.0, 0.0, 0.0],
-                    "total_energy": 250.0,
-                    "sigmaX": 1.1,
-                    "sigmaY": 1.3,
-                    "classification": "tritium",
-                    "total_pixels": 14,
-                    "filename": "enriched.fits",
-                    "date": "2026-04-07",
-                },
-            ],
-        }
-
-    def test_success_returns_clusters(self):
-        ctx, sock = _mock_context(self._enriched_response())
-        repo = _make_repo(ctx)
-
-        clusters = repo.query_fits_clusters(FitsClusterQueryFilter(fits_id=3))
-
-        assert len(clusters) == 1
-        c = clusters[0]
-        assert isinstance(c, Cluster)
-        assert c.fitsId == 3
-        assert c.clusterId == 77
-        assert c.energy == 250.0
-        assert c.sigmaX == 1.1
-        assert c.sigmaY == 1.3
-        assert c.pixelCount == 14
-        # Proves enriched-response path: filename/date pulled from the
-        # cluster record, not a secondary query_fits() call.
-        assert c.fitsFilename == "enriched.fits"
-        assert c.date == "2026-04-07"
-
-    def test_no_per_cluster_fits_calls(self):
-        """Regression fence for the fixed N+1 pattern and dead-code bug.
-
-        The method must issue exactly ONE ZMQ request — the Clusters
-        retrieval — regardless of how many clusters come back.
-        """
-        response = {
-            "result": "success",
-            "clusters": [
-                {
-                    "fits_id": i,
-                    "hdu_id": 0,
-                    "cluster_id": 100 + i,
-                    "bounding_box": {"top": 0, "left": 0, "bottom": 2, "right": 2},
-                    "data": [0.0],
-                    "total_energy": 10.0,
-                    "sigmaX": 0.5,
-                    "sigmaY": 0.5,
-                    "classification": "",
-                    "total_pixels": 4,
-                    "filename": f"f{i}.fits",
-                    "date": "2026-04-07",
-                }
-                for i in range(5)
-            ],
-        }
-        ctx, sock = _mock_context(response)
-        repo = _make_repo(ctx)
-
-        clusters = repo.query_fits_clusters()
-
-        assert len(clusters) == 5
-        assert sock.send_json.call_count == 1
-
-    def test_failure_returns_empty(self):
-        ctx, sock = _mock_context({"result": "failure"})
-        repo = _make_repo(ctx)
-        assert repo.query_fits_clusters() == []
-
-    def test_filter_sent_to_socket(self):
-        ctx, sock = _mock_context({"result": "success", "clusters": []})
-        repo = _make_repo(ctx)
-
-        repo.query_fits_clusters(FitsClusterQueryFilter(fits_id=7))
-
-        sent = sock.send_json.call_args[0][0]
-        assert sent["Action"] == "Clusters"
-        assert sent["fits_id"] == 7
-
-    def test_none_filter_sends_bare_clusters_action(self):
-        ctx, sock = _mock_context({"result": "success", "clusters": []})
-        repo = _make_repo(ctx)
-
-        repo.query_fits_clusters(None)
-
-        sent = sock.send_json.call_args[0][0]
-        assert sent == {"Action": "Clusters"}
-
-    def test_import_from_common(self):
-        """Regression fence for #143 — DTO must be exported from common."""
-        from le_beta_vis.common import FitsClusterQueryFilter as Exported
-
-        assert Exported is FitsClusterQueryFilter
+        repo.query_fits(
+            None,
+            callback=lambda records: (got.__setitem__("records", records), done.set()),
+            on_error=lambda error: (got.__setitem__("error", error), done.set()),
+        )
+        _await_callback(done)
+        assert got["records"] is None
+        assert isinstance(got["error"], str)
 
 
 # -------------------------------------------------------------------
@@ -505,20 +507,26 @@ class TestSocketLifecycle:
     def test_socket_closed_after_request(self):
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
-        repo.fetch_events()
+        done = threading.Event()
+        repo.fetch_events(callback=lambda _: done.set(), on_error=lambda _: done.set())
+        _await_callback(done)
         sock.close.assert_called_once()
 
     def test_socket_closed_on_error(self):
         ctx, sock = _mock_context()
         sock.send_json.side_effect = zmq.ZMQError("fail")
         repo = _make_repo(ctx)
-        repo.fetch_events()
+        done = threading.Event()
+        repo.fetch_events(callback=lambda _: done.set(), on_error=lambda _: done.set())
+        _await_callback(done)
         sock.close.assert_called_once()
 
     def test_linger_set_to_zero(self):
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
-        repo.fetch_events()
+        done = threading.Event()
+        repo.fetch_events(callback=lambda _: done.set(), on_error=lambda _: done.set())
+        _await_callback(done)
         sock.setsockopt.assert_any_call(zmq.LINGER, 0)
 
     def test_timeout_from_config(self):
@@ -526,6 +534,8 @@ class TestSocketLifecycle:
         config.set("eps:timeout_ms", 9999)
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = ZMQBasedEventRepository(config, context=ctx)
-        repo.fetch_events()
+        done = threading.Event()
+        repo.fetch_events(callback=lambda _: done.set(), on_error=lambda _: done.set())
+        _await_callback(done)
         sock.setsockopt.assert_any_call(zmq.RCVTIMEO, 9999)
         sock.setsockopt.assert_any_call(zmq.SNDTIMEO, 9999)

@@ -18,26 +18,43 @@ def _make_repo() -> NoOpEventRepository:
 
 def test_fetch_events_returns_empty(caplog):
     repo = _make_repo()
+    got = {"events": None, "error": None}
     with caplog.at_level(logging.WARNING):
-        result = repo.fetch_events()
-    assert result == []
+        repo.fetch_events(
+            callback=lambda events: got.__setitem__("events", events),
+            on_error=lambda error: got.__setitem__("error", error),
+        )
+    assert got["events"] is None
+    assert isinstance(got["error"], str)
     assert "fetch_events" in caplog.text
 
 
 def test_query_clusters_returns_empty(caplog):
     repo = _make_repo()
     qf = ClusterQueryFilter(fits_id=1)
+    got = {"events": None, "error": None}
     with caplog.at_level(logging.WARNING):
-        result = repo.query_clusters(qf)
-    assert result == []
+        repo.query_clusters(
+            qf,
+            callback=lambda events: got.__setitem__("events", events),
+            on_error=lambda error: got.__setitem__("error", error),
+        )
+    assert got["events"] is None
+    assert isinstance(got["error"], str)
     assert "query_clusters" in caplog.text
 
 
 def test_query_clusters_none_filter(caplog):
     repo = _make_repo()
+    got = {"events": None, "error": None}
     with caplog.at_level(logging.WARNING):
-        result = repo.query_clusters(None)
-    assert result == []
+        repo.query_clusters(
+            None,
+            callback=lambda events: got.__setitem__("events", events),
+            on_error=lambda error: got.__setitem__("error", error),
+        )
+    assert got["events"] is None
+    assert isinstance(got["error"], str)
 
 
 def test_store_cluster_returns_none(caplog):
@@ -56,15 +73,27 @@ def test_store_cluster_returns_none(caplog):
 def test_update_classification_returns_false(caplog):
     repo = _make_repo()
     req = ClassificationUpdateRequest(cluster_id=1, classification="x")
+    got = {"updated": None, "error": None}
     with caplog.at_level(logging.WARNING):
-        result = repo.update_classification(req)
-    assert result is False
+        repo.update_classification(
+            req,
+            callback=lambda updated: got.__setitem__("updated", updated),
+            on_error=lambda error: got.__setitem__("error", error),
+        )
+    assert got["updated"] is None
+    assert isinstance(got["error"], str)
     assert "update_classification" in caplog.text
 
 
 def test_query_fits_returns_empty(caplog):
     repo = _make_repo()
+    got = {"fits": None, "error": None}
     with caplog.at_level(logging.WARNING):
-        result = repo.query_fits(fits_id=1)
-    assert result == []
+        repo.query_fits(
+            fits_id=1,
+            callback=lambda fits: got.__setitem__("fits", fits),
+            on_error=lambda error: got.__setitem__("error", error),
+        )
+    assert got["fits"] is None
+    assert isinstance(got["error"], str)
     assert "query_fits" in caplog.text

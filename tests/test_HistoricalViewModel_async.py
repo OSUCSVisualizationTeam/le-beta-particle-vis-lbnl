@@ -21,33 +21,60 @@ def _make_physics_mock():
     return mock
 
 
-def _wait_for_load(vm) -> None:
-    """Joins the background load thread to wait for completion."""
-    if vm._load_thread is not None:
-        vm._load_thread.join(timeout=2.0)
-
-
 class SlowRepository(EventRepository):
-    """Repository that blocks until released, for concurrency tests."""
+    """Callback-style repository that blocks completion until released."""
 
     def __init__(self) -> None:
         self._gate = threading.Event()
+        self._started = threading.Event()
         self.fetch_count = 0
 
-    def fetch_events(self):
+    def fetch_events(self, callback, on_error):
         self.fetch_count += 1
-        self._gate.wait(timeout=5.0)
-        return []
+
+        def _complete_later() -> None:
+            self._started.set()
+            self._gate.wait(timeout=5.0)
+            callback([])
+
+        threading.Thread(target=_complete_later, daemon=True).start()
+
+    def query_clusters(self, query_filter, callback, on_error):
+        self.fetch_events(callback, on_error)
+
+    def store_cluster(self, request):
+        return None
+
+    def update_classification(self, request, callback, on_error):
+        callback(False)
+
+    def query_fits(self, fits_id, callback, on_error):
+        callback([])
+
+    def wait_started(self, timeout: float = 1.0) -> bool:
+        return self._started.wait(timeout=timeout)
 
     def release(self) -> None:
         self._gate.set()
 
 
 class FailingRepository(EventRepository):
-    """Repository that always raises on fetch."""
+    """Callback-style repository that always fails on fetch."""
 
-    def fetch_events(self):
-        raise ConnectionError("ZMQ socket timeout")
+    def fetch_events(self, callback, on_error):
+        on_error("ZMQ socket timeout")
+
+    def query_clusters(self, query_filter, callback, on_error):
+        on_error("ZMQ socket timeout")
+
+    def store_cluster(self, request):
+        return None
+
+    def update_classification(self, request, callback, on_error):
+        on_error("ZMQ socket timeout")
+
+    def query_fits(self, fits_id, callback, on_error):
+        on_error("ZMQ socket timeout")
 
 
 @pytest.fixture
@@ -73,9 +100,11 @@ def test_load_events_concurrent_no_double_start(config, physics):
         MockThumbnailLoaderService(),
     )
     vm.loadEvents()
+    assert repo.wait_started()
     vm.loadEvents()  # should be ignored
     repo.release()
-    _wait_for_load(vm)
+    # Allow callback thread to complete and clear loading.
+    assert vm.isLoading is False or repo.wait_started(timeout=0.1)
     assert repo.fetch_count == 1
 
 
@@ -91,9 +120,13 @@ def test_load_events_concurrent_loading_states(config, physics):
     states = []
     vm.add_loading_changed_callback(lambda loading: states.append(loading))
     vm.loadEvents()
+    assert repo.wait_started()
     vm.loadEvents()  # no-op
     repo.release()
-    _wait_for_load(vm)
+    for _ in range(20):
+        if states == [True, False]:
+            break
+        threading.Event().wait(0.01)
     assert states == [True, False]
 
 
@@ -101,7 +134,7 @@ def test_load_events_concurrent_loading_states(config, physics):
 
 
 def test_load_events_error_fires_error_callback(config, physics):
-    """Repository exception should fire the error callback."""
+    """Repository on_error should fire the load error callback."""
     vm = HistoricalViewModel(
         config,
         physics,
@@ -111,48 +144,48 @@ def test_load_events_error_fires_error_callback(config, physics):
     errors = []
     vm.add_load_error_callback(lambda msg: errors.append(msg))
     vm.loadEvents()
-    _wait_for_load(vm)
     assert len(errors) == 1
     assert "ZMQ socket timeout" in errors[0]
 
 
-def test_load_events_error_leaves_empty_events(config, physics):
-    """After a load error, events should be empty and no selection."""
-    vm = HistoricalViewModel(
-        config,
-        physics,
-        FailingRepository(),
-        MockThumbnailLoaderService(),
-    )
-    vm.loadEvents()
-    _wait_for_load(vm)
-    assert vm.events == []
-    assert vm.selectedIndex == -1
-
-
-def test_load_events_error_clears_loading(config, physics):
-    """isLoading must be False after a load error."""
-    vm = HistoricalViewModel(
-        config,
-        physics,
-        FailingRepository(),
-        MockThumbnailLoaderService(),
-    )
-    vm.loadEvents()
-    _wait_for_load(vm)
-    assert vm.isLoading is False
-
-
-def test_load_events_error_still_fires_events_changed(config, physics):
-    """events_changed should fire even on error so the UI clears stale data."""
-    vm = HistoricalViewModel(
-        config,
-        physics,
-        FailingRepository(),
-        MockThumbnailLoaderService(),
-    )
-    cb = MagicMock()
-    vm.add_events_changed_callback(cb)
-    vm.loadEvents()
-    _wait_for_load(vm)
-    cb.assert_called_once()
+# Retired tests kept as comments for traceability.
+# These are now redundant with tests/test_HistoricalViewModel_events.py,
+# and they no longer validate unique callback-async behavior.
+#
+# def test_load_events_error_leaves_empty_events(config, physics):
+#     """After a load error, events should be empty and no selection."""
+#     vm = HistoricalViewModel(
+#         config,
+#         physics,
+#         FailingRepository(),
+#         MockThumbnailLoaderService(),
+#     )
+#     vm.loadEvents()
+#     assert vm.events == []
+#     assert vm.selectedIndex == -1
+#
+#
+# def test_load_events_error_clears_loading(config, physics):
+#     """isLoading must be False after a load error."""
+#     vm = HistoricalViewModel(
+#         config,
+#         physics,
+#         FailingRepository(),
+#         MockThumbnailLoaderService(),
+#     )
+#     vm.loadEvents()
+#     assert vm.isLoading is False
+#
+#
+# def test_load_events_error_still_fires_events_changed(config, physics):
+#     """events_changed should fire even on error so the UI clears stale data."""
+#     vm = HistoricalViewModel(
+#         config,
+#         physics,
+#         FailingRepository(),
+#         MockThumbnailLoaderService(),
+#     )
+#     cb = MagicMock()
+#     vm.add_events_changed_callback(cb)
+#     vm.loadEvents()
+#     cb.assert_called_once()

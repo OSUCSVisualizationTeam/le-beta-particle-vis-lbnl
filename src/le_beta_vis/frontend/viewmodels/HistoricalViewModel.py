@@ -74,15 +74,19 @@ class HistoricalViewModel:
         # Threading
         self._load_thread: Optional[threading.Thread] = None
         self._logger = logging.getLogger(__name__)
+        self._state_lock = threading.RLock()
+        self._next_request_id: int = 1
+        self._active_request_id: Optional[int] = None
 
         # Callbacks
+        self._on_events_loaded_callbacks: List[Callable[[List[Cluster]], None]] = []
+        self._on_error_callbacks: List[Callable[[str], None]] = []
         self._on_mode_changed_callbacks: List[Callable[[HistoricalMode], None]] = []
         self._on_events_changed_callbacks: List[Callable[[], None]] = []
         self._on_selected_event_changed_callbacks: List[Callable[[], None]] = []
         self._on_loading_changed_callbacks: List[Callable[[bool], None]] = []
         self._on_load_error_callbacks: List[Callable[[str], None]] = []
         self._on_thumbnail_ready_callbacks: List[Callable[[int, np.ndarray], None]] = []
-
     # --- Properties ---
 
     @property
@@ -255,39 +259,36 @@ class HistoricalViewModel:
         from the background thread — Views should marshal back to
         the main thread via ``Qt.AutoConnection``.
         """
-        if self._loading:
-            return
         self._thumbnail_service.clear()
-        self._setLoading(True)
-        self._load_thread = threading.Thread(
-            target=self._fetch_events_worker, daemon=True,
-        )
-        self._load_thread.start()
+        with self._state_lock:
+            if self._loading:
+                return
+            request_id = self._next_request_id
+            self._next_request_id += 1
+            self._active_request_id = request_id
+            query_filter = self._query_filter
+            loading_callbacks = list(self._on_loading_changed_callbacks)
+            self._loading = True
 
-    def _fetch_events_worker(self) -> None:
-        """Worker body executed on a background thread."""
-        try:
-            events = self._run_repository_query()
-            self._events = events
-            self._selectedIndex = 0 if self._events else -1
-        except Exception as exc:
-            self._logger.exception("loadEvents failed")
-            self._events = []
-            self._selectedIndex = -1
-            self._notify_load_error(str(exc))
-        finally:
-            self._setLoading(False)
-        self._notify_events_changed()
-        self._notify_selected_event_changed()
-
-    def _run_repository_query(self) -> List[Cluster]:
-        """Executes the repository call with query filter fallback."""
-        if self._query_filter is not None:
+        for callback in loading_callbacks:
+            callback(True)
+        if query_filter is not None:
             try:
-                return self._repository.query_clusters(self._query_filter)
+                self._repository.query_clusters(
+                    query_filter,
+                    callback=lambda events: self._on_repository_loaded(request_id, events),
+                    on_error=lambda error: self._on_repository_error(request_id, error),
+                )
             except NotImplementedError:
-                return self._repository.fetch_events()
-        return self._repository.fetch_events()
+                self._repository.fetch_events(
+                    callback=lambda events: self._on_repository_loaded(request_id, events),
+                    on_error=lambda error: self._on_repository_error(request_id, error),
+                )
+        else:
+            self._repository.fetch_events(
+                callback=lambda events: self._on_repository_loaded(request_id, events),
+                on_error=lambda error: self._on_repository_error(request_id, error),
+            )
 
     def selectEvent(self, index: int) -> None:
         """Selects an event by index.
@@ -303,6 +304,12 @@ class HistoricalViewModel:
             self._notify_selected_event_changed()
 
     # --- Observer Pattern ---
+
+    def add_event_loading_callback(
+            self, callback: Callable[[List[Cluster]], None]
+    ) -> None:
+        """Registers a callback for when events are loaded."""
+        self._on_events_loaded_callbacks.append(callback)
 
     def add_mode_changed_callback(
         self, callback: Callable[[HistoricalMode], None]
@@ -322,23 +329,58 @@ class HistoricalViewModel:
         """Registers a callback for loading state changes."""
         self._on_loading_changed_callbacks.append(callback)
 
+    def add_error_callback(self, callback: Callable[[str], None]) -> None:
+        """Registers a callback for error messages."""
+        self._on_error_callbacks.append(callback)
+
     def add_load_error_callback(self, callback: Callable[[str], None]) -> None:
-        """Registers a callback for event loading errors."""
+        """Registers a callback for errors during event loading."""
         self._on_load_error_callbacks.append(callback)
 
     # --- Private helpers ---
 
+    def _on_repository_loaded(self, request_id: int, events: List[Cluster]) -> None:
+        with self._state_lock:
+            if self._active_request_id != request_id:
+                return
+            self._active_request_id = None
+        self._notify_loaded(events)
+
+    def _on_repository_error(self, request_id: int, error: str) -> None:
+        with self._state_lock:
+            if self._active_request_id != request_id:
+                return
+            self._active_request_id = None
+        self._notify_error(error)
+
     def _setLoading(self, loading: bool) -> None:
-        if self._loading != loading:
+        with self._state_lock:
+            if self._loading == loading:
+                return
             self._loading = loading
-            self._notify_loading_changed()
+        self._notify_loading_changed()
+
+    def _notify_loaded(self, events: List[Cluster]) -> None:
+        self._setLoading(False)
+        with self._state_lock:
+            self._events = events
+            if len(self._events) > 0:
+                self._selectedIndex = 0
+            else:
+                self._selectedIndex = -1
+            events_loaded_callbacks = list(self._on_events_loaded_callbacks)
+        for callback in events_loaded_callbacks:
+            callback(events)
+        self._notify_events_changed()
 
     def _notify_mode_changed(self) -> None:
         for callback in self._on_mode_changed_callbacks:
             callback(self._mode)
 
     def _notify_events_changed(self) -> None:
-        for callback in self._on_events_changed_callbacks:
+        with self._state_lock:
+            callbacks = list(self._on_events_changed_callbacks)
+        for callback in callbacks:
             callback()
 
     def _notify_selected_event_changed(self) -> None:
@@ -346,9 +388,18 @@ class HistoricalViewModel:
             callback()
 
     def _notify_loading_changed(self) -> None:
-        for callback in self._on_loading_changed_callbacks:
-            callback(self._loading)
+        with self._state_lock:
+            callbacks = list(self._on_loading_changed_callbacks)
+            loading = self._loading
+        for callback in callbacks:
+            callback(loading)
 
-    def _notify_load_error(self, message: str) -> None:
-        for callback in self._on_load_error_callbacks:
-            callback(message)
+    def _notify_error(self, error: str) -> None:
+        self._setLoading(False)
+        with self._state_lock:
+            load_error_callbacks = list(self._on_load_error_callbacks)
+            error_callbacks = list(self._on_error_callbacks)
+        for callback in load_error_callbacks:
+            callback(error)
+        for callback in error_callbacks:
+            callback(error)

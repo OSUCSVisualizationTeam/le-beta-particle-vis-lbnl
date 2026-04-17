@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from .Cluster import Cluster
 from .EPSDataClasses import (
@@ -10,6 +10,10 @@ from .EPSDataClasses import (
     FitsClusterQueryFilter,
 )
 
+onCluster = Callable[[List[Cluster]], None]
+onFits = Callable[[List[EPSFitsRecord]], None]
+onUpdate = Callable[[bool], None]
+onError = Callable[[str], None]
 
 class EventRepository(ABC):
     """Abstract interface for fetching persisted cluster events.
@@ -20,8 +24,12 @@ class EventRepository(ABC):
     """
 
     @abstractmethod
-    def fetch_events(self) -> List[Cluster]:
-        """Returns all available cluster events.
+    def fetch_events(
+        self,
+        callback: onCluster,
+        on_error: onError,
+        ) -> None:
+        """Returns all available cluster events from callback.
 
         Implementations should return a list of ``Cluster``
         objects with classification scores and pixel data
@@ -30,8 +38,11 @@ class EventRepository(ABC):
         raise NotImplementedError
 
     def query_clusters(
-        self, query_filter: Optional[ClusterQueryFilter] = None
-    ) -> List[Cluster]:
+        self,
+        query_filter: Optional[ClusterQueryFilter],
+        callback: onCluster,
+        on_error: onError,
+        ) -> None:
         """Filtered cluster query.
 
         Args:
@@ -45,7 +56,8 @@ class EventRepository(ABC):
         raise NotImplementedError
 
     def store_cluster(
-        self, request: ClusterStoreRequest
+        self,
+        request: ClusterStoreRequest
     ) -> Optional[int]:
         """Persist a cluster to the backend.
 
@@ -55,8 +67,11 @@ class EventRepository(ABC):
         raise NotImplementedError
 
     def update_classification(
-        self, request: ClassificationUpdateRequest
-    ) -> bool:
+        self,
+        request: ClassificationUpdateRequest,
+        callback: onUpdate,
+        on_error: onError,
+    ) -> None:
         """Update classification on an existing cluster.
 
         Returns:
@@ -65,8 +80,11 @@ class EventRepository(ABC):
         raise NotImplementedError
 
     def query_fits(
-        self, fits_id: Optional[int] = None
-    ) -> List[EPSFitsRecord]:
+        self,
+        fits_id: Optional[int],
+        callback: onFits,
+        on_error: onError,
+    ) -> None:
         """Retrieve FITS metadata.
 
         Args:
@@ -78,8 +96,11 @@ class EventRepository(ABC):
         raise NotImplementedError
 
     def query_fits_clusters(
-        self, query_filter: Optional[FitsClusterQueryFilter] = None
-    ) -> List[Cluster]:
+        self,
+        query_filter: Optional[FitsClusterQueryFilter],
+        callback: Callable,
+        on_error: Callable
+    ) -> None:
         """Retrieve clusters filtered by FITS metadata.
 
         Args:

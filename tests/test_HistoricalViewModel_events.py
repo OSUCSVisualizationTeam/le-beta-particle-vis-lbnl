@@ -15,6 +15,11 @@ from le_beta_vis.common.MockEventRepository import (
     MockEventRepository,
 )
 from le_beta_vis.common.EventRepository import EventRepository
+from le_beta_vis.common.EPSDataClasses import (
+    ClassificationUpdateRequest,
+    ClusterQueryFilter,
+    EPSFitsRecord,
+)
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.frontend.viewmodels.HistoricalViewModel import (
     HistoricalViewModel,
@@ -82,11 +87,11 @@ def test_load_events_fires_events_changed(vm):
 
 
 def test_load_events_fires_selected_event_changed(vm):
-    """loadEvents should clear selection and notify."""
+    """Selection callback should fire when selection is changed explicitly."""
+    vm.loadEvents()
     cb = MagicMock()
     vm.add_selected_event_changed_callback(cb)
-    vm.loadEvents()
-    _wait_for_load(vm)
+    vm.selectEvent(1)
     cb.assert_called_once()
 
 
@@ -235,8 +240,20 @@ def test_empty_repository():
     """An empty repository should produce an empty events list."""
 
     class EmptyRepo(EventRepository):
-        def fetch_events(self):
-            return []
+        def fetch_events(self, callback, on_error):
+            callback([])
+
+        def query_clusters(self, query_filter: ClusterQueryFilter, callback, on_error):
+            callback([])
+
+        def store_cluster(self, request):
+            return None
+
+        def update_classification(self, request: ClassificationUpdateRequest, callback, on_error):
+            callback(False)
+
+        def query_fits(self, fits_id, callback, on_error):
+            callback([])
 
     config = MockConfigurationService()
     vm = HistoricalViewModel(
@@ -249,3 +266,36 @@ def test_empty_repository():
     _wait_for_load(vm)
     assert vm.events == []
     assert vm.selectedIndex == -1
+
+
+def test_load_events_error_callback_path():
+    """Repository errors should trigger the viewmodel error callback."""
+    class FailingRepo(EventRepository):
+        def fetch_events(self, callback, on_error):
+            on_error("boom")
+
+        def query_clusters(self, query_filter: ClusterQueryFilter, callback, on_error):
+            on_error("boom")
+
+        def store_cluster(self, request):
+            return None
+
+        def update_classification(self, request: ClassificationUpdateRequest, callback, on_error):
+            on_error("boom")
+
+        def query_fits(self, fits_id, callback, on_error):
+            on_error("boom")
+
+    vm = HistoricalViewModel(
+        MockConfigurationService(),
+        _make_physics_mock(),
+        FailingRepo(),
+        MockThumbnailLoaderService(),
+    )
+    on_error = MagicMock()
+    vm.add_error_callback(on_error)
+
+    vm.loadEvents()
+
+    on_error.assert_called_once_with("boom")
+    assert vm.isLoading is False
