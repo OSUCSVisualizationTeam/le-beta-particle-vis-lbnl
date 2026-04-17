@@ -1,7 +1,7 @@
 """EPS-backed fallback cluster provider for the Live Mode screensaver.
 
 Pulls clusters from the Event Persistence Service via
-``EventRepository.query_recent_clusters()``, which returns
+``EventRepository.query_recent_clusters_sync()``, which returns
 newest-first rows server-side (ORDER BY date DESC + LIMIT/OFFSET).
 The provider maintains a walking cursor so successive ``fetch``
 calls traverse the table without returning the same rows twice; on
@@ -57,7 +57,7 @@ class FallbackClusterProvider(ClusterProvider):
         try:
             with self._lock:
                 offset = self._offset
-            first = self._repository.query_recent_clusters(
+            first = self._repository.query_recent_clusters_sync(
                 limit=count, offset=offset
             )
             received = len(first)
@@ -71,7 +71,7 @@ class FallbackClusterProvider(ClusterProvider):
             remaining = count - received
             with self._lock:
                 self._offset = 0
-            second = self._repository.query_recent_clusters(
+            second = self._repository.query_recent_clusters_sync(
                 limit=remaining, offset=0
             )
             with self._lock:
