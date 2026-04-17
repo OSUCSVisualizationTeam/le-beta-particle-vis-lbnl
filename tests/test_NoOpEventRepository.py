@@ -9,6 +9,7 @@ from le_beta_vis.common.EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
     ClusterStoreRequest,
+    FitsClusterQueryFilter,
 )
 
 
@@ -24,8 +25,8 @@ def test_fetch_events_returns_empty(caplog):
             callback=lambda events: got.__setitem__("events", events),
             on_error=lambda error: got.__setitem__("error", error),
         )
-    assert got["events"] is None
-    assert isinstance(got["error"], str)
+    assert got["events"] == []
+    assert got["error"] is None
     assert "fetch_events" in caplog.text
 
 
@@ -39,8 +40,8 @@ def test_query_clusters_returns_empty(caplog):
             callback=lambda events: got.__setitem__("events", events),
             on_error=lambda error: got.__setitem__("error", error),
         )
-    assert got["events"] is None
-    assert isinstance(got["error"], str)
+    assert got["events"] == []
+    assert got["error"] is None
     assert "query_clusters" in caplog.text
 
 
@@ -53,8 +54,8 @@ def test_query_clusters_none_filter(caplog):
             callback=lambda events: got.__setitem__("events", events),
             on_error=lambda error: got.__setitem__("error", error),
         )
-    assert got["events"] is None
-    assert isinstance(got["error"], str)
+    assert got["events"] == []
+    assert got["error"] is None
 
 
 def test_store_cluster_returns_none(caplog):
@@ -94,6 +95,21 @@ def test_query_fits_returns_empty(caplog):
             callback=lambda fits: got.__setitem__("fits", fits),
             on_error=lambda error: got.__setitem__("error", error),
         )
-    assert got["fits"] is None
-    assert isinstance(got["error"], str)
+    assert got["fits"] == []
+    assert got["error"] is None
     assert "query_fits" in caplog.text
+
+
+def test_query_fits_clusters_returns_empty(caplog):
+    repo = _make_repo()
+    qf = FitsClusterQueryFilter(fits_id=1)
+    got = {"events": None, "error": None}
+    with caplog.at_level(logging.WARNING):
+        repo.query_fits_clusters(
+            qf,
+            callback=lambda events: got.__setitem__("events", events),
+            on_error=lambda error: got.__setitem__("error", error),
+        )
+    assert got["events"] == []
+    assert got["error"] is None
+    assert "query_fits_clusters" in caplog.text

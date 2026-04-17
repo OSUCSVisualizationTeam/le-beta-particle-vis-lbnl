@@ -11,6 +11,7 @@ from .EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
     ClusterStoreRequest,
+    FitsClusterQueryFilter,
 )
 from .EventRepository import EventRepository, onCluster, onError, onFits, onUpdate
 
@@ -27,13 +28,11 @@ class NoOpEventRepository(EventRepository):
     def fetch_events(
             self,
             callback: onCluster,
-            on_error: onError
+            on_error: onError,
     ) -> None:
-        """Returns an empty list — EPS is unavailable."""
-        logger.warning(
-            "NoOpEventRepository: fetch_events called but " "EPS is unavailable"
-        )
-        on_error("NoOpEventRepository: fetch_events called but " "EPS is unavailable")
+        """Invokes ``callback`` with an empty list — EPS is unavailable."""
+        logger.warning("NoOpEventRepository: fetch_events called but EPS is unavailable")
+        callback([])
 
     def query_clusters(
         self,
@@ -41,11 +40,9 @@ class NoOpEventRepository(EventRepository):
         callback: onCluster,
         on_error: onError,
     ) -> None:
-        """Returns an empty list — EPS is unavailable."""
-        logger.warning(
-            "NoOpEventRepository: query_clusters called but " "EPS is unavailable"
-        )
-        on_error("NoOpEventRepository: query_clusters called but " "EPS is unavailable")
+        """Invokes ``callback`` with an empty list — EPS is unavailable."""
+        logger.warning("NoOpEventRepository: query_clusters called but EPS is unavailable")
+        callback([])
 
     def query_recent_clusters(
         self, limit: int, offset: int = 0
@@ -82,10 +79,18 @@ class NoOpEventRepository(EventRepository):
             self,
             fits_id: Optional[int],
             callback: onFits,
-            on_error: onError
+            on_error: onError,
     ) -> None:
-        """Returns an empty list — EPS is unavailable."""
-        logger.warning(
-            "NoOpEventRepository: query_fits called but " "EPS is unavailable"
-        )
-        on_error("NoOpEventRepository: query_fits called but " "EPS is unavailable")
+        """Invokes ``callback`` with an empty list — EPS is unavailable."""
+        logger.warning("NoOpEventRepository: query_fits called but EPS is unavailable")
+        callback([])
+
+    def query_fits_clusters(
+        self,
+        query_filter: Optional[FitsClusterQueryFilter],
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
+        """Invokes ``callback`` with an empty list — EPS is unavailable."""
+        logger.warning("NoOpEventRepository: query_fits_clusters called but EPS is unavailable")
+        callback([])
