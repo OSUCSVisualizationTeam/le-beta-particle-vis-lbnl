@@ -15,6 +15,7 @@ onFits = Callable[[List[EPSFitsRecord]], None]
 onUpdate = Callable[[bool], None]
 onError = Callable[[str], None]
 
+
 class EventRepository(ABC):
     """Abstract interface for fetching persisted cluster events.
 
@@ -28,7 +29,7 @@ class EventRepository(ABC):
         self,
         callback: onCluster,
         on_error: onError,
-        ) -> None:
+    ) -> None:
         """Returns all available cluster events from callback.
 
         Implementations should return a list of ``Cluster``
@@ -42,7 +43,7 @@ class EventRepository(ABC):
         query_filter: Optional[ClusterQueryFilter],
         callback: onCluster,
         on_error: onError,
-        ) -> None:
+    ) -> None:
         """Filtered cluster query.
 
         Args:
@@ -52,6 +53,36 @@ class EventRepository(ABC):
 
         Returns:
             Matching ``Cluster`` objects.
+        """
+        raise NotImplementedError
+
+    def query_recent_clusters(
+        self,
+        limit: int,
+        offset: int,
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
+        """Return newest-first clusters, bounded by limit/offset.
+
+        Ordered server-side by FITS date descending.  Used by the
+        Live Mode fallback provider to page through historical
+        clusters without client-side sorting.
+
+        Args:
+            limit: Maximum number of clusters to return.
+            offset: Number of rows to skip from the newest.
+        """
+        raise NotImplementedError
+
+    def query_recent_clusters_sync(
+        self, limit: int, offset: int = 0
+    ) -> List[Cluster]:
+        """Synchronous newest-first retrieval for worker-thread callers.
+
+        Callers already running on a background thread (e.g. the Live
+        Mode ``FallbackClusterProvider``) may call this directly to
+        avoid bouncing through an async callback.
         """
         raise NotImplementedError
 
@@ -98,8 +129,8 @@ class EventRepository(ABC):
     def query_fits_clusters(
         self,
         query_filter: Optional[FitsClusterQueryFilter],
-        callback: Callable,
-        on_error: Callable
+        callback: onCluster,
+        on_error: onError,
     ) -> None:
         """Retrieve clusters filtered by FITS metadata.
 

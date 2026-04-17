@@ -51,8 +51,6 @@ class MockConfigurationService(ConfigurationService):
             "gui:mosaic:scaling_function": "log",
             # Historical Event Analysis (GUI)
             "gui:historical:default_time_preset": "all",
-            "gui:historical:live_update_rate_ms": 1000,
-            "gui:historical:mode": "historical",
             "gui:historical:classification_threshold": 0.75,
             "gui:historical:grid_item_width": 140,
             "gui:historical:grid_item_height": 160,

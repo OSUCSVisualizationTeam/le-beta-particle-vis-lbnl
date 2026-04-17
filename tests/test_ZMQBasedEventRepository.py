@@ -20,6 +20,7 @@ from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
+    ClusterRecentQueryFilter,
     ClusterStoreRequest,
     EPSClusterRecord,
     FitsClusterQueryFilter,
@@ -188,6 +189,76 @@ class TestQueryClusters:
 
         sent = sock.send_json.call_args[0][0]
         assert sent == {"Action": "Retrieval"}
+
+
+# -------------------------------------------------------------------
+# query_recent_clusters (RecentRetrieval action)
+# -------------------------------------------------------------------
+
+
+class TestQueryRecentClusters:
+    """Validates the new RecentRetrieval endpoint wire format and parsing."""
+
+    def test_sends_recent_retrieval_with_limit_and_offset(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+
+        repo.query_recent_clusters_sync(limit=25, offset=50)
+
+        sent = sock.send_json.call_args[0][0]
+        expected = ClusterRecentQueryFilter(limit=25, offset=50).to_eps_dict()
+        assert sent == expected
+        assert sent["Action"] == "RecentRetrieval"
+
+    def test_default_offset_is_zero(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+
+        repo.query_recent_clusters_sync(limit=10)
+
+        sent = sock.send_json.call_args[0][0]
+        assert sent["offset"] == 0
+
+    def test_response_parsed_via_dataclass(self):
+        """Clusters are built from EPSClusterRecord, not raw dicts."""
+        raw = {
+            "fits_id": 7,
+            "hdu_id": 0,
+            "cluster_id": 101,
+            "bounding_box": {"top": 1, "left": 2, "bottom": 3, "right": 4},
+            "data": [1.0, 2.0, 3.0, 4.0],
+            "total_energy": 1234.0,
+            "sigmaX": 1.1,
+            "sigmaY": 2.2,
+            "classification": "tritium",
+            "total_pixels": 12,
+            "filename": "newest.fits",
+            "date": "2026-04-14",
+        }
+        record = EPSClusterRecord.from_eps_dict(raw)
+        ctx, sock = _mock_context({"result": "success", "clusters": [raw]})
+        repo = _make_repo(ctx)
+
+        clusters = repo.query_recent_clusters_sync(limit=1)
+
+        assert len(clusters) == 1
+        c = clusters[0]
+        assert c.clusterId == record.cluster_id == 101
+        assert c.fitsId == record.fits_id == 7
+        assert c.energy == record.total_energy == 1234.0
+        assert c.fitsFilename == record.filename == "newest.fits"
+        assert c.date == record.date == "2026-04-14"
+
+    def test_failure_returns_empty(self):
+        ctx, sock = _mock_context({"result": "failure"})
+        repo = _make_repo(ctx)
+        assert repo.query_recent_clusters_sync(limit=5) == []
+
+    def test_zmq_error_returns_empty(self):
+        ctx, sock = _mock_context()
+        sock.send_json.side_effect = zmq.ZMQError("timeout")
+        repo = _make_repo(ctx)
+        assert repo.query_recent_clusters_sync(limit=5) == []
 
 
 # -------------------------------------------------------------------
@@ -494,7 +565,6 @@ class TestMapToCluster:
         cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.data is None
-
 
 
 # -------------------------------------------------------------------

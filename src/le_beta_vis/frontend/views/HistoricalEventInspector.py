@@ -23,6 +23,9 @@ from le_beta_vis.frontend.fitsconverters.interface import Colormap
 from le_beta_vis.frontend.viewmodels.HistoricalEventInspectorViewModel import (
     HistoricalEventInspectorViewModel,
 )
+from le_beta_vis.frontend.widgets.ClusterDetailWidget import (
+    ClusterDetailWidget,
+)
 from le_beta_vis.frontend.widgets.EnergyClusterWidget import (
     EnergyClusterWidget,
 )
@@ -97,7 +100,10 @@ class HistoricalEventInspector(QWidget):
 
         # Left column: cluster image
         leftCol = QVBoxLayout()
-        self._imageWidget = EnergyClusterWidget(size=_HIGH_RES_SIZE)
+        self._imageWidget = EnergyClusterWidget(
+            size=_HIGH_RES_SIZE, enable_hover_tooltip=True,
+        )
+        self._imageWidget.set_kev_converter(self._vm.physics.adu_to_kev)
         leftCol.addWidget(self._imageWidget)
         leftCol.addStretch()
         top.addLayout(leftCol)
@@ -106,10 +112,7 @@ class HistoricalEventInspector(QWidget):
         rightCol = QVBoxLayout()
         rightCol.setAlignment(Qt.AlignTop)
 
-        self._detailLabel = QLabel()
-        self._detailLabel.setWordWrap(True)
-        self._detailLabel.setTextFormat(Qt.RichText)
-        self._detailLabel.setAlignment(Qt.AlignTop)
+        self._detailLabel = ClusterDetailWidget(self._vm, show_filename=True)
         rightCol.addWidget(self._detailLabel)
 
         rightCol.addStretch()
@@ -150,7 +153,7 @@ class HistoricalEventInspector(QWidget):
         self._placeholder.setVisible(False)
         self._detailWidget.setVisible(True)
 
-        self._detailLabel.setText(self._vm.formatDetailHtml(cluster))
+        self._detailLabel.setCluster(cluster)
         # Clear stale image/histogram — will be populated by updateClusterData
         self._imageWidget.clear()
         self._histogram.setData(None)

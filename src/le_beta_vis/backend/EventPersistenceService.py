@@ -112,6 +112,10 @@ class EventPersistence:
             "fits_id": None,
             "classification": None,
         }
+        self.retrieval_recent_clusters = {
+            "limit": 0,
+            "offset": 0,
+        }
 
         self.conn = self.db_connect()  # connect to DB before listening loop
         self.initialize_server()
@@ -239,6 +243,19 @@ class EventPersistence:
                     "classification": request.get("classification"),
                 }
                 response = self.retrieve_clusters()
+                socket.send_json(response)
+            except Exception as err:
+                socket.send_json(
+                    {"result": "failure", "clusters": None, "error": str(err)}
+                )
+
+        elif request.get("Action") == "RecentRetrieval":
+            try:
+                self.retrieval_recent_clusters = {
+                    "limit": request.get("limit"),
+                    "offset": request.get("offset", 0),
+                }
+                response = self.retrieve_recent_clusters()
                 socket.send_json(response)
             except Exception as err:
                 socket.send_json(
@@ -513,6 +530,37 @@ class EventPersistence:
 
             cursor.execute(select_query, tuple(select_argv))
             # saving results into a list of tuples
+            results = cursor.fetchall()
+
+            cursor.close()
+            return self.process_retrieval_clusters(results)
+
+        except mysql.connector.Error as err:
+            logger.warning(f"Could not connect: {str(err)}")
+
+    def retrieve_recent_clusters(self) -> dict:
+        """Selects the newest clusters ordered by FITS date, paginated.
+
+        Uses the ``limit`` and ``offset`` stored in
+        ``self.retrieval_recent_clusters``. Reuses
+        ``process_retrieval_clusters`` to shape the response.
+        """
+        try:
+            if not self.conn:
+                self.conn = self.db_connect()
+            cursor = self.conn.cursor(dictionary=True)
+
+            limit = int(self.retrieval_recent_clusters.get("limit") or 0)
+            offset = int(self.retrieval_recent_clusters.get("offset") or 0)
+
+            select_query = (
+                "SELECT clusters.*, fits_files.filename, fits_files.date "
+                "FROM clusters INNER JOIN fits_files "
+                "ON clusters.fitsFile = fits_files.fitsID "
+                "ORDER BY fits_files.date DESC "
+                "LIMIT %s OFFSET %s"
+            )
+            cursor.execute(select_query, (limit, offset))
             results = cursor.fetchall()
 
             cursor.close()

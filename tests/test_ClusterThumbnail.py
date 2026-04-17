@@ -112,15 +112,35 @@ def test_pad_to_square_grayscale_non_square():
 
 
 def test_pad_to_square_rgb_non_square():
-    """pad_to_square=True pads an RGB buffer to a square with zero fill."""
+    """Padded RGB rows render in the colormap's zero-value shade.
+
+    Padding happens in energy space before the colormap is sampled,
+    so padded pixels inherit the colormap's bottom-of-range color
+    (e.g. Viridis dark purple) rather than literal RGB black.
+    """
+    zero_pixel = generate_cluster_thumbnail(
+        np.zeros((1, 1)), colormap=Colormap.VIRIDIS,
+    )
+    expected_color = tuple(int(c) for c in zero_pixel[0, 0])
+
     data = np.random.rand(3, 9) * 100
     result = generate_cluster_thumbnail(
-        data, colormap=Colormap.VIRIDIS, pad_to_square=True
+        data, colormap=Colormap.VIRIDIS, pad_to_square=True,
     )
     assert result.shape == (9, 9, 3)
     assert result.dtype == np.uint8
-    assert (result[:3, :, :] == 0).all()
-    assert (result[-3:, :, :] == 0).all()
+    for row in (0, 1, 2, -1, -2, -3):
+        for col in range(9):
+            assert tuple(int(c) for c in result[row, col]) == expected_color
+
+
+def test_pad_to_square_target_side():
+    """``target_side`` pads to exactly the requested square size."""
+    data = np.random.rand(3, 9) * 100
+    result = generate_cluster_thumbnail(
+        data, pad_to_square=True, target_side=20,
+    )
+    assert result.shape == (20, 20)
 
 
 def test_pad_to_square_no_op_on_square():

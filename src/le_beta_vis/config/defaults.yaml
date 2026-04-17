@@ -246,20 +246,6 @@ gui:historical:default_time_preset:
     windowed presets resolve to a [now-window, now] range each
     time they are applied.
 
-gui:historical:live_update_rate_ms:
-  type: int
-  default: 1000
-  description: >-
-    Refresh rate (in milliseconds) for the live monitoring dashboard.
-
-gui:historical:mode:
-  type: enum
-  choices: ["live", "historical"]
-  default: "historical"
-  description: >-
-    Operational mode of the Historical View.
-    Values: live, historical.
-
 gui:historical:classification_threshold:
   type: float
   default: 0.75
@@ -418,3 +404,148 @@ eps:timeout_ms:
   description: >-
     Timeout in milliseconds for ZMQ send/receive operations
     against the EPS.
+
+# ---------------------------------------------------------------------------
+# Event Handler (pub/sub bus)
+# ---------------------------------------------------------------------------
+
+event_handler:zmq_pub_endpoint:
+  type: str
+  default: "ipc:///tmp/EPCEvents.ipc"
+  description: >-
+    ZMQ IPC address for the EventHandler PUB/SUB bus.  The EPS
+    binds this endpoint and publishes envelopes; the frontend
+    connects a SUB socket and feeds received envelopes into its
+    EventHandler for dispatch.
+
+event_handler:default_queue_size:
+  type: int
+  default: 100
+  description: >-
+    Default bounded capacity of the per-event-type dispatch
+    queue.  Each event name gets its own queue; when full, the
+    overflow policy decides whether to drop oldest, drop newest,
+    or block the producer.
+
+event_handler:default_overflow_policy:
+  type: enum
+  choices: ["drop_oldest", "drop_newest", "block"]
+  default: "drop_oldest"
+  description: >-
+    Default backpressure policy applied when a per-event-type
+    dispatch queue is full.  drop_oldest keeps the most recent
+    events (recommended for screensaver-style visualizations),
+    drop_newest preserves the earliest events, and block
+    back-pressures the producer.
+
+event_handler:default_coalesce_ms:
+  type: int
+  default: 0
+  description: >-
+    Default coalesce window in milliseconds for batched-delivery
+    callbacks.  When greater than zero, envelopes received within
+    the window are collected and delivered as a single list to
+    callbacks registered via register_batch_callback.
+
+event_handler:default_throttle_ms:
+  type: int
+  default: 0
+  description: >-
+    Default trailing-edge throttle window in milliseconds.  When
+    greater than zero, envelopes that arrive less than this many
+    milliseconds after the previous dispatch of the same event
+    type are dropped.
+
+event_handler:worker_join_timeout_ms:
+  type: int
+  default: 2000
+  description: >-
+    Maximum total time in milliseconds EventHandler.shutdown()
+    waits for worker threads to drain their queues before
+    giving up.
+
+event_handler:reconnect_backoff_ms_min:
+  type: int
+  default: 250
+  description: >-
+    Minimum reconnect delay in milliseconds used by
+    ZMQEventHandlerSource after a recv error.  The actual backoff
+    doubles on each failure up to reconnect_backoff_ms_max.
+
+event_handler:reconnect_backoff_ms_max:
+  type: int
+  default: 8000
+  description: >-
+    Maximum reconnect delay in milliseconds (cap of exponential
+    backoff) used by ZMQEventHandlerSource after a recv error.
+
+event_handler:logging_handler_min_level:
+  type: str
+  default: "WARNING"
+  description: >-
+    Minimum Python logging level name (DEBUG/INFO/WARNING/ERROR/
+    CRITICAL) that ZMQEventLoggingHandler will forward as
+    log.* envelopes.  Levels below this are ignored to avoid
+    flooding the event bus.
+
+# ---------------------------------------------------------------------------
+# Live Mode Screensaver
+# ---------------------------------------------------------------------------
+
+gui:livemode:colormap:
+  type: enum
+  choices: [viridis, plasma, inferno, magma, jet, bone, hot, cool, grayscale]
+  default: jet
+  description: >-
+    Colormap used for all cluster thumbnails in the Live Mode
+    screensaver.
+
+gui:livemode:grid_columns:
+  type: int
+  default: 16
+  description: >-
+    Number of columns in the Live Mode thumbnail grid.
+    rows x columns must be between 20 and 2000.
+
+gui:livemode:grid_rows:
+  type: int
+  default: 12
+  description: >-
+    Number of rows in the Live Mode thumbnail grid.
+    rows x columns must be between 20 and 2000.
+
+gui:livemode:grid_spacing_px:
+  type: int
+  default: 6
+  description: >-
+    Pixel spacing between thumbnail cells in the grid.
+    Minimum enforced: 6.
+
+gui:livemode:advance_interval_ms:
+  type: int
+  default: 3000
+  description: >-
+    Milliseconds between each grid advance step (featured
+    cluster swap).
+
+gui:livemode:animation_duration_ms:
+  type: int
+  default: 250
+  description: >-
+    Duration in milliseconds of the snake-shift displacement
+    animation.  Capped at 1000 ms.
+
+gui:livemode:left_panel_width_pct:
+  type: float
+  default: 0.25
+  description: >-
+    Width of the left detail panel as a fraction of screen width
+    (0.1–0.5).  Default: 0.25 (25%).
+
+gui:livemode:histogram_min_height_pct:
+  type: float
+  default: 0.10
+  description: >-
+    Minimum height of the energy histogram as a fraction of
+    screen height (0.05–0.5).  Default: 0.10 (10%).
+

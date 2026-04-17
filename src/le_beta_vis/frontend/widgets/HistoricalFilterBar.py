@@ -142,10 +142,6 @@ class HistoricalFilterBar(QFrame):
         layout.setContentsMargins(8, 3, 8, 3)
         layout.setSpacing(6)
 
-        # Mode label (updated by HistoricalView)
-        self._modeLabel = QLabel()
-        layout.addWidget(self._modeLabel)
-
         # Time combo
         lbl = QLabel(self.tr("Time:"))
         lbl.setStyleSheet(_Style.LABEL)
@@ -215,11 +211,6 @@ class HistoricalFilterBar(QFrame):
         self._countLabel = QLabel()
         self._countLabel.setStyleSheet(_Style.COUNT_LABEL)
         layout.addWidget(self._countLabel)
-
-    @property
-    def modeLabel(self) -> QLabel:
-        """The mode label widget (written by HistoricalView)."""
-        return self._modeLabel
 
     @property
     def countLabel(self) -> QLabel:

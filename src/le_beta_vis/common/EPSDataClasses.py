@@ -94,7 +94,35 @@ class ClusterQueryFilter:
         if self.classification is not None:
             d["classification"] = self.classification
         return d
-    
+
+
+@dataclass(frozen=True)
+class ClusterRecentQueryFilter:
+    """Request for the EPS RecentRetrieval action.
+
+    Returns clusters ordered by FITS date descending, paginated via
+    ``limit`` and ``offset``. Intended for the Live Mode fallback
+    provider and other newest-first consumers.
+    """
+
+    limit: int
+    offset: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.limit, int) or self.limit <= 0:
+            raise ValueError("limit must be a positive int")
+        if not isinstance(self.offset, int) or self.offset < 0:
+            raise ValueError("offset must be a non-negative int")
+
+    def to_eps_dict(self) -> Dict[str, Any]:
+        """Builds the JSON dict for the RecentRetrieval action."""
+        return {
+            "Action": "RecentRetrieval",
+            "limit": self.limit,
+            "offset": self.offset,
+        }
+
+
 @dataclass(frozen=True)
 class FitsQueryFilter:
     """Filter criteria for an EPS FITS Retrieval request."""
