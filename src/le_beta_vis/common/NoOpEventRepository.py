@@ -4,8 +4,9 @@ Every method returns an empty/default value and logs a warning.
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
+from .Cluster import Cluster
 from .EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
@@ -27,7 +28,7 @@ class NoOpEventRepository(EventRepository):
             self,
             callback: onCluster,
             on_error: onError
-            ) -> None:
+    ) -> None:
         """Returns an empty list — EPS is unavailable."""
         logger.warning(
             "NoOpEventRepository: fetch_events called but " "EPS is unavailable"
@@ -64,18 +65,18 @@ class NoOpEventRepository(EventRepository):
         return None
 
     def update_classification(
-            self,
-            request: ClassificationUpdateRequest,
-            callback: onUpdate,
-            on_error: onError
-        ) -> None:
+        self,
+        request: ClassificationUpdateRequest,
+        callback: onUpdate,
+        on_error: onError
+    ) -> None:
         """Returns False — EPS is unavailable."""
         logger.warning(
             "NoOpEventRepository: update_classification called "
             "but EPS is unavailable"
         )
         on_error("NoOpEventRepository: update_classification called "
-            "but EPS is unavailable")
+                 "but EPS is unavailable")
 
     def query_fits(
             self,

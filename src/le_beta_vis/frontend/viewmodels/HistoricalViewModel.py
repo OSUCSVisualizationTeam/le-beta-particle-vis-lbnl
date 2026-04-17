@@ -70,7 +70,6 @@ class HistoricalViewModel:
         # Callbacks
         self._on_events_loaded_callbacks: List[Callable[[List[Cluster]], None]] = []
         self._on_error_callbacks: List[Callable[[str], None]] = []
-        self._on_mode_changed_callbacks: List[Callable[[HistoricalMode], None]] = []
         self._on_events_changed_callbacks: List[Callable[[], None]] = []
         self._on_selected_event_changed_callbacks: List[Callable[[], None]] = []
         self._on_loading_changed_callbacks: List[Callable[[bool], None]] = []
@@ -266,12 +265,6 @@ class HistoricalViewModel:
     ) -> None:
         """Registers a callback for when events are loaded."""
         self._on_events_loaded_callbacks.append(callback)
-
-    def add_mode_changed_callback(
-        self, callback: Callable[[HistoricalMode], None]
-    ) -> None:
-        """Registers a callback for mode changes."""
-        self._on_mode_changed_callbacks.append(callback)
 
     def add_events_changed_callback(self, callback: Callable[[], None]) -> None:
         """Registers a callback for when the event list changes."""

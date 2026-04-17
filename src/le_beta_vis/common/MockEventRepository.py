@@ -109,8 +109,12 @@ class MockEventRepository(EventRepository):
         self, limit: int, offset: int = 0
     ) -> List[Cluster]:
         """Returns a bounded slice of synthetic clusters, offset-paginated."""
-        clusters = self.fetch_events()
-        return clusters[offset : offset + limit]
+        captured: List[Cluster] = []
+        self.fetch_events(
+            callback=captured.extend,
+            on_error=lambda _msg: None,
+        )
+        return captured[offset: offset + limit]
 
     @staticmethod
     def _matches(
