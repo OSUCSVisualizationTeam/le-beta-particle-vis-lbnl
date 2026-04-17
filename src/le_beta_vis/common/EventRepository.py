@@ -57,8 +57,12 @@ class EventRepository(ABC):
         raise NotImplementedError
 
     def query_recent_clusters(
-        self, limit: int, offset: int = 0
-    ) -> List[Cluster]:
+        self,
+        limit: int,
+        offset: int,
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
         """Return newest-first clusters, bounded by limit/offset.
 
         Ordered server-side by FITS date descending.  Used by the
@@ -68,9 +72,17 @@ class EventRepository(ABC):
         Args:
             limit: Maximum number of clusters to return.
             offset: Number of rows to skip from the newest.
+        """
+        raise NotImplementedError
 
-        Returns:
-            Matching ``Cluster`` objects, newest first.
+    def query_recent_clusters_sync(
+        self, limit: int, offset: int = 0
+    ) -> List[Cluster]:
+        """Synchronous newest-first retrieval for worker-thread callers.
+
+        Callers already running on a background thread (e.g. the Live
+        Mode ``FallbackClusterProvider``) may call this directly to
+        avoid bouncing through an async callback.
         """
         raise NotImplementedError
 

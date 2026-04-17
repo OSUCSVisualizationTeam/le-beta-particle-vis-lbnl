@@ -45,11 +45,25 @@ class NoOpEventRepository(EventRepository):
         callback([])
 
     def query_recent_clusters(
+        self,
+        limit: int,
+        offset: int,
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
+        """Invokes ``callback`` with an empty list — EPS is unavailable."""
+        logger.warning(
+            "NoOpEventRepository: query_recent_clusters called but "
+            "EPS is unavailable"
+        )
+        callback([])
+
+    def query_recent_clusters_sync(
         self, limit: int, offset: int = 0
     ) -> List[Cluster]:
         """Returns an empty list — EPS is unavailable."""
         logger.warning(
-            "NoOpEventRepository: query_recent_clusters called but "
+            "NoOpEventRepository: query_recent_clusters_sync called but "
             "EPS is unavailable"
         )
         return []

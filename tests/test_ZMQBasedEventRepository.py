@@ -203,7 +203,7 @@ class TestQueryRecentClusters:
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
 
-        repo.query_recent_clusters(limit=25, offset=50)
+        repo.query_recent_clusters_sync(limit=25, offset=50)
 
         sent = sock.send_json.call_args[0][0]
         expected = ClusterRecentQueryFilter(limit=25, offset=50).to_eps_dict()
@@ -214,7 +214,7 @@ class TestQueryRecentClusters:
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
 
-        repo.query_recent_clusters(limit=10)
+        repo.query_recent_clusters_sync(limit=10)
 
         sent = sock.send_json.call_args[0][0]
         assert sent["offset"] == 0
@@ -239,7 +239,7 @@ class TestQueryRecentClusters:
         ctx, sock = _mock_context({"result": "success", "clusters": [raw]})
         repo = _make_repo(ctx)
 
-        clusters = repo.query_recent_clusters(limit=1)
+        clusters = repo.query_recent_clusters_sync(limit=1)
 
         assert len(clusters) == 1
         c = clusters[0]
@@ -252,13 +252,13 @@ class TestQueryRecentClusters:
     def test_failure_returns_empty(self):
         ctx, sock = _mock_context({"result": "failure"})
         repo = _make_repo(ctx)
-        assert repo.query_recent_clusters(limit=5) == []
+        assert repo.query_recent_clusters_sync(limit=5) == []
 
     def test_zmq_error_returns_empty(self):
         ctx, sock = _mock_context()
         sock.send_json.side_effect = zmq.ZMQError("timeout")
         repo = _make_repo(ctx)
-        assert repo.query_recent_clusters(limit=5) == []
+        assert repo.query_recent_clusters_sync(limit=5) == []
 
 
 # -------------------------------------------------------------------
@@ -565,7 +565,6 @@ class TestMapToCluster:
         cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
         assert cluster is not None
         assert cluster.data is None
-
 
 
 # -------------------------------------------------------------------

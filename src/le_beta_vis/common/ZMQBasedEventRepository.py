@@ -37,6 +37,7 @@ _DEFAULT_CLUSTER_IPC = "ipc:///tmp/EPCCluster.ipc"
 _DEFAULT_FITS_IPC = "ipc:///tmp/EPCFits.ipc"
 _DEFAULT_TIMEOUT_MS = 5000
 
+
 class ZMQBasedEventRepository(EventRepository):
     """Concrete ``EventRepository`` backed by the EPS ZMQ protocol.
 
@@ -160,6 +161,22 @@ class ZMQBasedEventRepository(EventRepository):
         return clusters
 
     def query_recent_clusters(
+        self,
+        limit: int,
+        offset: int,
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
+        """Initiates a RecentRetrieval request asynchronously."""
+        self._run_async(
+            function=lambda: self.query_recent_clusters_sync(
+                limit=limit, offset=offset
+            ),
+            callback=callback,
+            on_error=on_error,
+        )
+
+    def query_recent_clusters_sync(
         self, limit: int, offset: int = 0
     ) -> List[Cluster]:
         """Sends a RecentRetrieval request to the EPS Cluster socket."""
