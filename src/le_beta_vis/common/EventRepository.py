@@ -96,8 +96,11 @@ class EventRepository(ABC):
         raise NotImplementedError
 
     def query_fits_clusters(
-        self, query_filter: Optional[FitsClusterQueryFilter] = None
-    ) -> List[Cluster]:
+        self,
+        query_filter: Optional[FitsClusterQueryFilter],
+        callback: Callable,
+        on_error: Callable
+    ) -> None:
         """Retrieve clusters filtered by FITS metadata.
 
         Args:

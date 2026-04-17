@@ -28,7 +28,7 @@ from .EPSDataClasses import (
     FitsQueryFilter,
     FitsClusterQueryFilter,
 )
-from .EventRepository import EventRepository
+from .EventRepository import EventRepository, onCluster, onError, onFits, onUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +73,8 @@ class ZMQBasedEventRepository(EventRepository):
 
     def fetch_events(
             self,
-            callback: Callable,
-            on_error: Callable
+            callback: onCluster,
+            on_error: onError
     ) -> None:
         """Returns all cluster events from the EPS asynchronously."""
         self._run_async(
@@ -86,8 +86,8 @@ class ZMQBasedEventRepository(EventRepository):
     def query_clusters(
         self,
         query_filter: Optional[ClusterQueryFilter],
-        callback: Callable,
-        on_error: Callable
+        callback: onCluster,
+        on_error: onError
     ) -> None:
         """Initiates a query_cluster function asnychronously with the _run_async function."""
         self._run_async(
@@ -99,8 +99,8 @@ class ZMQBasedEventRepository(EventRepository):
     def query_fits(
         self,
         query_filter: Optional[FitsQueryFilter],
-        callback: Callable,
-        on_error: Callable
+        callback: onFits,
+        on_error: onError
     ) -> None:
         """Initiates a query_fits function asnychronously with the _run_async function."""
         self._run_async(
@@ -174,8 +174,8 @@ class ZMQBasedEventRepository(EventRepository):
     def update_classification(
             self,
             request: ClassificationUpdateRequest,
-            callback: Callable,
-            on_error: Callable
+            callback: onUpdate,
+            on_error: onError
     ) -> None:
         """Sends a classification update to the EPS Cluster socket asynchronously."""
         self._run_async(

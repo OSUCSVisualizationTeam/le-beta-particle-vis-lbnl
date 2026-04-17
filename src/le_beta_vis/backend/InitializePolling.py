@@ -92,7 +92,7 @@ class PollingThread:
                     continue
                 process_file(config_service=config, file=path)
             except Exception as e:
-                if queue.empty:
+                if queue.empty():
                     continue
                 else:
                     logger.exception(f"file_uploaded processing error {e}")

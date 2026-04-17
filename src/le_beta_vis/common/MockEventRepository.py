@@ -5,7 +5,7 @@ import numpy as np
 from .BoundingBox import BoundingBox
 from .Cluster import Cluster
 from .EPSDataClasses import ClusterQueryFilter
-from .EventRepository import EventRepository
+from .EventRepository import EventRepository, onCluster, onError
 
 
 def _gaussian_blob(
@@ -53,8 +53,8 @@ class MockEventRepository(EventRepository):
 
     def fetch_events(
             self,
-            callback: Callable,
-            on_error: Callable,
+            callback: onCluster,
+            on_error: onError,
     ) -> None:
         """Returns a list of synthetic Cluster objects."""
         clusters: List[Cluster] = []
@@ -89,8 +89,8 @@ class MockEventRepository(EventRepository):
     def query_clusters(
         self,
         query_filter: Optional[ClusterQueryFilter],
-        callback: Callable,
-        on_error: Callable,
+        callback: onCluster,
+        on_error: onError,
     ) -> None:
         """Returns synthetic clusters, optionally filtered.
 

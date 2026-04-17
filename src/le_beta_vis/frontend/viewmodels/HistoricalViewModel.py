@@ -360,5 +360,7 @@ class HistoricalViewModel:
 
     def _notify_error(self, error: str) -> None:
         self._setLoading(False)
+        for callback in self._on_load_error_callbacks:
+            callback(error)
         for callback in self._on_error_callbacks:
             callback(error)
