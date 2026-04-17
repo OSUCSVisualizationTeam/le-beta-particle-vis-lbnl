@@ -15,6 +15,7 @@ onFits = Callable[[List[EPSFitsRecord]], None]
 onUpdate = Callable[[bool], None]
 onError = Callable[[str], None]
 
+
 class EventRepository(ABC):
     """Abstract interface for fetching persisted cluster events.
 
@@ -28,7 +29,7 @@ class EventRepository(ABC):
         self,
         callback: onCluster,
         on_error: onError,
-        ) -> None:
+    ) -> None:
         """Returns all available cluster events from callback.
 
         Implementations should return a list of ``Cluster``
@@ -42,7 +43,7 @@ class EventRepository(ABC):
         query_filter: Optional[ClusterQueryFilter],
         callback: onCluster,
         on_error: onError,
-        ) -> None:
+    ) -> None:
         """Filtered cluster query.
 
         Args:
@@ -116,8 +117,8 @@ class EventRepository(ABC):
     def query_fits_clusters(
         self,
         query_filter: Optional[FitsClusterQueryFilter],
-        callback: Callable,
-        on_error: Callable
+        callback: onCluster,
+        on_error: onError,
     ) -> None:
         """Retrieve clusters filtered by FITS metadata.
 
