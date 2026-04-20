@@ -1,15 +1,17 @@
 from typing import Callable, List, Optional, Tuple
 
 import numpy as np
-from PySide6.QtCore import QRectF, QPoint, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
+from PySide6.QtCore import QPoint, QRectF
+from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget
 
 
 class MagnifierGraphicsItem(QGraphicsItem):
     """
     A QGraphicsItem that displays a magnified view of a source QPixmap
-    region and shows min/max/central pixel values with unit labels.
+    region. Border, value labels, and hint lines render in the HUD
+    layer so they remain zoom-invariant; this item only draws the
+    magnified pixmap content in scene space.
     """
 
     def __init__(
@@ -38,10 +40,6 @@ class MagnifierGraphicsItem(QGraphicsItem):
         self._minMagnifierEffectiveSidePx: int = 9
         self._conversionFunc = conversionFunc
         self._unitLabel: str = "keV"
-
-        self._labelWidth: int = 120
-        self._labelHeight: int = 60
-        self._labelPadding: int = 10
         self._hintLines: List[str] = []
 
         self.setZValue(100)
@@ -50,6 +48,40 @@ class MagnifierGraphicsItem(QGraphicsItem):
     def displaySize(self) -> int:
         """Returns the fixed side length of the magnifier display area."""
         return self._displayRectSizePx
+
+    @property
+    def unitLabel(self) -> str:
+        """Unit string displayed next to pixel values (e.g., 'keV')."""
+        return self._unitLabel
+
+    @property
+    def hintLines(self) -> List[str]:
+        """Hint strings displayed by the HUD below the value labels."""
+        return list(self._hintLines)
+
+    @property
+    def magnificationFactor(self) -> float:
+        """Current magnification factor."""
+        return self._magnificationFactor
+
+    @property
+    def hasSource(self) -> bool:
+        """True when both source pixmap and raw data are set."""
+        return (
+            self._sourcePixmap is not None
+            and self._sourceRawData is not None
+            and self._currentPixelPos.x() >= 0
+        )
+
+    def computeCurrentFigures(self) -> Tuple[float, float, float]:
+        """Returns (min, max, central) for the current magnified region."""
+        if not self.hasSource:
+            return np.nan, np.nan, np.nan
+        sourceRect = self._calculateSourceRect()
+        data = self._extractMagnifiedData(sourceRect)
+        if data is None:
+            return np.nan, np.nan, np.nan
+        return self._computeFigures(data)
 
     def setUnitLabel(self, label: str) -> None:
         """
@@ -121,23 +153,16 @@ class MagnifierGraphicsItem(QGraphicsItem):
         self.update()
 
     def boundingRect(self) -> QRectF:
-        """Returns the bounding rectangle including the label area."""
+        """Returns the bounding rectangle of the magnified display area.
+
+        Border, labels and hints render in the HUD layer, so the item
+        itself only covers the magnified pixmap region.
+        """
         if self._sourcePixmap is None:
             return QRectF()
-
-        totalWidth = (
-            self._displayRectSizePx
-            + self._labelPadding
-            + self._labelWidth
+        return QRectF(
+            0, 0, self._displayRectSizePx, self._displayRectSizePx
         )
-        hintCount = len(self._hintLines)
-        totalLines = 4 + (hintCount + 1 if hintCount else 0)
-        approxLineHeight = 14
-        labelAreaHeight = totalLines * approxLineHeight + 4
-        totalHeight = max(
-            self._displayRectSizePx, labelAreaHeight
-        )
-        return QRectF(0, 0, totalWidth, totalHeight)
 
     def _calculateSourceRect(self) -> QRectF:
         """
@@ -174,15 +199,11 @@ class MagnifierGraphicsItem(QGraphicsItem):
     def _drawMagnifiedImage(
         self, painter: QPainter, sourceRect: QRectF
     ) -> None:
-        """Draws the magnified image region and its border."""
+        """Draws the magnified image region. Border is rendered in HUD."""
         targetRect = QRectF(
             0, 0, self._displayRectSizePx, self._displayRectSizePx
         )
         painter.drawPixmap(targetRect, self._sourcePixmap, sourceRect)
-
-        painter.setPen(QPen(QColor("blue"), 2))
-        painter.setBrush(Qt.NoBrush)
-        painter.drawRect(targetRect)
 
     def _computeFigures(
         self, magnifiedDataView: np.ndarray
@@ -247,79 +268,14 @@ class MagnifierGraphicsItem(QGraphicsItem):
             return None
         return self._sourceRawData[srcY: srcY + srcH, srcX: srcX + srcW]
 
-    def _drawLabels(self, painter: QPainter, sourceRect: QRectF) -> None:
-        """Draws the translucent background and value labels."""
-        labelX = self._displayRectSizePx + self._labelPadding
-        labelY = 0
-
-        metrics = painter.fontMetrics()
-        lineHeight = metrics.height() + 2
-        hintCount = len(self._hintLines)
-        totalLines = 4 + (hintCount + 1 if hintCount else 0)
-        labelBgHeight = totalLines * lineHeight + 4
-        labelBgRect = QRectF(
-            labelX - 4, labelY,
-            self._labelWidth + 4, labelBgHeight,
-        )
-        painter.fillRect(
-            labelBgRect, QColor(0, 0, 0, int(255 * 0.8))
-        )
-
-        magnifiedData = self._extractMagnifiedData(sourceRect)
-        if magnifiedData is not None:
-            minVal, maxVal, centralVal = self._computeFigures(magnifiedData)
-        else:
-            minVal, maxVal, centralVal = np.nan, np.nan, np.nan
-
-        unit = self._unitLabel
-        painter.setPen(QPen(QColor("white")))
-        painter.setFont(QFont("Arial", 8))
-        painter.drawText(
-            labelX, labelY + lineHeight, f"Min: {minVal:.2e} {unit}"
-        )
-        painter.drawText(
-            labelX, labelY + 2 * lineHeight, f"Max: {maxVal:.2e} {unit}"
-        )
-        painter.drawText(
-            labelX, labelY + 3 * lineHeight, f"Val: {centralVal:.2e} {unit}"
-        )
-        painter.drawText(
-            labelX, labelY + 4 * lineHeight,
-            f"Zoom: {self._magnificationFactor:.1f}x",
-        )
-
-    def _drawHints(self, painter: QPainter) -> None:
-        """Draws hint lines below the value labels."""
-        if not self._hintLines:
-            return
-
-        labelX = self._displayRectSizePx + self._labelPadding
-        metrics = painter.fontMetrics()
-        lineHeight = metrics.height() + 2
-        startY = 5 * lineHeight
-
-        painter.setPen(QPen(QColor("#aaaaaa")))
-        painter.setFont(QFont("Arial", 7))
-        for i, line in enumerate(self._hintLines):
-            painter.drawText(
-                labelX, startY + (i + 1) * lineHeight, line
-            )
-
     def paint(
         self,
         painter: QPainter,
         option: QStyleOptionGraphicsItem,
         widget: Optional[QWidget] = None,
     ) -> None:
-        """Paints the magnified view and associated labels."""
-        if (
-            self._sourcePixmap is None
-            or self._sourceRawData is None
-            or self._currentPixelPos.x() == -1
-        ):
+        """Paints the magnified pixmap region in scene space."""
+        if not self.hasSource:
             return
-
         sourceRect = self._calculateSourceRect()
         self._drawMagnifiedImage(painter, sourceRect)
-        self._drawLabels(painter, sourceRect)
-        self._drawHints(painter)

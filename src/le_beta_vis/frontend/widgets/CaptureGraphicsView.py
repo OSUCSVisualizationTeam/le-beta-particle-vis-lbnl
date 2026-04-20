@@ -8,6 +8,8 @@ from PySide6.QtGui import (
     QMouseEvent,
     QPainter,
     QPen,
+    QResizeEvent,
+    QTransform,
     QWheelEvent,
 )
 from PySide6.QtWidgets import QGraphicsView, QWidget
@@ -26,6 +28,7 @@ class CaptureGraphicsView(QGraphicsView):
     mouseLeft = Signal()
     boxSelectionCompleted = Signal(int, int, int, int)
     boxSelectClicked = Signal(int, int)
+    viewportChanged = Signal()
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
@@ -159,6 +162,21 @@ class CaptureGraphicsView(QGraphicsView):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+    def setTransform(self, matrix: QTransform, combine: bool = False) -> None:
+        """Override to fire viewportChanged on zoom updates."""
+        super().setTransform(matrix, combine)
+        self.viewportChanged.emit()
+
+    def scrollContentsBy(self, dx: int, dy: int) -> None:
+        """Override to fire viewportChanged when panning scrollbars."""
+        super().scrollContentsBy(dx, dy)
+        self.viewportChanged.emit()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Override to fire viewportChanged when viewport resizes."""
+        super().resizeEvent(event)
+        self.viewportChanged.emit()
 
     def leaveEvent(self, event: QEvent) -> None:
         """Emits mouseLeft when the cursor exits the view."""
