@@ -52,6 +52,8 @@ class HDUVisualizationHUDWidget(QGraphicsView):
         self.setFrameShape(QGraphicsView.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)
+        self.setBackgroundBrush(Qt.NoBrush)
         self.setRenderHint(QPainter.Antialiasing, True)
         self.setRenderHint(QPainter.TextAntialiasing, True)
         self.setInteractive(False)
