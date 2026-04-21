@@ -16,7 +16,7 @@ a log record, which would be forwarded through the same
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from .EventEnvelope import EventEnvelope
 from .EventHandlerClient import EventHandlerClient
@@ -93,3 +93,69 @@ class ZMQEventLoggingHandler(logging.Handler):
             "created": record.created,
             "exc_text": exc_text,
         }
+
+
+def attach_to_root_logger(
+    endpoint: str,
+    source: str,
+    level: int = logging.WARNING,
+    bind_or_connect: Literal["bind", "connect"] = "bind",
+) -> "ZMQEventLoggingHandler":
+    """Create a :class:`ZMQEventLoggingHandler` and attach it to the root logger.
+
+    This is the one-call setup for any backend service that wants its log
+    records forwarded to the frontend status bar over the EventHandler bus.
+    It creates a :class:`~le_beta_vis.common.ZMQEventHandlerClient` (a ZMQ
+    PUB socket), wraps it in a :class:`ZMQEventLoggingHandler`, registers
+    the handler on ``logging.root``, and returns the handler so the caller
+    can remove it on shutdown.
+
+    Args:
+        endpoint: ZMQ endpoint the PUB socket will bind or connect to.
+            Must match the ``event_handler:zmq_pub_endpoint`` config key
+            used by the frontend's ``ZMQEventHandlerSource``
+            (default :data:`~le_beta_vis.common.ZMQEventHandlerClient.DEFAULT_EVENT_PUB_ENDPOINT`).
+        source: Free-form identifier stored in every envelope's ``source``
+            field, e.g. ``"eps"`` or ``"classifier"``.  Appears in the
+            frontend log view so operators know which service emitted the
+            message.
+        level: Minimum :mod:`logging` level to forward.  Defaults to
+            ``logging.WARNING`` — enough to surface actionable problems
+            without flooding the bus with routine info records.
+            Pass ``logging.INFO`` if info-level progress messages should
+            also appear in the status bar.
+        bind_or_connect: Whether the PUB socket **binds** the endpoint
+            (``"bind"``, the default) or **connects** to an existing one
+            (``"connect"``).  Backend services that own the IPC path should
+            use ``"bind"``; a secondary producer joining an existing broker
+            proxy should use ``"connect"``.
+
+    Returns:
+        The :class:`ZMQEventLoggingHandler` that was added to the root
+        logger.  Keep a reference and pass it to
+        ``logging.root.removeHandler(handler)`` during graceful shutdown to
+        avoid dangling sockets.
+
+    Example::
+
+        # In a backend service __init__, after loading config:
+        self._log_handler = attach_to_root_logger(
+            endpoint=self.config.get("event_handler:zmq_pub_endpoint")
+                     or DEFAULT_EVENT_PUB_ENDPOINT,
+            source="eps",
+        )
+
+        # On shutdown:
+        logging.root.removeHandler(self._log_handler)
+    """
+    # Import here to avoid a circular dependency at module load time:
+    # ZMQEventHandlerClient → zmq → (potentially) logging.
+    from .ZMQEventHandlerClient import ZMQEventHandlerClient, DEFAULT_EVENT_PUB_ENDPOINT
+
+    client = ZMQEventHandlerClient(
+        endpoint=endpoint,
+        bind_or_connect=bind_or_connect,
+    )
+    handler = ZMQEventLoggingHandler(client, source=source, level=level)
+    logging.root.addHandler(handler)
+    return handler

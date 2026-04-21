@@ -14,14 +14,12 @@ from le_beta_vis.common.YAMLBackedConfigurationService import (
     YAMLBackedConfigurationService,
 )
 from le_beta_vis.common.ZMQBasedEventRepository import ZMQBasedEventRepository
+from le_beta_vis.common.ZMQEventHandlerClient import DEFAULT_EVENT_PUB_ENDPOINT
 from le_beta_vis.common.ZMQEventHandlerSource import ZMQEventHandlerSource
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
 
 
 logger = logging.getLogger(__name__)
-
-
-_DEFAULT_EVENT_PUB_ENDPOINT = "ipc:///tmp/EPCEvents.ipc"
 
 
 class MainViewModel(QObject):
@@ -61,7 +59,7 @@ class MainViewModel(QObject):
         endpoint = str(
             self.configService.get(
                 "event_handler:zmq_pub_endpoint",
-                _DEFAULT_EVENT_PUB_ENDPOINT,
+                DEFAULT_EVENT_PUB_ENDPOINT,
             )
         )
         return ZMQEventHandlerSource(
