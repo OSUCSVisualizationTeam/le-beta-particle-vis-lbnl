@@ -1,22 +1,35 @@
 import sys
 
+from PySide6.QtCore import Qt, QMetaObject, Slot
 from PySide6.QtWidgets import (
     QMainWindow,
     QTabWidget,
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QFileDialog,
+    QLabel,
+    QProgressBar,
+    QToolButton,
 )
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from .viewmodels.MainViewModel import MainViewModel
+from .viewmodels.MainWindowStatusViewModel import (
+    MainWindowStatusViewModel,
+    Severity,
+)
 from .views.RawDataView import RawDataView
 from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
 from .viewmodels.HistoricalViewModel import HistoricalViewModel
+from . import theme
 from le_beta_vis.common.ClusterExtractorFactory import (
     create_cluster_extractor,
 )
 from pathlib import Path
+
+
+_MAX_VISIBLE_PROGRESS_ROWS = 3
 
 
 class MainWindow(QMainWindow):
@@ -29,6 +42,12 @@ class MainWindow(QMainWindow):
         self._setupViewModels()
         self._setupViews()
         self.setupMenuBar()
+        self._setupStatusBar()
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if hasattr(self, "statusViewModel"):
+            self.statusViewModel.shutdown()
+        super().closeEvent(event)
 
     # -- Initialization helpers ------------------------------------------------
 
@@ -70,6 +89,125 @@ class MainWindow(QMainWindow):
             self.viewModel.eventRepository,
             self.viewModel.thumbnailService,
         )
+
+    def _setupStatusBar(self) -> None:
+        timeout = self.viewModel.configService.get(
+            "gui:window:status_bar_clear_timeout_s", 5
+        )
+        self.statusViewModel = MainWindowStatusViewModel(
+            self.viewModel.eventHandler,
+            clear_timeout_s=float(timeout),
+        )
+
+        statusBar = self.statusBar()
+        self._statusMessageLabel = QLabel("", statusBar)
+        self._statusMessageLabel.setObjectName("mainWindowStatusMessage")
+        statusBar.addWidget(self._statusMessageLabel, 1)
+
+        self._progressHost = QWidget(statusBar)
+        self._progressHostLayout = QHBoxLayout(self._progressHost)
+        self._progressHostLayout.setContentsMargins(0, 0, 0, 0)
+        self._progressHostLayout.setSpacing(8)
+        statusBar.addPermanentWidget(self._progressHost)
+
+        self.statusViewModel.add_message_changed_callback(
+            lambda: QMetaObject.invokeMethod(
+                self, "_onStatusMessageChanged", Qt.AutoConnection
+            )
+        )
+        self.statusViewModel.add_progress_changed_callback(
+            lambda: QMetaObject.invokeMethod(
+                self, "_onStatusProgressChanged", Qt.AutoConnection
+            )
+        )
+        self._onStatusMessageChanged()
+        self._onStatusProgressChanged()
+
+    @Slot()
+    def _onStatusMessageChanged(self) -> None:
+        message = self.statusViewModel.message
+        severity = self.statusViewModel.severity
+        self._statusMessageLabel.setText(message)
+        color = {
+            Severity.INFO: theme.MainWindowStatusBarColors.TEXT_INFO,
+            Severity.WARNING: theme.MainWindowStatusBarColors.TEXT_WARNING,
+            Severity.ERROR: theme.MainWindowStatusBarColors.TEXT_ERROR,
+        }.get(severity, theme.MainWindowStatusBarColors.TEXT_INFO)
+        self._statusMessageLabel.setStyleSheet(f"color: {color};")
+
+    @Slot()
+    def _onStatusProgressChanged(self) -> None:
+        while self._progressHostLayout.count():
+            item = self._progressHostLayout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        snapshots = self.statusViewModel.active_progress
+        visible = snapshots[:_MAX_VISIBLE_PROGRESS_ROWS]
+        overflow = snapshots[_MAX_VISIBLE_PROGRESS_ROWS:]
+
+        for snap in visible:
+            self._progressHostLayout.addWidget(self._buildProgressRow(snap))
+
+        if overflow:
+            more = QLabel(
+                self.tr("+{n} more").format(n=len(overflow)),
+                self._progressHost,
+            )
+            more.setStyleSheet(
+                f"color: {theme.MainWindowStatusBarColors.PROGRESS_LABEL};"
+            )
+            more.setToolTip("\n".join(s.label for s in overflow))
+            self._progressHostLayout.addWidget(more)
+
+    def _buildProgressRow(self, snap) -> QWidget:
+        row = QWidget(self._progressHost)
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        label = QLabel(snap.label, row)
+        label.setStyleSheet(
+            f"color: {theme.MainWindowStatusBarColors.PROGRESS_LABEL};"
+        )
+        layout.addWidget(label)
+
+        if snap.message:
+            sub = QLabel(f"— {snap.message}", row)
+            sub.setStyleSheet(
+                f"color: {theme.MainWindowStatusBarColors.PROGRESS_LABEL};"
+            )
+            layout.addWidget(sub)
+
+        bar = QProgressBar(row)
+        bar.setFixedWidth(120)
+        bar.setTextVisible(False)
+        if snap.fraction < 0.0:
+            bar.setRange(0, 0)
+        else:
+            bar.setRange(0, 1000)
+            bar.setValue(int(max(0.0, min(1.0, snap.fraction)) * 1000))
+        bar.setStyleSheet(
+            "QProgressBar {{ background: {bg}; border: none; }}"
+            "QProgressBar::chunk {{ background: {chunk}; }}".format(
+                bg=theme.MainWindowStatusBarColors.PROGRESS_BACKGROUND,
+                chunk=theme.MainWindowStatusBarColors.PROGRESS_CHUNK,
+            )
+        )
+        layout.addWidget(bar)
+
+        if snap.cancelable:
+            cancel = QToolButton(row)
+            cancel.setText(self.tr("✕"))
+            cancel.setToolTip(self.tr("Cancel"))
+            token = snap.token
+            cancel.clicked.connect(
+                lambda _=False, t=token: self.statusViewModel.request_cancel(t)
+            )
+            layout.addWidget(cancel)
+
+        return row
 
     def _setupViews(self) -> None:
         self.rawDataView = RawDataView(self.rawDataViewModel)

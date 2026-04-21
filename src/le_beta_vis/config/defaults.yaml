@@ -207,6 +207,14 @@ gui:window:default_height:
   description: >-
     Default initial height of the application window.
 
+gui:window:status_bar_clear_timeout_s:
+  type: int
+  default: 5
+  description: >-
+    Seconds after which a stale status-bar message is automatically
+    cleared. Set to 0 to disable auto-clear. Active progress
+    indicators are unaffected.
+
 # ---------------------------------------------------------------------------
 # GUI — Mosaic
 # ---------------------------------------------------------------------------
