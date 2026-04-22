@@ -1,10 +1,11 @@
 """Storage-agnostic interface for writing a filtered cluster set to disk.
 
-Issue #56 ships HDF5 as the first (and only) implementation via
+Ships HDF5 as the first (and only) implementation via
 ``H5ExportStorageService``. The ABC exists so future formats (Parquet,
 Zarr, a future streaming format, etc.) can slot in without touching
 ``HistoricalExportService`` or the UI layer.
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,8 +52,7 @@ class ExportProvenance:
     user: str
     # Stable machine identifier (MAC address as "aa:bb:cc:dd:ee:ff") so
     # an archived export can be traced back to the physical workstation
-    # that produced it even after hostname/user changes. Requested by
-    # Emil (2026-04-21 lab feedback on issue #56).
+    # that produced it even after hostname/user changes.
     machine_id: str = ""
     # FITS-header-derived attrs keyed by source filename. Optional because
     # single-cluster exports (Raw Data view) may not resolve headers.

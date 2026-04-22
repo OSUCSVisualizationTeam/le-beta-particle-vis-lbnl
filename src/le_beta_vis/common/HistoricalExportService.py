@@ -43,6 +43,18 @@ CompletionCallback = Callable[[Path], None]
 ErrorCallback = Callable[[str], None]
 
 
+def _pct_step(total: int) -> int:
+    """Return the stride that yields at most ~100 progress ticks for ``total`` items.
+
+    For large exports (e.g. 15 000 clusters) firing a progress signal on
+    every iteration floods the main-thread event queue (~45 000 events
+    across three stages) and starves the GNOME heartbeat, causing the
+    "Not Responding" dialog. Firing at most once per 1 % keeps the UI
+    smooth without sacrificing visible granularity.
+    """
+    return max(1, total // 100)
+
+
 @dataclass
 class ExportRequest:
     out_path: Path
@@ -104,16 +116,22 @@ class HistoricalExportService:
             if cancel_token.is_cancelled:
                 self._cleanup(request.out_path, images_dir)
                 return
+            self._forward(on_progress, 0, len(clusters), "fits")
             self._hydrate_pixel_data(clusters, cancel_token, on_progress)
             if cancel_token.is_cancelled:
                 self._cleanup(request.out_path, images_dir)
                 return
+            h5_step = _pct_step(len(clusters))
             self._storage.write(
                 request.out_path,
                 clusters,
                 request.provenance,
                 cancel_token,
-                on_progress=lambda done, t: self._forward(on_progress, done, t, "h5"),
+                on_progress=lambda done, t: (
+                    self._forward(on_progress, done, t, "h5")
+                    if done % h5_step == 0 or done == t
+                    else None
+                ),
             )
             self._logger.info("h5 complete: %s", request.out_path)
             if cancel_token.is_cancelled:
@@ -143,6 +161,7 @@ class HistoricalExportService:
         total = len(clusters)
         self._logger.info("fits hydration start: %d clusters", total)
         missing = 0
+        step = _pct_step(total)
         for idx, cluster in enumerate(clusters):
             if cancel_token.is_cancelled:
                 return
@@ -161,7 +180,8 @@ class HistoricalExportService:
                 self._logger.warning(
                     "fits hydration: no pixel data for cluster %s", cluster.clusterId
                 )
-            self._forward(on_progress, idx + 1, total, "fits")
+            if (idx + 1) % step == 0 or (idx + 1) == total:
+                self._forward(on_progress, idx + 1, total, "fits")
         self._logger.info(
             "fits hydration complete: %d/%d clusters missing data", missing, total
         )
@@ -205,6 +225,7 @@ class HistoricalExportService:
             selection_summary=request.selection_summary,
         )
         total = len(clusters)
+        step = _pct_step(total)
         for idx, cluster in enumerate(clusters):
             if cancel_token.is_cancelled:
                 return
@@ -213,7 +234,8 @@ class HistoricalExportService:
             self._png.export(
                 cluster, png_path, context=context, colormap=request.colormap
             )
-            self._forward(on_progress, idx + 1, total, "png")
+            if (idx + 1) % step == 0 or (idx + 1) == total:
+                self._forward(on_progress, idx + 1, total, "png")
 
     @staticmethod
     def _forward(

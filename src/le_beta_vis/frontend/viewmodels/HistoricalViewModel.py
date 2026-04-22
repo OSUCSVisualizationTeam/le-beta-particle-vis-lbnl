@@ -105,6 +105,21 @@ class HistoricalViewModel:
         return self._physics
 
     @property
+    def repository(self):
+        """Exposes the underlying EventRepository.
+
+        Used by HistoricalExportViewModel (#56) so the export pipeline
+        can query clusters without re-plumbing the repository through
+        another constructor.
+        """
+        return self._repository
+
+    @property
+    def thumbnail_service(self) -> ThumbnailLoaderService:
+        """The thumbnail loader used to fetch raw cluster pixel data from FITS."""
+        return self._thumbnail_service
+
+    @property
     def histogramRenderer(self) -> HistogramRenderer:
         """The histogram rendering service."""
         return self._histogramRenderer

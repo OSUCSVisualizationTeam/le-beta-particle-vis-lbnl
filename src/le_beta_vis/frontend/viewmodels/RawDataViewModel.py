@@ -16,7 +16,11 @@ from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.RoiRect import RoiRect
-from le_beta_vis.frontend.fitsconverters import Colormap, OpenCVBasedConverter, ScalingFunction
+from le_beta_vis.frontend.fitsconverters import (
+    Colormap,
+    OpenCVBasedConverter,
+    ScalingFunction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +47,11 @@ class RawDataViewModel:
     Pure Python class - No Qt dependencies.
     """
 
-    def __init__(self, configService: ConfigurationService, physics_manager: PhysicsConversionManager):
+    def __init__(
+        self,
+        configService: ConfigurationService,
+        physics_manager: PhysicsConversionManager,
+    ):
         self._config = configService
         self._physics_manager = physics_manager
         self._converter = OpenCVBasedConverter()
@@ -109,9 +117,7 @@ class RawDataViewModel:
         self._buffer_lock = threading.Lock()
         self._current_buffer: Optional[np.ndarray] = None
         self._render_queue: queue.Queue = queue.Queue(maxsize=1)
-        self._render_thread = threading.Thread(
-            target=self._render_worker, daemon=True
-        )
+        self._render_thread = threading.Thread(target=self._render_worker, daemon=True)
         self._render_thread.start()
 
     def _init_callbacks(self) -> None:
@@ -232,15 +238,9 @@ class RawDataViewModel:
         The result is clamped between the configured minimum and maximum.
         Notifies magnifier state listeners on change.
         """
-        step = self._config.get(
-            "gui:raw_analysis:magnifier_factor_step", 0.5
-        )
-        min_factor = self._config.get(
-            "gui:raw_analysis:magnifier_min_factor", 1.0
-        )
-        max_factor = self._config.get(
-            "gui:raw_analysis:magnifier_max_factor", 100.0
-        )
+        step = self._config.get("gui:raw_analysis:magnifier_factor_step", 0.5)
+        min_factor = self._config.get("gui:raw_analysis:magnifier_min_factor", 1.0)
+        max_factor = self._config.get("gui:raw_analysis:magnifier_max_factor", 100.0)
         new_factor = self._magnificationFactor + delta * step
         new_factor = max(min_factor, min(new_factor, max_factor))
         if new_factor != self._magnificationFactor:
@@ -266,13 +266,9 @@ class RawDataViewModel:
         Moves the magnifier by delta * configured step size.
         Delegates to setMagnifierPosition for clamping.
         """
-        step = self._config.get(
-            "gui:raw_analysis:magnifier_move_step", 1
-        )
+        step = self._config.get("gui:raw_analysis:magnifier_move_step", 1)
         row, col = self._magnifier_pos
-        self.setMagnifierPosition(
-            row + drow * step, col + dcol * step
-        )
+        self.setMagnifierPosition(row + drow * step, col + dcol * step)
 
     # --- Pointer Tool ---
 
@@ -314,27 +310,19 @@ class RawDataViewModel:
     @property
     def boxSelectColor(self) -> str:
         """Returns the configured box selection color."""
-        return self._config.get(
-            "gui:raw_analysis:box_select_color", "#00BFFF"
-        )
+        return self._config.get("gui:raw_analysis:box_select_color", "#00BFFF")
 
     @property
     def boxSelectBorderWidth(self) -> int:
         """Returns the configured box selection border width."""
-        return self._config.get(
-            "gui:raw_analysis:box_select_border_width", 2
-        )
+        return self._config.get("gui:raw_analysis:box_select_border_width", 2)
 
     @property
     def clusteringThreshold(self) -> float:
         """Returns the configured sigma threshold for clustering."""
-        return self._config.get(
-            "gui:raw_analysis:clustering_threshold", 4.0
-        )
+        return self._config.get("gui:raw_analysis:clustering_threshold", 4.0)
 
-    def addRoi(
-        self, top: int, left: int, bottom: int, right: int
-    ) -> RoiRect:
+    def addRoi(self, top: int, left: int, bottom: int, right: int) -> RoiRect:
         """
         Creates and appends a new rectangular ROI.
         Coordinates are normalized so top <= bottom and left <= right.
@@ -368,9 +356,7 @@ class RawDataViewModel:
 
     # --- Cluster Extraction ---
 
-    def setClusterExtractor(
-        self, extractor: ClusterExtractor
-    ) -> None:
+    def setClusterExtractor(self, extractor: ClusterExtractor) -> None:
         """Sets the cluster extractor implementation to use."""
         self._clusterExtractor = extractor
 
@@ -401,9 +387,7 @@ class RawDataViewModel:
     @property
     def clusteringTimeoutSeconds(self) -> int:
         """Returns the configured clustering timeout in seconds."""
-        return self._config.get(
-            "gui:raw_analysis:clustering_timeout_seconds", 300
-        )
+        return self._config.get("gui:raw_analysis:clustering_timeout_seconds", 300)
 
     @property
     def clusteringError(self) -> Optional[str]:
@@ -459,23 +443,49 @@ class RawDataViewModel:
         logger.info(
             "classifySelectedCluster: placeholder for cluster at "
             "(%d, %d) with energy %.2f ADU",
-            cluster.centerX, cluster.centerY, cluster.energy,
+            cluster.centerX,
+            cluster.centerY,
+            cluster.energy,
         )
 
-    def exportSelectedCluster(self) -> None:
-        """Placeholder for training data export (issue #56).
+    def setSingleClusterExportHandler(
+        self,
+        handler: Optional[Callable[["ClusteredEventInfo"], None]],
+    ) -> None:
+        """Injects the per-cluster export callback.
 
-        Logs the request; no-op until export pipeline is wired.
+        Kept as an injection seam so this pure-Python VM stays free of
+        direct knowledge of the storage/PNG services and of the Qt
+        file-dialog used to pick the destination path. MainWindow (or
+        RawDataView) supplies a handler that drives the ExportStorage +
+        ClusterExport services off the main thread.
+        """
+        self._single_cluster_export_handler = handler
+
+    def exportSelectedCluster(self) -> None:
+        """Requests a single-cluster export for the currently selected cluster.
+
+        Delegates to the handler registered via
+        :meth:`setSingleClusterExportHandler`. When no handler is wired
+        (headless tests, early bring-up), logs and no-ops so nothing
+        crashes — the real behavior lands once RawDataView wires the
+        handler to the shared export services introduced in #56.
         """
         cluster = self.selectedCluster
         if cluster is None:
             logger.info("exportSelectedCluster: no cluster selected")
             return
-        logger.info(
-            "exportSelectedCluster: placeholder for cluster at "
-            "(%d, %d) with %d pixels",
-            cluster.centerX, cluster.centerY, cluster.pixelCount,
-        )
+        handler = getattr(self, "_single_cluster_export_handler", None)
+        if handler is None:
+            logger.info(
+                "exportSelectedCluster: no handler wired for cluster at "
+                "(%d, %d) with %d pixels",
+                cluster.centerX,
+                cluster.centerY,
+                cluster.pixelCount,
+            )
+            return
+        handler(cluster)
 
     def triggerClustering(self) -> None:
         """Starts cluster extraction on the current ROI.
@@ -509,7 +519,9 @@ class RawDataViewModel:
 
         bbox = roi.geometry()
         self._clusterExtractor.extract(
-            data, bbox, self._on_clustering_success,
+            data,
+            bbox,
+            self._on_clustering_success,
             progress_callback=self._on_clustering_progress,
         )
 
@@ -521,9 +533,7 @@ class RawDataViewModel:
         self._clusteringState = ClusteringState.IDLE
         self._notify_clustering_state_changed()
 
-    def _on_clustering_success(
-        self, results: List[ClusteredEventInfo]
-    ) -> None:
+    def _on_clustering_success(self, results: List[ClusteredEventInfo]) -> None:
         """Callback from extractor thread on completion."""
         self._cancel_timeout_timer()
         if self._clusteringState != ClusteringState.RUNNING:
@@ -585,7 +595,9 @@ class RawDataViewModel:
                 viz_data = self._physics_manager.adu_to_kev(raw_data)
 
                 buffer = self._converter.convert(
-                    viz_data, self._colormap, self._vrange,
+                    viz_data,
+                    self._colormap,
+                    self._vrange,
                     scaling=self._scalingFunction,
                 )
                 with self._buffer_lock:
@@ -645,9 +657,7 @@ class RawDataViewModel:
     @property
     def displayEnergyInKev(self) -> bool:
         """Whether cluster energy should be displayed in keV."""
-        return bool(self._config.get(
-            "gui:raw_analysis:display_energy_in_kev", True
-        ))
+        return bool(self._config.get("gui:raw_analysis:display_energy_in_kev", True))
 
     @property
     def kevConversion(self) -> float:
@@ -730,22 +740,16 @@ class RawDataViewModel:
 
     @property
     def magnifierMoveStep(self) -> int:
-        return self._config.get(
-            "gui:raw_analysis:magnifier_move_step", 1
-        )
+        return self._config.get("gui:raw_analysis:magnifier_move_step", 1)
 
     @property
     def showToolHints(self) -> bool:
-        return self._config.get(
-            "gui:raw_analysis:show_tool_hints", True
-        )
+        return self._config.get("gui:raw_analysis:show_tool_hints", True)
 
     @property
     def autoRangeOnLoad(self) -> bool:
         """Whether to auto-set the visualization range to the full data extent on load."""
-        return self._config.get(
-            "gui:raw_analysis:auto_range_on_load", False
-        )
+        return self._config.get("gui:raw_analysis:auto_range_on_load", False)
 
     # --- Observer Pattern Helpers ---
 
@@ -784,18 +788,14 @@ class RawDataViewModel:
         for callback in self._on_magnifier_state_changed_callbacks:
             callback()
 
-    def add_magnifier_position_changed_callback(
-        self, callback: Callable
-    ):
+    def add_magnifier_position_changed_callback(self, callback: Callable):
         self._on_magnifier_position_changed_callbacks.append(callback)
 
     def _notify_magnifier_position_changed(self):
         for callback in self._on_magnifier_position_changed_callbacks:
             callback()
 
-    def add_pointer_hover_changed_callback(
-        self, callback: Callable
-    ):
+    def add_pointer_hover_changed_callback(self, callback: Callable):
         self._on_pointer_hover_changed_callbacks.append(callback)
 
     def _notify_pointer_hover_changed(self):
@@ -816,14 +816,10 @@ class RawDataViewModel:
         for callback in self._on_box_selection_completed_callbacks:
             callback()
 
-    def add_clustering_state_changed_callback(
-        self, callback: Callable
-    ):
+    def add_clustering_state_changed_callback(self, callback: Callable):
         self._on_clustering_state_changed_callbacks.append(callback)
 
-    def add_clustering_completed_callback(
-        self, callback: Callable
-    ):
+    def add_clustering_completed_callback(self, callback: Callable):
         self._on_clustering_completed_callbacks.append(callback)
 
     def _notify_clustering_state_changed(self):
@@ -834,18 +830,14 @@ class RawDataViewModel:
         for callback in self._on_clustering_completed_callbacks:
             callback()
 
-    def add_clustering_error_callback(
-        self, callback: Callable
-    ):
+    def add_clustering_error_callback(self, callback: Callable):
         self._on_clustering_error_callbacks.append(callback)
 
     def _notify_clustering_error(self):
         for callback in self._on_clustering_error_callbacks:
             callback()
 
-    def add_clustering_progress_callback(
-        self, callback: Callable
-    ):
+    def add_clustering_progress_callback(self, callback: Callable):
         """Register a callback for extraction progress updates."""
         self._on_clustering_progress_callbacks.append(callback)
 
@@ -853,9 +845,7 @@ class RawDataViewModel:
         for callback in self._on_clustering_progress_callbacks:
             callback()
 
-    def add_selected_cluster_changed_callback(
-        self, callback: Callable
-    ) -> None:
+    def add_selected_cluster_changed_callback(self, callback: Callable) -> None:
         """Register a callback for cluster selection changes."""
         self._on_selected_cluster_changed_callbacks.append(callback)
 

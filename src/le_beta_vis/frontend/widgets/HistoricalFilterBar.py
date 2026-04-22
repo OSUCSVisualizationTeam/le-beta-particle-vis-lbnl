@@ -5,6 +5,7 @@ minimum energy, minimum pixel count) and an Advanced button that
 opens the full filter dialog.
 """
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..theme import ExportButtonColors
 from ..viewmodels.HistoricalFilterBarViewModel import (
     HistoricalFilterBarViewModel,
 )
@@ -104,6 +106,32 @@ class _Style:
         "  background-color: #505050;"
         "}"
     )
+    SAVE_BTN = (
+        "QPushButton {"
+        f"  background-color: {ExportButtonColors.SAVE_BACKGROUND};"
+        f"  color: {ExportButtonColors.SAVE_FOREGROUND};"
+        "  border: none;"
+        "  border-radius: 4px;"
+        "  padding: 4px 14px;"
+        "  font-weight: bold;"
+        "  font-size: 11px;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: #4a4a4a;"
+        "  color: #888888;"
+        "}"
+    )
+    CANCEL_BTN = (
+        "QPushButton {"
+        f"  background-color: {ExportButtonColors.CANCEL_BACKGROUND};"
+        f"  color: {ExportButtonColors.CANCEL_FOREGROUND};"
+        "  border: none;"
+        "  border-radius: 4px;"
+        "  padding: 4px 14px;"
+        "  font-weight: bold;"
+        "  font-size: 11px;"
+        "}"
+    )
 
 
 # Time-preset display labels, in combo order.
@@ -123,6 +151,12 @@ class HistoricalFilterBar(QFrame):
     Presents the most-used filter fields inline and delegates
     to ``HistoricalAdvancedFilterDialog`` for the full set.
     """
+
+    # Emitted when the user clicks Save/Cancel (issue #56). The owning
+    # view wires this to the HistoricalExportViewModel so this widget
+    # stays decoupled from the export service layer.
+    saveClicked = Signal()
+    cancelClicked = Signal()
 
     def __init__(
         self,
@@ -207,6 +241,14 @@ class HistoricalFilterBar(QFrame):
         self._applyBtn.clicked.connect(self._onApplyClicked)
         layout.addWidget(self._applyBtn)
 
+        # Save button (issue #56). Toggles to Cancel while an export is
+        # running; disabled when the ExportViewModel reports the current
+        # filter fails the gating check (all preset / window > max).
+        self._saveBtn = QPushButton(self.tr("Save"))
+        self._saveBtn.setStyleSheet(_Style.SAVE_BTN)
+        self._saveBtn.clicked.connect(self._onSaveClicked)
+        layout.addWidget(self._saveBtn)
+
         # Count label (updated by HistoricalView)
         self._countLabel = QLabel()
         self._countLabel.setStyleSheet(_Style.COUNT_LABEL)
@@ -221,6 +263,48 @@ class HistoricalFilterBar(QFrame):
 
     def _bindViewModel(self) -> None:
         self._vm.add_filter_reset_callback(self._syncFromViewModel)
+        self._vm.add_export_running_callback(self._onExportLockChanged)
+
+    # --- Export lock (issue #56) ---
+
+    def _onExportLockChanged(self, running: bool) -> None:
+        """Called when the filter-bar VM's export lock toggles.
+
+        Disables every filter input + Apply so the filter cannot mutate
+        while an export is in flight, keeping the Save/Cancel toggle
+        unambiguous. Save button flips to its Cancel state.
+        """
+        self._setFilterInputsEnabled(not running)
+        if running:
+            self._saveBtn.setText(self.tr("Cancel"))
+            self._saveBtn.setStyleSheet(_Style.CANCEL_BTN)
+        else:
+            self._saveBtn.setText(self.tr("Save"))
+            self._saveBtn.setStyleSheet(_Style.SAVE_BTN)
+
+    def _setFilterInputsEnabled(self, enabled: bool) -> None:
+        for widget in (
+            self._timeCombo,
+            self._energySpin,
+            self._pixelsSpin,
+            self._resetBtn,
+            self._advancedBtn,
+            self._applyBtn,
+        ):
+            widget.setEnabled(enabled)
+
+    def setSaveEnabled(self, enabled: bool, reason: str = "") -> None:
+        """Owner view uses this to reflect the export gating state.
+
+        ``reason`` populates the tooltip when disabled so scientists see
+        why (time preset is 'all', window too large, etc.).
+        """
+        # During an export the button is the Cancel action — keep it
+        # enabled regardless of gating.
+        if self._vm.is_export_running:
+            return
+        self._saveBtn.setEnabled(enabled)
+        self._saveBtn.setToolTip(reason if not enabled else "")
 
     def _syncFromViewModel(self) -> None:
         """Pulls current VM state into all widgets."""
@@ -254,6 +338,13 @@ class HistoricalFilterBar(QFrame):
 
     def _onAdvancedClicked(self) -> None:
         self._openAdvancedDialog()
+
+    def _onSaveClicked(self) -> None:
+        if self._vm.is_export_running:
+            self.cancelClicked.emit()
+        else:
+            self._pushToViewModel()
+            self.saveClicked.emit()
 
     # --- Helpers ---
 
