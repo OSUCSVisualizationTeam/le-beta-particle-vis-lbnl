@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10,<3.11"
 dependencies = [
     "astropy",
+    "h5py>=3.10",
     "matplotlib",
     "mlccd-diffusion",
     "mlccd-models",

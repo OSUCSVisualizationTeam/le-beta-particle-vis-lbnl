@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3.10
   - astropy
+  - h5py
   - matplotlib
   - numpy<2
   - pyside6
