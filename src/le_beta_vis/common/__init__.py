@@ -11,6 +11,7 @@ from .CCDCaptureModel import CCDCaptureModel
 from .RegionOfInterest import RegionOfInterest
 from .RoiRect import RoiRect
 from .BoundingBox import BoundingBox
+from .Colormap import Colormap
 from .ClusterExtractor import ClusterExtractor, ClusteredEventInfo
 from .Cluster import Cluster
 from .ParticleType import ParticleType, classify_particle, CLASSIFICATION_THRESHOLD
