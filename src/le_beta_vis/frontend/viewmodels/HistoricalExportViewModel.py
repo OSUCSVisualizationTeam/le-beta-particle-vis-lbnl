@@ -82,7 +82,13 @@ class HistoricalExportViewModel:
 
     @property
     def default_export_path(self) -> str:
-        return str(self._config.get("gui:export:default_path", "~/Data"))
+        """Return ``<dir>/mlccd-export-YYYYMMDD-HHMMSS`` for the current local time.
+
+        The directory is read from ``gui:export:default_path`` (default ``~``).
+        """
+        base_dir = str(self._config.get("gui:export:default_path", "~"))
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return str(Path(base_dir).expanduser() / f"mlccd-export-{timestamp}")
 
     # --- Gating ---
 
@@ -127,7 +133,25 @@ class HistoricalExportViewModel:
         query_filter: ClusterQueryFilter,
         selection_summary: Optional[str] = None,
         labels: Optional[ClusterMetadataLabels] = None,
+        include_pngs: bool = False,
     ) -> None:
+        """Begin an async export.
+
+        Parameters
+        ----------
+        out_path:
+            Destination HDF5 file path.
+        query_filter:
+            Active cluster filter criteria.
+        selection_summary:
+            Optional pre-formatted summary string for the cluster card metadata.
+        labels:
+            Pre-translated metadata labels from the View. Falls back to
+            ``ClusterMetadataLabels.default_english()`` when omitted.
+        include_pngs:
+            When ``True``, cluster card PNGs are embedded in the HDF5 under
+            ``/clusterCards``. Increases file size.
+        """
         if self._is_exporting:
             return
         self._cancel_token = CancelToken()
@@ -141,6 +165,7 @@ class HistoricalExportViewModel:
             colormap=self.colormap,
             labels=labels or ClusterMetadataLabels.default_english(),
             selection_summary=selection_summary,
+            include_pngs=include_pngs,
         )
         self._service.run_async(
             request,

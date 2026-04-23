@@ -1,8 +1,9 @@
 """Threaded orchestrator for Historical result exports (issue #56).
 
 Pulls clusters via ``EventRepository.query_clusters``, hands them to
-an ``ExportStorageService`` for the main `.h5`, and iterates them
-through a ``ClusterExportService`` for the PNG sidecar folder.
+an ``ExportStorageService`` for the `.h5` file. When the user opts in
+via ``ExportRequest.include_pngs``, a ZIP archive is produced instead:
+it contains the HDF5 file and a ``cluster_cards/`` directory of PNGs.
 
 Runs on a ``threading.Thread(daemon=True)`` — the UI layer must not
 block on it. Progress is reported via a callback; cancel is cooperative
@@ -11,11 +12,11 @@ via the shared ``CancelToken``.
 from __future__ import annotations
 
 import logging
-import shutil
 import threading
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from .Cluster import Cluster
 from .ClusterExportService import (
@@ -63,6 +64,7 @@ class ExportRequest:
     colormap: Colormap
     labels: ClusterMetadataLabels
     selection_summary: Optional[str] = None
+    include_pngs: bool = False
 
 
 class HistoricalExportService:
@@ -107,23 +109,28 @@ class HistoricalExportService:
         on_complete: Optional[CompletionCallback],
         on_error: Optional[ErrorCallback],
     ) -> None:
-        images_dir = request.out_path.parent / f"{request.out_path.stem}_images"
+        # When bundling a ZIP, the H5 is written to a sibling path first.
+        h5_path = (
+            request.out_path.with_suffix(".h5")
+            if request.include_pngs
+            else request.out_path
+        )
         try:
             if on_progress is not None:
                 on_progress(0, 0, "query")
             clusters = self._collect_clusters(request.query_filter)
             self._logger.info("query complete: %d clusters", len(clusters))
             if cancel_token.is_cancelled:
-                self._cleanup(request.out_path, images_dir)
+                self._cleanup(request.out_path, h5_path)
                 return
             self._forward(on_progress, 0, len(clusters), "fits")
             self._hydrate_pixel_data(clusters, cancel_token, on_progress)
             if cancel_token.is_cancelled:
-                self._cleanup(request.out_path, images_dir)
+                self._cleanup(request.out_path, h5_path)
                 return
             h5_step = _pct_step(len(clusters))
             self._storage.write(
-                request.out_path,
+                h5_path,
                 clusters,
                 request.provenance,
                 cancel_token,
@@ -133,22 +140,23 @@ class HistoricalExportService:
                     else None
                 ),
             )
-            self._logger.info("h5 complete: %s", request.out_path)
+            self._logger.info("h5 complete: %s", h5_path)
             if cancel_token.is_cancelled:
-                self._cleanup(request.out_path, images_dir)
+                self._cleanup(request.out_path, h5_path)
                 return
-            self._render_png_sidecar(
-                clusters, images_dir, request, cancel_token, on_progress
-            )
-            self._logger.info("png sidecar complete: %s", images_dir)
-            if cancel_token.is_cancelled:
-                self._cleanup(request.out_path, images_dir)
-                return
+            if request.include_pngs:
+                cards = self._render_png_bytes(clusters, request, cancel_token, on_progress)
+                if cancel_token.is_cancelled:
+                    self._cleanup(request.out_path, h5_path)
+                    return
+                self._write_zip(request.out_path, h5_path, cards)
+                h5_path.unlink(missing_ok=True)
+                self._logger.info("zip complete: %s", request.out_path)
             if on_complete is not None:
                 on_complete(request.out_path)
         except Exception as exc:
             self._logger.exception("Historical export failed")
-            self._cleanup(request.out_path, images_dir)
+            self._cleanup(request.out_path, h5_path)
             if on_error is not None:
                 on_error(str(exc))
 
@@ -210,15 +218,13 @@ class HistoricalExportService:
             raise RuntimeError(f"query_clusters failed: {error_msg[0]}")
         return result
 
-    def _render_png_sidecar(
+    def _render_png_bytes(
         self,
         clusters: List[Cluster],
-        images_dir: Path,
         request: ExportRequest,
         cancel_token: CancelToken,
         on_progress: Optional[ProgressCallback],
-    ) -> None:
-        images_dir.mkdir(parents=True, exist_ok=True)
+    ) -> Dict[str, bytes]:
         context = ClusterExportContext(
             physics=self._physics,
             labels=request.labels,
@@ -226,16 +232,35 @@ class HistoricalExportService:
         )
         total = len(clusters)
         step = _pct_step(total)
+        cards: Dict[str, bytes] = {}
         for idx, cluster in enumerate(clusters):
             if cancel_token.is_cancelled:
-                return
-            cid = cluster.clusterId if cluster.clusterId is not None else idx
-            png_path = images_dir / f"{cid}.png"
-            self._png.export(
-                cluster, png_path, context=context, colormap=request.colormap
+                return cards
+            cid = str(cluster.clusterId if cluster.clusterId is not None else idx)
+            cards[cid] = self._png.render_to_bytes(
+                cluster, context=context, colormap=request.colormap
             )
             if (idx + 1) % step == 0 or (idx + 1) == total:
                 self._forward(on_progress, idx + 1, total, "png")
+        return cards
+
+    def _write_zip(
+        self,
+        zip_path: Path,
+        h5_path: Path,
+        cluster_cards: Dict[str, bytes],
+    ) -> None:
+        tmp_zip = zip_path.with_suffix(".zip.partial")
+        stem = zip_path.stem
+        try:
+            with zipfile.ZipFile(tmp_zip, "w", compression=zipfile.ZIP_STORED) as zf:
+                zf.write(h5_path, arcname=f"{stem}.h5")
+                for cid, png_bytes in cluster_cards.items():
+                    zf.writestr(f"cluster_cards/{cid}.png", png_bytes)
+            tmp_zip.replace(zip_path)
+        except BaseException:
+            tmp_zip.unlink(missing_ok=True)
+            raise
 
     @staticmethod
     def _forward(
@@ -244,13 +269,9 @@ class HistoricalExportService:
         if cb is not None:
             cb(done, total, stage)
 
-    def _cleanup(self, h5_path: Path, images_dir: Path) -> None:
-        try:
-            h5_path.unlink(missing_ok=True)
-        except OSError:
-            self._logger.warning("Failed to remove partial h5 at %s", h5_path)
-        try:
-            if images_dir.exists():
-                shutil.rmtree(images_dir, ignore_errors=True)
-        except OSError:
-            self._logger.warning("Failed to remove image dir at %s", images_dir)
+    def _cleanup(self, out_path: Path, h5_path: Optional[Path] = None) -> None:
+        for p in (p for p in [out_path, h5_path] if p is not None):
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                self._logger.warning("Failed to remove %s", p)

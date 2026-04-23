@@ -155,6 +155,29 @@ class ClusterExportService(ABC):
         """
         raise NotImplementedError
 
+    def render_to_bytes(
+        self,
+        cluster: Cluster,
+        *,
+        context: ClusterExportContext,
+        colormap: Colormap,
+    ) -> bytes:
+        """Render ``cluster`` to PNG bytes without writing a permanent file.
+
+        Calls ``export()`` against a NamedTemporaryFile so all existing
+        renderer implementations produce the bytes without any changes.
+        Callers receive raw PNG bytes suitable for embedding in HDF5.
+        """
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            self.export(cluster, tmp_path, context=context, colormap=colormap)
+            return tmp_path.read_bytes()
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
     def build_metadata(
         self, cluster: Cluster, context: ClusterExportContext
     ) -> ClusterExportMetadata:

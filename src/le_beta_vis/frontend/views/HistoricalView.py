@@ -1,3 +1,4 @@
+from ..widgets.ExportOptionsDialog import ExportOptionsDialog
 from ..widgets.ProgressOverlay import ProgressOverlay
 from ..widgets.HistoricalFilterBar import HistoricalFilterBar
 from ..widgets.EventGridWidget import EventGridWidget
@@ -284,18 +285,27 @@ class HistoricalView(QWidget):
     def _onSaveClicked(self) -> None:
         if self._exportVM is None:
             return
+        include_pngs = ExportOptionsDialog.ask(self)
+        if include_pngs is None:
+            return
         default_dir = self._exportVM.default_export_path
+        if include_pngs:
+            file_filter = self.tr("ZIP archive (*.zip)")
+            expected_suffix = ".zip"
+        else:
+            file_filter = self.tr("HDF5 (*.h5)")
+            expected_suffix = ".h5"
         path_str, _ = QFileDialog.getSaveFileName(
             self,
             self.tr("Save Export"),
             default_dir,
-            self.tr("HDF5 (*.h5)"),
+            file_filter,
         )
         if not path_str:
             return
         out = Path(path_str)
-        if out.suffix.lower() != ".h5":
-            out = out.with_suffix(".h5")
+        if out.suffix.lower() != expected_suffix:
+            out = out.with_suffix(expected_suffix)
         query_filter = self._filterBarVM.build_filter()
         if self._statusVM is not None:
             self._progressToken = self._statusVM.begin_progress(
@@ -304,7 +314,9 @@ class HistoricalView(QWidget):
             self._statusVM.add_cancel_callback(
                 self._progressToken, self._exportVM.cancel
             )
-        self._exportVM.export(out, query_filter, labels=self._buildMetadataLabels())
+        self._exportVM.export(
+            out, query_filter, labels=self._buildMetadataLabels(), include_pngs=include_pngs
+        )
 
     def _buildMetadataLabels(self) -> ClusterMetadataLabels:
         """Pre-translates the PNG metadata labels via Qt's tr().

@@ -364,9 +364,10 @@ gui:inspector:histogram_bins:
 
 gui:export:default_path:
   type: directory_path
-  default: "~/Data"
+  default: "~"
   description: >-
-    Default file system path presented in the "Save As" dialog.
+    Default directory presented in the "Save As" dialog. The filename is
+    generated automatically as mlccd-export-YYYYMMDD-HHMMSS.
 
 gui:export:image_format:
   type: str
@@ -387,9 +388,9 @@ gui:export:cluster_png_colormap:
   type: str
   default: "viridis"
   description: >-
-    Matplotlib colormap applied to the per-cluster PNG sidecars written
-    alongside the .h5 export. Any valid matplotlib colormap name works
-    (e.g. 'viridis', 'plasma', 'magma'). See issue #56.
+    Matplotlib colormap applied to cluster card PNGs embedded inside the
+    .h5 export under /clusterCards. Any valid matplotlib colormap name
+    works (e.g. 'viridis', 'plasma', 'magma'). See issue #56.
 
 # ---------------------------------------------------------------------------
 # Pipeline
