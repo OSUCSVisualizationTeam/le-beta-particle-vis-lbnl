@@ -9,6 +9,7 @@ Runs on a ``threading.Thread(daemon=True)`` — the UI layer must not
 block on it. Progress is reported via a callback; cancel is cooperative
 via the shared ``CancelToken``.
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,7 +17,7 @@ import threading
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from .Cluster import Cluster
 from .ClusterExportService import (
@@ -96,7 +97,14 @@ class HistoricalExportService:
     ) -> threading.Thread:
         thread = threading.Thread(
             target=self._run,
-            args=(request, cancel_token, on_progress, on_complete, on_error, on_cancelled),
+            args=(
+                request,
+                cancel_token,
+                on_progress,
+                on_complete,
+                on_error,
+                on_cancelled,
+            ),
             daemon=True,
             name="HistoricalExportService",
         )
@@ -119,46 +127,39 @@ class HistoricalExportService:
             else request.out_path
         )
         try:
-            if on_progress is not None:
-                on_progress(0, 0, "query")
-            clusters = self._collect_clusters(request.query_filter)
-            self._logger.info("query complete: %d clusters", len(clusters))
-            if cancel_token.is_cancelled:
-                self._cleanup(request.out_path, h5_path)
-                self._call_cancelled(on_cancelled)
-                return
-            self._forward(on_progress, 0, len(clusters), "fits")
-            self._hydrate_pixel_data(clusters, cancel_token, on_progress)
-            if cancel_token.is_cancelled:
-                self._cleanup(request.out_path, h5_path)
-                self._call_cancelled(on_cancelled)
-                return
-            h5_step = _pct_step(len(clusters))
-            self._storage.write(
-                h5_path,
-                clusters,
-                request.provenance,
-                cancel_token,
-                on_progress=lambda done, t: (
-                    self._forward(on_progress, done, t, "h5")
-                    if done % h5_step == 0 or done == t
-                    else None
-                ),
+            ok, clusters = self._step_gather_clusters(
+                request, cancel_token, on_progress, h5_path, on_cancelled
             )
-            self._logger.info("h5 complete: %s", h5_path)
-            if cancel_token.is_cancelled:
-                self._cleanup(request.out_path, h5_path)
-                self._call_cancelled(on_cancelled)
+            if not ok:
+                return
+            if not self._step_hydrate(
+                clusters,
+                cancel_token,
+                on_progress,
+                request.out_path,
+                h5_path,
+                on_cancelled,
+            ):
+                return
+            if not self._step_write_h5(
+                clusters,
+                request,
+                h5_path,
+                cancel_token,
+                on_progress,
+                on_cancelled,
+            ):
                 return
             if request.include_pngs:
-                cards = self._render_png_bytes(clusters, request, cancel_token, on_progress)
-                if cancel_token.is_cancelled:
-                    self._cleanup(request.out_path, h5_path)
-                    self._call_cancelled(on_cancelled)
+                if not self._step_render_and_zip(
+                    clusters,
+                    request,
+                    h5_path,
+                    cancel_token,
+                    on_progress,
+                    on_cancelled,
+                ):
                     return
-                self._write_zip(request.out_path, h5_path, cards)
-                h5_path.unlink(missing_ok=True)
-                self._logger.info("zip complete: %s", request.out_path)
             if on_complete is not None:
                 on_complete(request.out_path)
         except Exception as exc:
@@ -166,6 +167,87 @@ class HistoricalExportService:
             self._cleanup(request.out_path, h5_path)
             if on_error is not None:
                 on_error(str(exc))
+
+    def _step_gather_clusters(
+        self,
+        request: ExportRequest,
+        cancel_token: CancelToken,
+        on_progress: Optional[ProgressCallback],
+        h5_path: Path,
+        on_cancelled: Optional[CancelledCallback],
+    ) -> Tuple[bool, List[Cluster]]:
+        self._forward(on_progress, 0, 0, "query")
+        clusters = self._collect_clusters(request.query_filter)
+        self._logger.info("query complete: %d clusters", len(clusters))
+        if cancel_token.is_cancelled:
+            self._cleanup(request.out_path, h5_path)
+            self._call_cancelled(on_cancelled)
+            return False, []
+        self._forward(on_progress, 0, len(clusters), "fits")
+        return True, clusters
+
+    def _step_hydrate(
+        self,
+        clusters: List[Cluster],
+        cancel_token: CancelToken,
+        on_progress: Optional[ProgressCallback],
+        out_path: Path,
+        h5_path: Path,
+        on_cancelled: Optional[CancelledCallback],
+    ) -> bool:
+        self._hydrate_pixel_data(clusters, cancel_token, on_progress)
+        if cancel_token.is_cancelled:
+            self._cleanup(out_path, h5_path)
+            self._call_cancelled(on_cancelled)
+            return False
+        return True
+
+    def _step_write_h5(
+        self,
+        clusters: List[Cluster],
+        request: ExportRequest,
+        h5_path: Path,
+        cancel_token: CancelToken,
+        on_progress: Optional[ProgressCallback],
+        on_cancelled: Optional[CancelledCallback],
+    ) -> bool:
+        h5_step = _pct_step(len(clusters))
+        self._storage.write(
+            h5_path,
+            clusters,
+            request.provenance,
+            cancel_token,
+            on_progress=lambda done, t: (
+                self._forward(on_progress, done, t, "h5")
+                if done % h5_step == 0 or done == t
+                else None
+            ),
+        )
+        self._logger.info("h5 complete: %s", h5_path)
+        if cancel_token.is_cancelled:
+            self._cleanup(request.out_path, h5_path)
+            self._call_cancelled(on_cancelled)
+            return False
+        return True
+
+    def _step_render_and_zip(
+        self,
+        clusters: List[Cluster],
+        request: ExportRequest,
+        h5_path: Path,
+        cancel_token: CancelToken,
+        on_progress: Optional[ProgressCallback],
+        on_cancelled: Optional[CancelledCallback],
+    ) -> bool:
+        cards = self._render_png_bytes(clusters, request, cancel_token, on_progress)
+        if cancel_token.is_cancelled:
+            self._cleanup(request.out_path, h5_path)
+            self._call_cancelled(on_cancelled)
+            return False
+        self._write_zip(request.out_path, h5_path, cards)
+        h5_path.unlink(missing_ok=True)
+        self._logger.info("zip complete: %s", request.out_path)
+        return True
 
     def _hydrate_pixel_data(
         self,
