@@ -42,6 +42,7 @@ ProgressCallback = Callable[[int, int, str], None]
 
 CompletionCallback = Callable[[Path], None]
 ErrorCallback = Callable[[str], None]
+CancelledCallback = Callable[[], None]
 
 
 def _pct_step(total: int) -> int:
@@ -91,10 +92,11 @@ class HistoricalExportService:
         on_progress: Optional[ProgressCallback] = None,
         on_complete: Optional[CompletionCallback] = None,
         on_error: Optional[ErrorCallback] = None,
+        on_cancelled: Optional[CancelledCallback] = None,
     ) -> threading.Thread:
         thread = threading.Thread(
             target=self._run,
-            args=(request, cancel_token, on_progress, on_complete, on_error),
+            args=(request, cancel_token, on_progress, on_complete, on_error, on_cancelled),
             daemon=True,
             name="HistoricalExportService",
         )
@@ -108,6 +110,7 @@ class HistoricalExportService:
         on_progress: Optional[ProgressCallback],
         on_complete: Optional[CompletionCallback],
         on_error: Optional[ErrorCallback],
+        on_cancelled: Optional[CancelledCallback] = None,
     ) -> None:
         # When bundling a ZIP, the H5 is written to a sibling path first.
         h5_path = (
@@ -122,11 +125,13 @@ class HistoricalExportService:
             self._logger.info("query complete: %d clusters", len(clusters))
             if cancel_token.is_cancelled:
                 self._cleanup(request.out_path, h5_path)
+                self._call_cancelled(on_cancelled)
                 return
             self._forward(on_progress, 0, len(clusters), "fits")
             self._hydrate_pixel_data(clusters, cancel_token, on_progress)
             if cancel_token.is_cancelled:
                 self._cleanup(request.out_path, h5_path)
+                self._call_cancelled(on_cancelled)
                 return
             h5_step = _pct_step(len(clusters))
             self._storage.write(
@@ -143,11 +148,13 @@ class HistoricalExportService:
             self._logger.info("h5 complete: %s", h5_path)
             if cancel_token.is_cancelled:
                 self._cleanup(request.out_path, h5_path)
+                self._call_cancelled(on_cancelled)
                 return
             if request.include_pngs:
                 cards = self._render_png_bytes(clusters, request, cancel_token, on_progress)
                 if cancel_token.is_cancelled:
                     self._cleanup(request.out_path, h5_path)
+                    self._call_cancelled(on_cancelled)
                     return
                 self._write_zip(request.out_path, h5_path, cards)
                 h5_path.unlink(missing_ok=True)
@@ -268,6 +275,11 @@ class HistoricalExportService:
     ) -> None:
         if cb is not None:
             cb(done, total, stage)
+
+    @staticmethod
+    def _call_cancelled(cb: Optional[CancelledCallback]) -> None:
+        if cb is not None:
+            cb()
 
     def _cleanup(self, out_path: Path, h5_path: Optional[Path] = None) -> None:
         for p in (p for p in [out_path, h5_path] if p is not None):

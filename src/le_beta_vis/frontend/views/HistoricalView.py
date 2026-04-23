@@ -55,6 +55,7 @@ class HistoricalView(QWidget):
     _exportProgressReceived = Signal(int, int, str)
     _exportCompleteReceived = Signal(Path)
     _exportErrorReceived = Signal(str)
+    _exportCancelledReceived = Signal()
 
     def __init__(
         self,
@@ -120,9 +121,11 @@ class HistoricalView(QWidget):
         self._exportCompleteReceived.connect(self._onExportComplete)
         self._exportErrorReceived.connect(self._onExportError)
         self._exportProgressReceived.connect(self._onExportProgress)
+        self._exportCancelledReceived.connect(self._onExportCancelled)
         self._exportVM.add_complete_callback(self._exportCompleteReceived.emit)
         self._exportVM.add_error_callback(self._exportErrorReceived.emit)
         self._exportVM.add_progress_callback(self._exportProgressReceived.emit)
+        self._exportVM.add_cancelled_callback(self._exportCancelledReceived.emit)
         self._exportVM.add_gating_changed_callback(self._onExportGatingChanged)
         self._filterBarVM.add_filter_applied_callback(
             lambda _: self._refreshSaveGating()
@@ -312,7 +315,7 @@ class HistoricalView(QWidget):
                 self.tr("Exporting results..."), cancelable=True
             )
             self._statusVM.add_cancel_callback(
-                self._progressToken, self._exportVM.cancel
+                self._progressToken, self._onCancelClicked
             )
         self._exportVM.export(
             out, query_filter, labels=self._buildMetadataLabels(), include_pngs=include_pngs
@@ -341,7 +344,18 @@ class HistoricalView(QWidget):
         )
 
     def _onCancelClicked(self) -> None:
-        if self._exportVM is not None:
+        if self._exportVM is None:
+            return
+        reply = QMessageBox.question(
+            self,
+            self.tr("Cancel Export"),
+            self.tr(
+                "Are you sure you want to cancel the export?\n"
+                "The output file will not be saved."
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
             self._exportVM.cancel()
 
     def _onExportProgress(self, done: int, total: int, stage: str) -> None:
@@ -393,6 +407,19 @@ class HistoricalView(QWidget):
         )
         self._pendingExportError = None
         QMessageBox.warning(self, self.tr("Export Failed"), msg)
+
+    @Slot()
+    def _onExportCancelled(self) -> None:
+        self._endProgress()
+        self._showExportCancelled()
+
+    @Slot()
+    def _showExportCancelled(self) -> None:
+        QMessageBox.information(
+            self,
+            self.tr("Export Cancelled"),
+            self.tr("The export was cancelled. No file was written."),
+        )
 
     def _onLoadError(self, message: str) -> None:
         """Receives error from ViewModel — may arrive on bg thread."""

@@ -54,6 +54,7 @@ class HistoricalExportViewModel:
         self._on_progress: List[Callable[[int, int, str], None]] = []
         self._on_complete: List[Callable[[Path], None]] = []
         self._on_error: List[Callable[[str], None]] = []
+        self._on_cancelled: List[Callable[[], None]] = []
         self._on_gating_changed: List[Callable[[bool, str], None]] = []
 
     # --- Properties ---
@@ -173,6 +174,7 @@ class HistoricalExportViewModel:
             on_progress=self._forward_progress,
             on_complete=self._finish_success,
             on_error=self._finish_error,
+            on_cancelled=self._finish_cancelled,
         )
 
     def cancel(self) -> None:
@@ -193,6 +195,9 @@ class HistoricalExportViewModel:
     def add_error_callback(self, cb: Callable[[str], None]) -> None:
         self._on_error.append(cb)
 
+    def add_cancelled_callback(self, cb: Callable[[], None]) -> None:
+        self._on_cancelled.append(cb)
+
     def add_gating_changed_callback(
         self, cb: Callable[[bool, str], None]
     ) -> None:
@@ -210,6 +215,11 @@ class HistoricalExportViewModel:
         self._reset_state()
         for cb in self._on_error:
             cb(message)
+
+    def _finish_cancelled(self) -> None:
+        self._reset_state()
+        for cb in self._on_cancelled:
+            cb()
 
     def _reset_state(self) -> None:
         self._is_exporting = False
