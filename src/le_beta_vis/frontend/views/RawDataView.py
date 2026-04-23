@@ -1,4 +1,4 @@
-from PySide6.QtCore import QMetaObject, QSize, Qt, Slot
+from PySide6.QtCore import QMetaObject, QRectF, QSize, Qt, Slot
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -33,10 +33,10 @@ from ..viewmodels.RawDataViewModel import (
     ClusteringState,
     RawDataViewModel,
 )
-from ..widgets.BoxSelectionGraphicsItem import BoxSelectionGraphicsItem
 from ..widgets.CaptureGraphicsView import CaptureGraphicsView
 from ..widgets.MagnifierGraphicsItem import MagnifierGraphicsItem
 from ..widgets.ClusteringProgressOverlay import ClusteringProgressOverlay
+from ..widgets.HDUVisualizationWidget import HDUVisualizationWidget
 from ..widgets.ROIInfoWidget import ROIInfoWidget
 from ..widgets.VerticalRangeControl import VerticalRangeControl
 from .ClusterAnalysisView import ClusterAnalysisView
@@ -224,10 +224,8 @@ class RawDataView(QWidget):
     def _setupCenterImageArea(self) -> None:
         """Assembles the center image area: toolbar, graphics scene,
         overlays, status bar, and clustering overlay."""
-        self._centerContainer = QWidget()
-        centerLayout = QVBoxLayout(self._centerContainer)
-        centerLayout.setContentsMargins(0, 0, 0, 0)
-        centerLayout.setSpacing(0)
+        self._centerContainer = HDUVisualizationWidget()
+        centerLayout = self._centerContainer.contentLayout
 
         self._setupTopToolbar()
         centerLayout.addWidget(self.topToolbar)
@@ -250,7 +248,7 @@ class RawDataView(QWidget):
 
         self.pixmapItem = QGraphicsPixmapItem()
         self.scene.addItem(self.pixmapItem)
-        centerLayout.addWidget(self.graphicsView)
+        self._centerContainer.addSourceView(self.graphicsView)
 
     def _setupSceneOverlays(self) -> None:
         """Adds the MagnifierGraphicsItem and BoxSelectionGraphicsItem
@@ -270,11 +268,11 @@ class RawDataView(QWidget):
             )
         self.scene.addItem(self._magnifierItem)
 
-        self._boxSelectionItem = BoxSelectionGraphicsItem()
-        self._boxSelectionItem.setColor(self.viewModel.boxSelectColor)
-        self._boxSelectionItem.setBorderWidth(self.viewModel.boxSelectBorderWidth)
-        self._boxSelectionItem.setVisible(False)
-        self.scene.addItem(self._boxSelectionItem)
+        hud = self._centerContainer.hudWidget
+        if hud is not None:
+            hud.setBoxSelectionColor(self.viewModel.boxSelectColor)
+            hud.setBoxSelectionBorderWidth(self.viewModel.boxSelectBorderWidth)
+            hud.bindMagnifier(self._magnifierItem)
 
     def _createStatusBar(self) -> QWidget:
         """Builds the pixel-info / tool-hint status bar widget."""
@@ -536,6 +534,9 @@ class RawDataView(QWidget):
             self._magnifierItem.setSourceData(
                 pixmap, rawData, lambda val: val * kevFactor
             )
+            hud = self._centerContainer.hudWidget
+            if hud is not None:
+                hud.refreshMagnifier()
 
     @Slot()
     def updateZoom(self):
@@ -571,6 +572,9 @@ class RawDataView(QWidget):
         self.graphicsView.setMagnifierActive(magnifierActive)
         self.graphicsView.setBoxSelectActive(boxSelectActive)
         self._magnifierItem.setVisible(magnifierActive)
+        hud = self._centerContainer.hudWidget
+        if hud is not None:
+            hud.setMagnifierVisible(magnifierActive)
 
         if not boxSelectActive:
             self.viewModel.clearPointerHover()
@@ -588,6 +592,9 @@ class RawDataView(QWidget):
     def _updateMagnifierState(self):
         """Updates the magnifier graphics item's magnification factor."""
         self._magnifierItem.setMagnificationFactor(self.viewModel.magnificationFactor)
+        hud = self._centerContainer.hudWidget
+        if hud is not None:
+            hud.refreshMagnifier()
 
     @Slot(int, int)
     def _onPixelHovered(self, row: int, col: int):
@@ -608,6 +615,9 @@ class RawDataView(QWidget):
         row, col = self.viewModel.magnifierPosition
         self._magnifierItem.setPixelPos(row, col)
         self._positionMagnifierItem(row, col)
+        hud = self._centerContainer.hudWidget
+        if hud is not None:
+            hud.refreshMagnifier()
 
     @Slot()
     def _updatePointerStatus(self):
@@ -662,13 +672,22 @@ class RawDataView(QWidget):
 
     @Slot()
     def _updateBoxSelection(self):
-        """Syncs the BoxSelectionGraphicsItem from ViewModel ROI state."""
+        """Syncs the HUD ROI overlay from ViewModel ROI state."""
+        hud = self._centerContainer.hudWidget
+        if hud is None:
+            return
         rois = self.viewModel.rois
         if rois:
             bbox = rois[-1].geometry()
-            self._boxSelectionItem.setRect(bbox.top, bbox.left, bbox.bottom, bbox.right)
+            sceneRect = QRectF(
+                bbox.left,
+                bbox.top,
+                bbox.right - bbox.left,
+                bbox.bottom - bbox.top,
+            )
+            hud.setBoxSelectionSceneRect(sceneRect)
         else:
-            self._boxSelectionItem.clear()
+            hud.setBoxSelectionSceneRect(None)
 
     @Slot()
     def _updateClusteringState(self):

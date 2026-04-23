@@ -38,11 +38,11 @@ def test_bounding_rect_no_source(magnifier):
 
 
 def test_bounding_rect_with_source(magnifier, source_data):
-    """Test boundingRect includes display area and label space."""
+    """Test boundingRect is the display area (chrome renders in HUD)."""
     pixmap, raw = source_data
     magnifier.setSourceData(pixmap, raw, None)
     rect = magnifier.boundingRect()
-    assert rect.width() == 127 + 10 + 120  # display + padding + label
+    assert rect.width() == 127
     assert rect.height() == 127
 
 
@@ -141,26 +141,13 @@ def test_set_hint_lines(magnifier):
     assert magnifier._hintLines == ["Line A", "Line B"]
 
 
-def test_bounding_rect_zoom_line_accounted(magnifier, source_data):
-    """Test boundingRect accounts for the Zoom label (4 data lines)."""
-    pixmap, raw = source_data
-    magnifier.setSourceData(pixmap, raw, None)
-    # With 0 hints: totalLines = 4, labelAreaHeight = 4*14+4 = 60 < 127
-    rect = magnifier.boundingRect()
-    assert rect.height() == 127  # display size still dominates
-    # With 10 hints: totalLines = 4 + 11 = 15, height = 15*14+4 = 214 > 127
-    magnifier.setHintLines([f"H{i}" for i in range(10)])
-    rect_tall = magnifier.boundingRect()
-    assert rect_tall.height() > 127
-
-
-def test_bounding_rect_grows_with_hints(magnifier, source_data):
-    """Test boundingRect height accounts for hint lines."""
+def test_bounding_rect_is_stable_across_hint_counts(magnifier, source_data):
+    """boundingRect covers only the display area; hints render in HUD."""
     pixmap, raw = source_data
     magnifier.setSourceData(pixmap, raw, None)
     rect_no_hints = magnifier.boundingRect()
-
-    magnifier.setHintLines(["A", "B", "C", "D", "E", "F", "G", "H"])
-    rect_with_hints = magnifier.boundingRect()
-    assert rect_with_hints.height() >= rect_no_hints.height()
-    assert rect_with_hints.width() == rect_no_hints.width()
+    magnifier.setHintLines([f"H{i}" for i in range(10)])
+    rect_many_hints = magnifier.boundingRect()
+    assert rect_no_hints == rect_many_hints
+    assert rect_no_hints.width() == 127
+    assert rect_no_hints.height() == 127
