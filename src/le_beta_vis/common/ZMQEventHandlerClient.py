@@ -30,6 +30,16 @@ from .EventHandlerClient import EventHandlerClient
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_EVENT_PUB_ENDPOINT = "ipc:///tmp/EPCEvents.ipc"
+"""Default ZMQ endpoint for the EventHandler publish/subscribe bus.
+
+Both backend producers (:class:`ZMQEventHandlerClient` with ``bind``)
+and the frontend consumer (:class:`~le_beta_vis.common.ZMQEventHandlerSource`)
+use this endpoint when no override is present in the configuration
+(``event_handler:zmq_pub_endpoint``).  Import this constant instead of
+repeating the literal so a future path change is a one-line update.
+"""
+
 _DEFAULT_LINGER_MS = 0
 _DEFAULT_SNDHWM = 10_000
 """High-water mark for outbound messages on the PUB socket.  ZMQ

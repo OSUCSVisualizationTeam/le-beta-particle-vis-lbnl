@@ -1,3 +1,4 @@
+from le_beta_vis.common.ZMQEventHandlerClient import DEFAULT_EVENT_PUB_ENDPOINT
 import mysql.connector
 from le_beta_vis.common.YAMLBackedConfigurationService import (
     YAMLBackedConfigurationService,
@@ -9,7 +10,9 @@ import logging
 from datetime import datetime
 from typing import Optional, Tuple
 
+
 logger = logging.getLogger(__name__)
+
 
 _DATE_FILTER_FORMAT = "%Y-%m-%d %H:%M:%S"
 

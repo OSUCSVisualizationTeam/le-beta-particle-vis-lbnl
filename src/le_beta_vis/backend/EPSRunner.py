@@ -4,16 +4,25 @@ from typing import Optional
 from .EventPersistenceService import EventPersistence
 from .InitializePolling import PollingThread
 from le_beta_vis.common.YAMLBackedConfigurationService import YAMLBackedConfigurationService
+from le_beta_vis.common.ZMQEventHandlerClient import DEFAULT_EVENT_PUB_ENDPOINT
+from le_beta_vis.common.ZMQEventLoggingHandler import attach_to_root_logger
 import zmq
 
 logger = logging.getLogger(__name__)
 
+
 class EPSRunner:
     """Initializes the EventPersistenceService and maintains thread execution."""
+
     def __init__(self):
         self.thread: Optional[threading.Thread] = None
         self.running = False
         self.config = YAMLBackedConfigurationService()
+        self._log_handler = attach_to_root_logger(
+            endpoint=self.config.get("event_handler:zmq_pub_endpoint")
+            or DEFAULT_EVENT_PUB_ENDPOINT,
+            source="eps",
+        )
 
     def start(self):
         """Starts the EPS in a daemon thread, checks if already running and calls run on EPS."""
@@ -38,6 +47,7 @@ class EPSRunner:
 
     def stop(self):
         """Kills EPS by sending Kill to EPS command endpoint."""
+        logging.root.removeHandler(self._log_handler)
         try:
             context = zmq.Context()
             command_socket = context.socket(zmq.REQ)
@@ -46,7 +56,7 @@ class EPSRunner:
             command_socket.send_json({"Command": "Kill"})
             try:
                 command_socket.recv_json()
-            except:
+            except BaseException:
                 logger.warning("EPS did not respond to kill command.")
             command_socket.close()
             context.term()
@@ -58,5 +68,5 @@ class EPSRunner:
 
     def is_running(self):
         """Checks if EPS service is running."""
-        # If running and thread is alive, it counts as the EPS running. 
+        # If running and thread is alive, it counts as the EPS running.
         return self.running and self.thread.is_alive()
