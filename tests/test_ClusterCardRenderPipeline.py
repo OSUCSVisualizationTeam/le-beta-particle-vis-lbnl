@@ -1,9 +1,8 @@
-# Tests for ClusterCardRenderPipeline — parallel render + zip-writer pipeline.
-# Uses MatplotlibPNGClusterExportService with small (2×2) clusters so subprocesses
-# do real renders without needing a fake renderer (cross-process state sharing is
-# not possible with ProcessPoolExecutor — see ADR-0005).
+"""Tests for ClusterCardRenderPipeline.
 
-"""Tests for ClusterCardRenderPipeline."""
+Uses a lightweight in-process fake renderer (not the real PNG service) so
+behaviour is exercised without the cost of a real render.
+"""
 from __future__ import annotations
 
 import zipfile
@@ -17,16 +16,47 @@ from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.ClusterCardRenderPipeline import ClusterCardRenderPipeline
 from le_beta_vis.common.ClusterExportService import (
     ClusterExportContext,
+    ClusterExportMetadata,
+    ClusterExportService,
     ClusterMetadataLabels,
 )
 from le_beta_vis.common.Colormap import Colormap
 from le_beta_vis.common.ExportStorageService import CancelToken
-from le_beta_vis.common.MatplotlibPNGClusterExportService import (
-    MatplotlibPNGClusterExportService,
-)
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
 
 from mock_configuration_service import MockConfigurationService
-from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
+
+
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
+
+
+class _FakePNGRenderer(ClusterExportService):
+    """Writes a tiny valid PNG-looking blob so pipeline tests don't pay
+    the cost of a real image render."""
+
+    def __init__(self, fail_on_ids: Optional[set] = None) -> None:
+        super().__init__()
+        self._fail_on_ids = fail_on_ids or set()
+
+    def export(
+        self,
+        cluster: Cluster,
+        out_path: Path,
+        *,
+        context: ClusterExportContext,
+        colormap: Colormap,
+    ) -> None:
+        if cluster.clusterId in self._fail_on_ids:
+            raise RuntimeError(f"simulated render failure for {cluster.clusterId}")
+        out_path.write_bytes(_PNG_MAGIC)
+
+    def render_metadata(
+        self,
+        canvas,
+        metadata: ClusterExportMetadata,
+        labels: ClusterMetadataLabels,
+    ) -> None:  # pragma: no cover — not invoked in these tests
+        return None
 
 
 def _physics() -> PhysicsConversionManagerImpl:
@@ -55,9 +85,11 @@ def _context() -> ClusterExportContext:
     )
 
 
-def _pipeline(workers: int = 2) -> ClusterCardRenderPipeline:
+def _pipeline(
+    workers: int = 2, fail_on_ids: Optional[set] = None
+) -> ClusterCardRenderPipeline:
     return ClusterCardRenderPipeline(
-        png_renderer=MatplotlibPNGClusterExportService(),
+        png_renderer=_FakePNGRenderer(fail_on_ids=fail_on_ids),
         workers=workers,
     )
 
@@ -69,7 +101,9 @@ class TestClusterCardRenderPipeline:
         zip_path = tmp_path / "out.zip"
 
         with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_STORED) as zf:
-            pipeline.run(clusters, zf, _context(), Colormap.VIRIDIS, CancelToken(), None)
+            pipeline.run(
+                clusters, zf, _context(), Colormap.VIRIDIS, CancelToken(), None
+            )
 
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
@@ -90,17 +124,17 @@ class TestClusterCardRenderPipeline:
         with zipfile.ZipFile(zip_path, "r") as zf:
             assert zf.namelist() == []
 
-    def test_render_failure_skips_cluster_but_continues(self, tmp_path: Path) -> None:
-        # cluster.data = None causes np.asarray(None).shape → () which fails to
-        # unpack as (rows, cols) in build_metadata → render error in subprocess.
-        bad = _cluster(1)
-        bad.data = None
-        clusters = [bad, _cluster(2)]
-        pipeline = _pipeline()
+    def test_render_failure_skips_cluster_but_continues(
+        self, tmp_path: Path
+    ) -> None:
+        clusters = [_cluster(1), _cluster(2)]
+        pipeline = _pipeline(fail_on_ids={1})
         zip_path = tmp_path / "out.zip"
 
         with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_STORED) as zf:
-            pipeline.run(clusters, zf, _context(), Colormap.VIRIDIS, CancelToken(), None)
+            pipeline.run(
+                clusters, zf, _context(), Colormap.VIRIDIS, CancelToken(), None
+            )
 
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
@@ -108,7 +142,7 @@ class TestClusterCardRenderPipeline:
         assert "cluster_cards/2.png" in names
 
     def test_progress_fires_once_per_card_added(self, tmp_path: Path) -> None:
-        clusters = [_cluster(i) for i in range(1, 4)]  # 3 clusters
+        clusters = [_cluster(i) for i in range(1, 4)]
         pipeline = _pipeline()
         ticks: List[tuple] = []
         zip_path = tmp_path / "out.zip"
@@ -126,13 +160,13 @@ class TestClusterCardRenderPipeline:
 
     def test_workers_clamped_to_minimum_of_two(self) -> None:
         pipeline = ClusterCardRenderPipeline(
-            png_renderer=MatplotlibPNGClusterExportService(), workers=1
+            png_renderer=_FakePNGRenderer(), workers=1
         )
         assert pipeline._workers == 2
 
     def test_workers_clamped_to_maximum_of_sixteen(self) -> None:
         pipeline = ClusterCardRenderPipeline(
-            png_renderer=MatplotlibPNGClusterExportService(), workers=99
+            png_renderer=_FakePNGRenderer(), workers=99
         )
         assert pipeline._workers == 16
 
@@ -146,7 +180,9 @@ class TestClusterCardRenderPipeline:
         before = set(tmp_dir.glob("*.png"))
 
         with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_STORED) as zf:
-            pipeline.run(clusters, zf, _context(), Colormap.VIRIDIS, CancelToken(), None)
+            pipeline.run(
+                clusters, zf, _context(), Colormap.VIRIDIS, CancelToken(), None
+            )
 
         after = set(tmp_dir.glob("*.png"))
         assert after == before, f"orphaned temp PNGs: {after - before}"

@@ -1,10 +1,8 @@
-# Validate query -> h5 -> cluster card pipeline, cancel cleanup, error propagation.
-# Note: _FakePNG must be picklable — ProcessPoolExecutor serialises it to subprocesses.
-# Threading locks are not picklable, so _FakePNG uses no Lock.  Cross-process call
-# tracking is not possible (each subprocess gets its own copy); correctness of the
-# PNG path is verified via zip contents instead.  See ADR-0005.
+"""Tests for HistoricalExportService.
 
-"""Tests for HistoricalExportService."""
+Validates query → h5 → cluster card pipeline, cancel cleanup, and error
+propagation using an in-process fake PNG renderer.
+"""
 from __future__ import annotations
 
 from pathlib import Path

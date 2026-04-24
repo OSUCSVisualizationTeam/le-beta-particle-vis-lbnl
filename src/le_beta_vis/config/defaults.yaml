@@ -400,6 +400,32 @@ gui:export:png_render_workers:
     PNGs during export. Clamped to [2, 16]. Increase on machines with many CPU
     cores to speed up large exports. See issue #56.
 
+gui:export:progress_weight_fits:
+  type: float
+  default: 0.70
+  description: >-
+    Fraction of the overall export progress bar assigned to the FITS
+    hydration stage. The export bar aggregates the three measurable
+    stages (fits, h5, png) into one continuous 0-100% sweep; each
+    weight is the size of that stage's slice. The three weights must
+    sum to 1.0 (they are renormalised at read time if they don't).
+
+gui:export:progress_weight_h5:
+  type: float
+  default: 0.10
+  description: >-
+    Fraction of the overall export progress bar assigned to the HDF5
+    write stage. See gui:export:progress_weight_fits.
+
+gui:export:progress_weight_png:
+  type: float
+  default: 0.20
+  description: >-
+    Fraction of the overall export progress bar assigned to the cluster
+    card PNG stage. Lowered from an equal split because the DirectPNG
+    renderer is ~5-10x faster than the previous matplotlib renderer.
+    See gui:export:progress_weight_fits.
+
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------

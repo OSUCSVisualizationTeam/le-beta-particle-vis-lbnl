@@ -324,3 +324,65 @@ class TestIncludePngs:
         vm._service.run_async = self._fake_run_async(captured)
         vm.export(tmp_path / "out.h5", ClusterQueryFilter())
         assert captured["request"].include_pngs is False
+
+
+def _build_weighted_vm(
+    *, fits: float = 0.70, h5: float = 0.10, png: float = 0.20
+) -> HistoricalExportViewModel:
+    cfg = MockConfigurationService()
+    cfg.set("gui:export:progress_weight_fits", fits)
+    cfg.set("gui:export:progress_weight_h5", h5)
+    cfg.set("gui:export:progress_weight_png", png)
+    physics = _FakePhysics()
+    filter_bar = HistoricalFilterBarViewModel(cfg, physics)
+    svc = HistoricalExportService(
+        _NoopRepo(), _NoopStorage(), _NoopPNG(), physics, _NoopThumbnails()
+    )
+    return HistoricalExportViewModel(cfg, physics, svc, filter_bar)
+
+
+class TestAggregatedFraction:
+    def test_query_stage_returns_indeterminate(self) -> None:
+        vm = _build_weighted_vm()
+        assert vm.aggregated_fraction(0, 0, "query") == -1.0
+
+    def test_zero_total_returns_indeterminate(self) -> None:
+        vm = _build_weighted_vm()
+        assert vm.aggregated_fraction(0, 0, "fits") == -1.0
+
+    def test_fits_stage_covers_first_slice(self) -> None:
+        vm = _build_weighted_vm(fits=0.7, h5=0.1, png=0.2)
+        assert vm.aggregated_fraction(0, 100, "fits") == pytest.approx(0.0)
+        assert vm.aggregated_fraction(50, 100, "fits") == pytest.approx(0.35)
+        assert vm.aggregated_fraction(100, 100, "fits") == pytest.approx(0.70)
+
+    def test_h5_stage_starts_where_fits_ends(self) -> None:
+        vm = _build_weighted_vm(fits=0.7, h5=0.1, png=0.2)
+        assert vm.aggregated_fraction(0, 100, "h5") == pytest.approx(0.70)
+        assert vm.aggregated_fraction(100, 100, "h5") == pytest.approx(0.80)
+
+    def test_png_stage_ends_at_one(self) -> None:
+        vm = _build_weighted_vm(fits=0.7, h5=0.1, png=0.2)
+        assert vm.aggregated_fraction(0, 100, "png") == pytest.approx(0.80)
+        assert vm.aggregated_fraction(100, 100, "png") == pytest.approx(1.0)
+
+    def test_weights_are_renormalised_when_they_do_not_sum_to_one(self) -> None:
+        # Raw weights sum to 2.0; expect each slice halved.
+        vm = _build_weighted_vm(fits=1.4, h5=0.2, png=0.4)
+        assert vm.aggregated_fraction(100, 100, "fits") == pytest.approx(0.70)
+        assert vm.aggregated_fraction(100, 100, "h5") == pytest.approx(0.80)
+        assert vm.aggregated_fraction(100, 100, "png") == pytest.approx(1.0)
+
+    def test_all_zero_weights_falls_back_to_defaults(self) -> None:
+        vm = _build_weighted_vm(fits=0.0, h5=0.0, png=0.0)
+        assert vm.aggregated_fraction(100, 100, "png") == pytest.approx(1.0)
+        assert vm.aggregated_fraction(100, 100, "fits") == pytest.approx(0.70)
+
+    def test_unknown_stage_returns_indeterminate(self) -> None:
+        vm = _build_weighted_vm()
+        assert vm.aggregated_fraction(1, 10, "bogus") == -1.0
+
+    def test_fraction_never_exceeds_one(self) -> None:
+        vm = _build_weighted_vm()
+        # done > total should not overshoot (defensive clamp).
+        assert vm.aggregated_fraction(150, 100, "png") == pytest.approx(1.0)

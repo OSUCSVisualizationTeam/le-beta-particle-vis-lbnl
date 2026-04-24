@@ -36,6 +36,13 @@ from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 logger = logging.getLogger(__name__)
 
 
+_STAGE_ORDER = {"query": 0, "fits": 1, "h5": 2, "png": 3}
+
+
+def _stage_order(stage: str) -> int:
+    return _STAGE_ORDER.get(stage, 99)
+
+
 class HistoricalExportViewModel:
     def __init__(
         self,
@@ -202,6 +209,49 @@ class HistoricalExportViewModel:
         self, cb: Callable[[bool, str], None]
     ) -> None:
         self._on_gating_changed.append(cb)
+
+    # --- Progress aggregation ---
+
+    def aggregated_fraction(
+        self, done: int, total: int, stage: str
+    ) -> float:
+        """Return a monotonic 0.0-1.0 fraction across all export stages.
+
+        The raw service callback reports per-stage ``done/total``, which
+        resets three times across ``query → fits → h5 → png``. This
+        helper maps each stage onto a contiguous slice of the overall
+        progress bar so it only ever advances. Returns ``-1.0`` for the
+        initial ``query`` tick where ``total`` is still unknown (the
+        View treats negative values as indeterminate).
+        """
+        if stage == "query" or total <= 0:
+            return -1.0
+        weights = self._stage_weights()
+        if stage not in weights:
+            return -1.0
+        start = sum(w for s, w in weights.items() if _stage_order(s) < _stage_order(stage))
+        slice_size = weights[stage]
+        local = min(max(done / total, 0.0), 1.0)
+        return start + slice_size * local
+
+    def _stage_weights(self) -> dict:
+        """Return renormalised ``{stage: weight}`` for the measurable stages."""
+        raw = {
+            "fits": self._config.get_float(
+                "gui:export:progress_weight_fits", 0.70
+            ),
+            "h5": self._config.get_float(
+                "gui:export:progress_weight_h5", 0.10
+            ),
+            "png": self._config.get_float(
+                "gui:export:progress_weight_png", 0.20
+            ),
+        }
+        clamped = {s: max(0.0, float(w)) for s, w in raw.items()}
+        total = sum(clamped.values())
+        if total <= 0.0:
+            return {"fits": 0.70, "h5": 0.10, "png": 0.20}
+        return {s: w / total for s, w in clamped.items()}
 
     # --- Internals ---
 

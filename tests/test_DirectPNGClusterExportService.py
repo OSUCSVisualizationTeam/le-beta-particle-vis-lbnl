@@ -1,7 +1,4 @@
-# Verify the renderer produces a non-empty PNG headlessly, honors the physics
-# conversion manager, and that build_metadata does not leak cluster_id.
-
-"""Tests for MatplotlibPNGClusterExportService."""
+"""Tests for DirectPNGClusterExportService."""
 from __future__ import annotations
 
 from dataclasses import fields
@@ -9,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PIL import Image
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
@@ -18,8 +16,8 @@ from le_beta_vis.common.ClusterExportService import (
     ClusterMetadataLabels,
 )
 from le_beta_vis.common.Colormap import Colormap
-from le_beta_vis.common.MatplotlibPNGClusterExportService import (
-    MatplotlibPNGClusterExportService,
+from le_beta_vis.common.DirectPNGClusterExportService import (
+    DirectPNGClusterExportService,
 )
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManagerImpl,
@@ -59,17 +57,19 @@ def _context(factor: float = 1.0e-3) -> ClusterExportContext:
     )
 
 
-class TestMatplotlibPNGClusterExportService:
+class TestDirectPNGClusterExportService:
     def test_export_writes_non_empty_png(self, tmp_path: Path) -> None:
         out = tmp_path / "cluster.png"
-        svc = MatplotlibPNGClusterExportService()
-        svc.export(_make_cluster(), out, context=_context(), colormap=Colormap.VIRIDIS)
+        svc = DirectPNGClusterExportService()
+        svc.export(
+            _make_cluster(), out, context=_context(), colormap=Colormap.VIRIDIS
+        )
         assert out.exists()
         assert out.stat().st_size > 0
         with out.open("rb") as fh:
             assert fh.read(8) == b"\x89PNG\r\n\x1a\n"
 
-    def test_export_rejects_unknown_colormap(self, tmp_path: Path) -> None:
+    def test_export_rejects_unknown_colormap(self) -> None:
         # Colormap is an enum; constructing from a bad value raises ValueError
         # at call time, so the service never needs to defend against bogus
         # matplotlib cmap strings.
@@ -77,13 +77,38 @@ class TestMatplotlibPNGClusterExportService:
             Colormap("__not_a_real_colormap__")
 
     def test_render_to_bytes_returns_valid_png_bytes(self) -> None:
-        svc = MatplotlibPNGClusterExportService()
+        svc = DirectPNGClusterExportService()
         result = svc.render_to_bytes(
             _make_cluster(), context=_context(), colormap=Colormap.VIRIDIS
         )
         assert isinstance(result, bytes)
         assert len(result) > 0
         assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_grayscale_colormap_resolves(self, tmp_path: Path) -> None:
+        # The Colormap.GRAYSCALE enum value ("grayscale") is not a
+        # matplotlib name; the renderer must alias it to "gray" so the
+        # LUT lookup succeeds.
+        out = tmp_path / "cluster_gray.png"
+        svc = DirectPNGClusterExportService()
+        svc.export(
+            _make_cluster(),
+            out,
+            context=_context(),
+            colormap=Colormap.GRAYSCALE,
+        )
+        assert out.exists() and out.stat().st_size > 0
+
+    def test_output_dimensions_match_expected_canvas_size(
+        self, tmp_path: Path
+    ) -> None:
+        out = tmp_path / "cluster.png"
+        svc = DirectPNGClusterExportService()
+        svc.export(
+            _make_cluster(), out, context=_context(), colormap=Colormap.VIRIDIS
+        )
+        with Image.open(out) as img:
+            assert img.size == (1200, 600)
 
 
 class TestBuildMetadata:
@@ -94,7 +119,7 @@ class TestBuildMetadata:
         assert "cluster_id" not in field_names
 
     def test_energy_uses_physics_conversion(self) -> None:
-        svc = MatplotlibPNGClusterExportService()
+        svc = DirectPNGClusterExportService()
         cluster = _make_cluster()
         ctx = _context(factor=2.0e-3)
         metadata = svc.build_metadata(cluster, ctx)

@@ -54,36 +54,6 @@ class PhysicsConversionManager(ABC):
         pass
 
 
-class _PhysicsConversionSnapshot(PhysicsConversionManager):
-    """Picklable snapshot of ``PhysicsConversionManagerImpl`` for subprocess workers.
-
-    Created automatically via ``PhysicsConversionManagerImpl.__reduce__`` when
-    pickle serialises a physics manager (e.g. to send it to a
-    ``ProcessPoolExecutor`` worker process).  Carries only the two conversion
-    constants; the unpicklable Qt-backed ``ConfigurationService`` is left behind.
-    Satisfies the full ``PhysicsConversionManager`` ABC so workers can call
-    ``adu_to_kev`` through the standard interface — never via a raw inline multiply.
-    """
-
-    def __init__(self, kev_factor: float, ped_width: int) -> None:
-        self._kev_factor = kev_factor
-        self._ped_width = ped_width
-
-    @property
-    def kev_conversion_factor(self) -> float:
-        return self._kev_factor
-
-    @property
-    def pedestal_width(self) -> int:
-        return self._ped_width
-
-    def calculate_threshold(self, sigma: float) -> float:
-        return sigma * self.pedestal_width
-
-    def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
-        return value * self.kev_conversion_factor
-
-
 class PhysicsConversionManagerImpl(PhysicsConversionManager):
     """
     Concrete implementation of PhysicsConversionManager backed by ConfigurationService.
@@ -119,9 +89,3 @@ class PhysicsConversionManagerImpl(PhysicsConversionManager):
         Converts raw ADU (Analog-to-Digital Units) to Energy in keV.
         """
         return value * self.kev_conversion_factor
-
-    def __reduce__(self):
-        # When pickled (e.g. by ProcessPoolExecutor), snapshot the current
-        # constants so the worker receives a proper PhysicsConversionManager
-        # without the unpicklable ConfigurationService.
-        return (_PhysicsConversionSnapshot, (self.kev_conversion_factor, self.pedestal_width))

@@ -14,8 +14,8 @@ from ..viewmodels.HistoricalFilterBarViewModel import (
 )
 from ..viewmodels.HistoricalViewModel import HistoricalViewModel
 from ..viewmodels.HistoricalExportViewModel import HistoricalExportViewModel
-from le_beta_vis.common.MatplotlibPNGClusterExportService import (
-    MatplotlibPNGClusterExportService,
+from le_beta_vis.common.DirectPNGClusterExportService import (
+    DirectPNGClusterExportService,
 )
 from le_beta_vis.common.HistoricalExportService import HistoricalExportService
 from le_beta_vis.common.H5ExportStorageService import H5ExportStorageService
@@ -104,7 +104,7 @@ class HistoricalView(QWidget):
         """Constructs the ExportViewModel + service graph (issue #56)."""
         physics = self.viewModel.physicsManager
         storage = H5ExportStorageService(physics)
-        png = MatplotlibPNGClusterExportService()
+        png = DirectPNGClusterExportService()
         n_workers = int(self.viewModel._config.get("gui:export:png_render_workers", 4))
         service = HistoricalExportService(
             repository=self.viewModel.repository,
@@ -363,7 +363,7 @@ class HistoricalView(QWidget):
     def _onExportProgress(self, done: int, total: int, stage: str) -> None:
         if self._statusVM is None or self._progressToken is None:
             return
-        fraction = (done / total) if total > 0 else -1.0
+        fraction = self._exportVM.aggregated_fraction(done, total, stage)
         label = {
             "query": self.tr("Querying clusters..."),
             "fits": self.tr("Loading pixel data ({done}/{total})"),
