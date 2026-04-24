@@ -17,9 +17,10 @@ import threading
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from .Cluster import Cluster
+from .ClusterCardRenderPipeline import ClusterCardRenderPipeline
 from .ClusterExportService import (
     ClusterExportContext,
     ClusterExportService,
@@ -77,14 +78,19 @@ class HistoricalExportService:
         png_renderer: ClusterExportService,
         physics: PhysicsConversionManager,
         thumbnail_service: ThumbnailLoaderService,
+        png_render_workers: int = 4,
         logger_: Optional[logging.Logger] = None,
     ) -> None:
         self._repo = repository
         self._storage = storage
-        self._png = png_renderer
         self._physics = physics
         self._thumbnails = thumbnail_service
         self._logger = logger_ or logger
+        self._card_pipeline = ClusterCardRenderPipeline(
+            png_renderer=png_renderer,
+            workers=png_render_workers,
+            logger_=self._logger,
+        )
 
     def run_async(
         self,
@@ -239,12 +245,28 @@ class HistoricalExportService:
         on_progress: Optional[ProgressCallback],
         on_cancelled: Optional[CancelledCallback],
     ) -> bool:
-        cards = self._render_png_bytes(clusters, request, cancel_token, on_progress)
+        context = ClusterExportContext(
+            physics=self._physics,
+            labels=request.labels,
+            selection_summary=request.selection_summary,
+        )
+        tmp_zip = request.out_path.with_suffix(".zip.partial")
+        stem = request.out_path.stem
+        try:
+            with zipfile.ZipFile(tmp_zip, "w", compression=zipfile.ZIP_STORED) as zf:
+                zf.write(h5_path, arcname=f"{stem}.h5")
+                self._card_pipeline.run(
+                    clusters, zf, context, request.colormap, cancel_token, on_progress
+                )
+        except BaseException:
+            tmp_zip.unlink(missing_ok=True)
+            raise
         if cancel_token.is_cancelled:
+            tmp_zip.unlink(missing_ok=True)
             self._cleanup(request.out_path, h5_path)
             self._call_cancelled(on_cancelled)
             return False
-        self._write_zip(request.out_path, h5_path, cards)
+        tmp_zip.replace(request.out_path)
         h5_path.unlink(missing_ok=True)
         self._logger.info("zip complete: %s", request.out_path)
         return True
@@ -257,11 +279,12 @@ class HistoricalExportService:
     ) -> None:
         total = len(clusters)
         self._logger.info("fits hydration start: %d clusters", total)
-        missing = 0
         step = _pct_step(total)
-        for idx, cluster in enumerate(clusters):
-            if cancel_token.is_cancelled:
-                return
+
+        # Issue all requests before waiting for any result so the thumbnail
+        # service's internal workers stay saturated throughout hydration.
+        pending: List[Tuple[threading.Event, list]] = []
+        for cluster in clusters:
             done = threading.Event()
             result: list = []
 
@@ -270,6 +293,12 @@ class HistoricalExportService:
                 _done.set()
 
             self._thumbnails.request_cluster_data(cluster, on_ready)
+            pending.append((done, result))
+
+        missing = 0
+        for idx, (cluster, (done, result)) in enumerate(zip(clusters, pending)):
+            if cancel_token.is_cancelled:
+                return
             done.wait()
             cluster.data = result[0] if result else None
             if cluster.data is None:
@@ -306,50 +335,6 @@ class HistoricalExportService:
         if error_msg:
             raise RuntimeError(f"query_clusters failed: {error_msg[0]}")
         return result
-
-    def _render_png_bytes(
-        self,
-        clusters: List[Cluster],
-        request: ExportRequest,
-        cancel_token: CancelToken,
-        on_progress: Optional[ProgressCallback],
-    ) -> Dict[str, bytes]:
-        context = ClusterExportContext(
-            physics=self._physics,
-            labels=request.labels,
-            selection_summary=request.selection_summary,
-        )
-        total = len(clusters)
-        step = _pct_step(total)
-        cards: Dict[str, bytes] = {}
-        for idx, cluster in enumerate(clusters):
-            if cancel_token.is_cancelled:
-                return cards
-            cid = str(cluster.clusterId if cluster.clusterId is not None else idx)
-            cards[cid] = self._png.render_to_bytes(
-                cluster, context=context, colormap=request.colormap
-            )
-            if (idx + 1) % step == 0 or (idx + 1) == total:
-                self._forward(on_progress, idx + 1, total, "png")
-        return cards
-
-    def _write_zip(
-        self,
-        zip_path: Path,
-        h5_path: Path,
-        cluster_cards: Dict[str, bytes],
-    ) -> None:
-        tmp_zip = zip_path.with_suffix(".zip.partial")
-        stem = zip_path.stem
-        try:
-            with zipfile.ZipFile(tmp_zip, "w", compression=zipfile.ZIP_STORED) as zf:
-                zf.write(h5_path, arcname=f"{stem}.h5")
-                for cid, png_bytes in cluster_cards.items():
-                    zf.writestr(f"cluster_cards/{cid}.png", png_bytes)
-            tmp_zip.replace(zip_path)
-        except BaseException:
-            tmp_zip.unlink(missing_ok=True)
-            raise
 
     @staticmethod
     def _forward(

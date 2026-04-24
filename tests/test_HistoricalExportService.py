@@ -1,4 +1,8 @@
-# Validate query -> h5 -> png pipeline, cancel cleanup, error propagation
+# Validate query -> h5 -> cluster card pipeline, cancel cleanup, error propagation.
+# Note: _FakePNG must be picklable — ProcessPoolExecutor serialises it to subprocesses.
+# Threading locks are not picklable, so _FakePNG uses no Lock.  Cross-process call
+# tracking is not possible (each subprocess gets its own copy); correctness of the
+# PNG path is verified via zip contents instead.  See ADR-0005.
 
 """Tests for HistoricalExportService."""
 from __future__ import annotations
@@ -71,24 +75,18 @@ class _FakeStorage(ExportStorageService):
 
 
 class _FakePNG(ClusterExportService):
+    """Picklable stub renderer.  No threading.Lock — locks are not picklable and
+    subprocess isolation means call counts in child processes never reach the parent."""
+
     def __init__(self) -> None:
         super().__init__()
-        self.exported: List[Path] = []
-        self.render_to_bytes_calls: List[int] = []
-        self.seen_labels: Optional[ClusterMetadataLabels] = None
+        self.export_calls: List[int] = []
 
     def export(self, cluster, out_path, *, context, colormap):
-        out_path.write_bytes(b"fake-png")
-        self.exported.append(out_path)
-        self.seen_labels = context.labels
-
-    def render_to_bytes(self, cluster, *, context, colormap):
-        self.render_to_bytes_calls.append(cluster.clusterId)
-        self.seen_labels = context.labels
-        return b"\x89PNG\r\n\x1a\n" + b"\x00" * 50
+        out_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 50)
+        self.export_calls.append(cluster.clusterId)
 
     def render_metadata(self, canvas, metadata, labels):
-        # Not exercised — export() is stubbed above.
         pass
 
 
@@ -191,7 +189,7 @@ class TestHistoricalExportService:
         assert out.exists()
         assert not (tmp_path / "e_images").exists()
         assert completed == [out]
-        assert png.render_to_bytes_calls == []
+        assert png.export_calls == []
 
     def test_happy_path_with_include_pngs(self, tmp_path: Path) -> None:
         import zipfile as zf_mod
@@ -218,8 +216,6 @@ class TestHistoricalExportService:
         assert completed == [out]
         assert out.exists()
         assert not (tmp_path / "e.h5").exists()  # temp h5 cleaned up after zipping
-        assert len(png.render_to_bytes_calls) == 2
-        assert png.seen_labels is labels
         with zf_mod.ZipFile(out, "r") as z:
             names = z.namelist()
             assert "e.h5" in names
@@ -357,6 +353,45 @@ class TestHistoricalExportService:
         assert len(written) == 1
         assert written[0].data is not None
         assert written[0].data.shape == (2, 2)
+
+    def test_cancel_before_png_phase_calls_on_cancelled(self, tmp_path: Path) -> None:
+        out = tmp_path / "e.zip"
+        token = CancelToken()
+
+        class _CancellingStorage(_FakeStorage):
+            def write(self, out_path, clusters, provenance, cancel_token, on_progress=None):
+                super().write(out_path, clusters, provenance, cancel_token, on_progress)
+                token.cancel()
+
+        svc = HistoricalExportService(
+            _FakeRepo([_cluster(1), _cluster(2)]),
+            _CancellingStorage(),
+            _FakePNG(),
+            _physics(),
+            _FakeThumbnailService(),
+        )
+        request = ExportRequest(
+            out_path=out,
+            query_filter=None,
+            provenance=_provenance(),
+            colormap=Colormap.VIRIDIS,
+            labels=ClusterMetadataLabels.default_english(),
+            include_pngs=True,
+        )
+        cancelled: List[bool] = []
+        completions: List[Path] = []
+
+        _run_and_wait(
+            svc,
+            request,
+            token,
+            on_complete=completions.append,
+            on_cancelled=lambda: cancelled.append(True),
+        )
+
+        assert cancelled == [True]
+        assert completions == []
+        assert not out.exists()
 
     def test_hydrate_pixel_data_missing_data_does_not_crash(self, tmp_path: Path) -> None:
         """A cluster whose FITS data cannot be loaded should not abort the export."""

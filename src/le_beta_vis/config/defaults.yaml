@@ -392,6 +392,14 @@ gui:export:cluster_png_colormap:
     .h5 export under /clusterCards. Any valid matplotlib colormap name
     works (e.g. 'viridis', 'plasma', 'magma'). See issue #56.
 
+gui:export:png_render_workers:
+  type: int
+  default: 4
+  description: >-
+    Number of parallel worker threads used to render per-cluster cluster card
+    PNGs during export. Clamped to [2, 16]. Increase on machines with many CPU
+    cores to speed up large exports. See issue #56.
+
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------

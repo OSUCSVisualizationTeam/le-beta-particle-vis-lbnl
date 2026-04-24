@@ -105,12 +105,14 @@ class HistoricalView(QWidget):
         physics = self.viewModel.physicsManager
         storage = H5ExportStorageService(physics)
         png = MatplotlibPNGClusterExportService()
+        n_workers = int(self.viewModel._config.get("gui:export:png_render_workers", 4))
         service = HistoricalExportService(
             repository=self.viewModel.repository,
             storage=storage,
             png_renderer=png,
             physics=physics,
             thumbnail_service=self.viewModel.thumbnail_service,
+            png_render_workers=n_workers,
         )
         self._exportVM = HistoricalExportViewModel(
             config=self.viewModel._config,
