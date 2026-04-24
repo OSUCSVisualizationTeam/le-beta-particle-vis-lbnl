@@ -146,7 +146,6 @@ class HistoricalView(QWidget):
             physics=self.viewModel.physicsManager,
             threshold=self.viewModel.classificationThreshold,
             displayKeV=self.viewModel.displayEnergyInKev,
-            histogramRenderer=self.viewModel.histogramRenderer,
         )
         self._inspector = HistoricalEventInspector(self._inspectorVM)
         self._splitter.addWidget(self._inspector)

@@ -7,9 +7,10 @@ ever creating a matplotlib Figure or Axes. Rendering is pure
 safe to call from any thread (no GIL-heavy figure construction and
 no GUI backend).
 
-The colormap LUT is fetched once from ``matplotlib.colormaps`` (cheap,
-no figure created). This preserves scientific color parity with the
-rest of the app.
+Colormap LUTs are built once per ``Colormap`` value via
+``cv2.applyColorMap`` on a 0-255 ramp, and the DejaVu fonts used for
+axis/metadata text are loaded from ``common/fonts/`` (bundled with the
+package). No matplotlib imports live in this module or its call chain.
 """
 from __future__ import annotations
 
@@ -29,6 +30,9 @@ from .ClusterExportService import (
     ClusterMetadataLabels,
 )
 from .Colormap import Colormap
+
+
+logger = logging.getLogger(__name__)
 
 
 # Canvas geometry. Matches the previous 10"x5" @ 120 dpi figure.
@@ -61,10 +65,10 @@ _LABEL_FONT_SIZE = 11
 _TICK_FONT_SIZE = 9
 _META_FONT_SIZE = 10
 
-# matplotlib does not ship a "grayscale" colormap — only "gray". The
-# enum value predates this renderer; map it so Colormap.GRAYSCALE
-# still produces the expected output.
-_COLORMAP_ALIAS = {"grayscale": "gray"}
+# Path to the bundled font directory (shipped via package-data).
+_FONT_DIR = Path(__file__).resolve().parent / "fonts"
+_FONT_SANS = "DejaVuSans.ttf"
+_FONT_SANS_MONO = "DejaVuSansMono.ttf"
 
 
 class DirectPNGClusterExportService(ClusterExportService):
@@ -82,7 +86,7 @@ class DirectPNGClusterExportService(ClusterExportService):
         colormap: Colormap,
     ) -> None:
         data_kev = self._compute_kev_array(cluster, context)
-        lut = _colormap_lut(colormap.value)
+        lut = _colormap_lut(colormap)
         metadata = self.build_metadata(cluster, context)
         vmin, vmax = _value_range(data_kev)
 
@@ -319,31 +323,26 @@ class DirectPNGClusterExportService(ClusterExportService):
 # --- module-level helpers ---------------------------------------------------
 
 
-@lru_cache(maxsize=16)
-def _colormap_lut(name: str) -> np.ndarray:
-    """Return a 256 x 3 uint8 LUT for the given matplotlib colormap name.
-
-    Cached because LUT construction is invariant and hot on bulk exports.
-    Raises ``KeyError`` when the name is not registered with matplotlib.
-    """
-    import matplotlib as mpl
-
-    resolved = _COLORMAP_ALIAS.get(name, name)
-    cmap = mpl.colormaps[resolved]
-    rgba = cmap(np.linspace(0.0, 1.0, 256))
-    return (rgba[:, :3] * 255.0).astype(np.uint8)
+# Re-exported alias so the test suite and other export-path consumers
+# continue to find ``_colormap_lut`` here; the canonical implementation
+# lives in ``common.ColormapLUT``.
+from .ColormapLUT import colormap_lut as _colormap_lut  # noqa: E402,F401 — re-export
 
 
 @lru_cache(maxsize=8)
 def _load_font(size: int, monospace: bool) -> ImageFont.ImageFont:
-    """Load a TTF from matplotlib's bundled DejaVu family, fall back to default."""
+    """Load a bundled DejaVu TTF; fall back to PIL's default on packaging failures."""
+    filename = _FONT_SANS_MONO if monospace else _FONT_SANS
+    path = _FONT_DIR / filename
     try:
-        import matplotlib.font_manager as fm
-
-        family = "DejaVu Sans Mono" if monospace else "DejaVu Sans"
-        path = fm.findfont(family, fallback_to_default=False)
-        return ImageFont.truetype(path, size)
-    except Exception:
+        return ImageFont.truetype(str(path), size)
+    except OSError:
+        logger.warning(
+            "Bundled font %s not found at %s; falling back to PIL default. "
+            "This usually indicates a packaging regression.",
+            filename,
+            path,
+        )
         return ImageFont.load_default()
 
 

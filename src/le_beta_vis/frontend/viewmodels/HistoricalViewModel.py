@@ -6,10 +6,6 @@ import numpy as np
 
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
-from le_beta_vis.common.HistogramRenderer import (
-    HistogramRenderer,
-    MatplotlibHistogramRenderer,
-)
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,
 )
@@ -34,15 +30,11 @@ class HistoricalViewModel:
         physicsManager: PhysicsConversionManager,
         repository: EventRepository,
         thumbnailService: ThumbnailLoaderService,
-        histogramRenderer: Optional[HistogramRenderer] = None,
     ):
         self._config = configService
         self._physics = physicsManager
         self._repository = repository
         self._thumbnail_service = thumbnailService
-        self._histogramRenderer: HistogramRenderer = (
-            histogramRenderer or MatplotlibHistogramRenderer()
-        )
 
         # Event state
         self._events: List[Cluster] = []
@@ -118,11 +110,6 @@ class HistoricalViewModel:
     def thumbnail_service(self) -> ThumbnailLoaderService:
         """The thumbnail loader used to fetch raw cluster pixel data from FITS."""
         return self._thumbnail_service
-
-    @property
-    def histogramRenderer(self) -> HistogramRenderer:
-        """The histogram rendering service."""
-        return self._histogramRenderer
 
     @property
     def classificationThreshold(self) -> float:

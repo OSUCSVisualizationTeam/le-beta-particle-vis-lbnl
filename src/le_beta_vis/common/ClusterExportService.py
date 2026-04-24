@@ -2,8 +2,8 @@
 
 The PNG sidecar next to the `.h5` is meant for slide decks — the raw
 ADU array in `/images/<cluster_id>` remains the source of truth. The
-ABC exists so we can swap renderers (matplotlib today, pyqtgraph-based
-renderer in future) without changing callers.
+ABC exists so we can swap renderers (currently a Pillow + numpy LUT
+implementation) without changing callers.
 
 Metadata rendering is part of the contract: every renderer must paint
 the structured ``ClusterExportMetadata`` built by ``build_metadata``.
@@ -148,10 +148,10 @@ class ClusterExportService(ABC):
     ) -> None:
         """Paint ``metadata`` onto the renderer's native ``canvas``.
 
-        Matplotlib implementations receive a ``matplotlib.axes.Axes``.
-        Future renderers may pass a ``QPainter``, a ``pyqtgraph`` item,
-        etc. — the ABC keeps the contract: metadata must always be
-        rendered alongside the cluster.
+        The current implementation (`DirectPNGClusterExportService`)
+        receives a ``PIL.Image.Image``. Future renderers may pass a
+        ``QPainter``, a ``pyqtgraph`` item, etc. — the ABC keeps the
+        contract: metadata must always be rendered alongside the cluster.
         """
         raise NotImplementedError
 

@@ -60,6 +60,8 @@ le_beta_vis = [
     "backend/SAMPLE.env",
     "config/*.yaml",
     "resources/icons/*.png",
+    "common/fonts/*.ttf",
+    "common/fonts/LICENSE_DEJAVU",
 ]
 
 [tool.flake8]

@@ -388,9 +388,11 @@ gui:export:cluster_png_colormap:
   type: str
   default: "viridis"
   description: >-
-    Matplotlib colormap applied to cluster card PNGs embedded inside the
-    .h5 export under /clusterCards. Any valid matplotlib colormap name
-    works (e.g. 'viridis', 'plasma', 'magma'). See issue #56.
+    Colormap applied to cluster card PNGs embedded inside the .h5
+    export under /clusterCards. Must match a value of the Colormap
+    enum ('viridis', 'plasma', 'inferno', 'magma', 'jet', 'bone',
+    'hot', 'cool', 'grayscale'). Unknown values fall back to 'viridis'.
+    See issue #56.
 
 gui:export:png_render_workers:
   type: int

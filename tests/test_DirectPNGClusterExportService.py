@@ -18,6 +18,7 @@ from le_beta_vis.common.ClusterExportService import (
 from le_beta_vis.common.Colormap import Colormap
 from le_beta_vis.common.DirectPNGClusterExportService import (
     DirectPNGClusterExportService,
+    _colormap_lut,
 )
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManagerImpl,
@@ -109,6 +110,25 @@ class TestDirectPNGClusterExportService:
         )
         with Image.open(out) as img:
             assert img.size == (1200, 600)
+
+
+class TestColormapLUT:
+    def test_lut_shape_for_all_colormaps(self) -> None:
+        for cm in Colormap:
+            lut = _colormap_lut(cm)
+            assert lut.shape == (256, 3), f"{cm} produced shape {lut.shape}"
+            assert lut.dtype == np.uint8, f"{cm} produced dtype {lut.dtype}"
+
+    def test_grayscale_lut_is_monotonic(self) -> None:
+        lut = _colormap_lut(Colormap.GRAYSCALE)
+        # R = G = B for grayscale; all channels identical.
+        assert np.array_equal(lut[:, 0], lut[:, 1])
+        assert np.array_equal(lut[:, 1], lut[:, 2])
+        # Strictly non-decreasing ramp from 0 → 255.
+        diffs = np.diff(lut[:, 0].astype(np.int16))
+        assert (diffs >= 0).all()
+        assert int(lut[0, 0]) == 0
+        assert int(lut[255, 0]) == 255
 
 
 class TestBuildMetadata:

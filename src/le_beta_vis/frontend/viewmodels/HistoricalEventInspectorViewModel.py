@@ -7,10 +7,6 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional
 
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.common.HistogramRenderer import (
-    HistogramRenderer,
-    MatplotlibHistogramRenderer,
-)
 from le_beta_vis.common.ParticleType import (
     CLASSIFICATION_THRESHOLD,
     classify_particle,
@@ -66,7 +62,6 @@ def _score_css(score: float, threshold: float) -> str:
     return "color: #7f8c8d; font-weight: bold;"
 
 
-
 class HistoricalEventInspectorViewModel:
     """Pure Python ViewModel for the event detail inspector.
 
@@ -80,15 +75,11 @@ class HistoricalEventInspectorViewModel:
         physics: Optional[PhysicsConversionManager] = None,
         threshold: float = CLASSIFICATION_THRESHOLD,
         displayKeV: bool = True,
-        histogramRenderer: Optional[HistogramRenderer] = None,
     ):
         self._cluster: Optional[Cluster] = None
         self._physics = physics
         self._threshold = threshold
         self._displayKeV = displayKeV
-        self._renderer: HistogramRenderer = (
-            histogramRenderer or MatplotlibHistogramRenderer()
-        )
         self._on_event_changed: List[Callable[[Optional[Cluster]], None]] = []
 
     # --- Properties ---
@@ -107,11 +98,6 @@ class HistoricalEventInspectorViewModel:
     def displayKeV(self) -> bool:
         """Whether energy values display in keV."""
         return self._displayKeV
-
-    @property
-    def renderer(self) -> HistogramRenderer:
-        """The histogram rendering service."""
-        return self._renderer
 
     @property
     def physics(self) -> Optional[PhysicsConversionManager]:
