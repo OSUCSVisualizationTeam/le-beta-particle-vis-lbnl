@@ -478,6 +478,141 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
         self.assertEqual(result["clusters"][0]["cluster_id"], 1)
 
 
+class TestEventPersistenceClassifyCluster(unittest.TestCase):
+    """Test cases for classify_cluster method"""
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_classify_cluster_success(self, mock_db_connect, mock_init_server, mock_config):
+        """Test successful classification update"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_db_connect.return_value = mock_connection
+        mock_cursor.callproc.return_value = ("tritium", 123, 1)
+
+        ep = EventPersistence()
+        ep.conn = mock_connection
+        ep.cluster_to_classify = {
+            "cluster_id": 123,
+            "classification": "tritium",
+        }
+
+        result = ep.classify_cluster()
+
+        self.assertEqual(result["result"], "success")
+        self.assertEqual(result["updated"], 1)
+        mock_cursor.callproc.assert_called_once_with(
+            "insert_classifications", ("tritium", 123, None)
+        )
+        mock_connection.commit.assert_called_once()
+        mock_cursor.close.assert_called_once()
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_classify_cluster_no_rows_updated(self, mock_db_connect, mock_init_server, mock_config):
+        """Test classification update where no row is changed"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_db_connect.return_value = mock_connection
+        mock_cursor.callproc.return_value = ("tritium", 123, 0)
+
+        ep = EventPersistence()
+        ep.conn = mock_connection
+        ep.cluster_to_classify = {
+            "cluster_id": 123,
+            "classification": "tritium",
+        }
+
+        result = ep.classify_cluster()
+
+        self.assertEqual(result["result"], "failure")
+        self.assertIn("No clusters were updated", result["error"])
+        mock_connection.commit.assert_called_once()
+        mock_cursor.close.assert_called_once()
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_classify_cluster_failed_proc_output(self, mock_db_connect, mock_init_server, mock_config):
+        """Test classification update where procedure reports failure"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_db_connect.return_value = mock_connection
+        mock_cursor.callproc.return_value = ("tritium", 123, -1)
+
+        ep = EventPersistence()
+        ep.conn = mock_connection
+        ep.cluster_to_classify = {
+            "cluster_id": 123,
+            "classification": "tritium",
+        }
+
+        with self.assertRaises(FailedProcException):
+            ep.classify_cluster()
+
+        mock_connection.close.assert_called_once()
+        self.assertIsNone(ep.conn)
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    def test_classify_cluster_reconnect_on_no_connection(self, mock_init_server, mock_config):
+        """Test classify_cluster reconnects when connection is missing"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_cursor.callproc.return_value = ("alpha", 7, 1)
+
+        with patch.object(EventPersistence, 'db_connect', return_value=mock_connection):
+            ep = EventPersistence()
+            ep.conn = None
+            ep.cluster_to_classify = {
+                "cluster_id": 7,
+                "classification": "alpha",
+            }
+
+            result = ep.classify_cluster()
+
+            self.assertEqual(result["result"], "success")
+            self.assertEqual(result["updated"], 1)
+
+
 class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
     """Test cases for process_retrieval_fits method"""
 
@@ -782,6 +917,69 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
         ep.cluster_event(request, mock_socket)
 
         mock_socket.send_json.assert_called_once()
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch.object(EventPersistence, 'classify_cluster')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_cluster_event_update_classification_success(self, mock_db_connect, mock_classify_cluster, mock_init_server, mock_config):
+        """Test cluster event with UpdateClassification action"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+
+        mock_socket = MagicMock()
+        mock_classify_cluster.return_value = {"result": "success", "updated": 1}
+
+        ep = EventPersistence()
+
+        request = {
+            "Action": "UpdateClassification",
+            "cluster_id": 123,
+            "classification": "tritium",
+        }
+
+        ep.cluster_event(request, mock_socket)
+
+        self.assertEqual(ep.cluster_to_classify["cluster_id"], 123)
+        self.assertEqual(ep.cluster_to_classify["classification"], "tritium")
+        mock_socket.send_json.assert_called_once_with({"result": "success", "updated": 1})
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch.object(EventPersistence, 'classify_cluster')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_cluster_event_update_classification_exception(self, mock_db_connect, mock_classify_cluster, mock_init_server, mock_config):
+        """Test UpdateClassification action when classify_cluster raises exception"""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+
+        mock_socket = MagicMock()
+        mock_classify_cluster.side_effect = FailedProcException("proc failed")
+
+        ep = EventPersistence()
+
+        request = {
+            "Action": "UpdateClassification",
+            "cluster_id": 55,
+            "classification": "beta",
+        }
+
+        ep.cluster_event(request, mock_socket)
+
+        mock_socket.send_json.assert_called_once()
+        response = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(response["result"], "failure")
+        self.assertIn("proc failed", response["error"])
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
