@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import h5py
 import numpy as np
@@ -67,6 +67,7 @@ CLUSTER_COLUMNS: Tuple[str, ...] = (
 
 
 def _cluster_dtype() -> np.dtype:
+    """Build the compound numpy dtype for the locked ``/clusters`` dataset."""
     str_dt = h5py.string_dtype(encoding="utf-8")
     return np.dtype(
         [
@@ -111,11 +112,15 @@ def _resolve_per_model_label(score: float) -> str:
 
 
 class H5ExportStorageService(ExportStorageService):
+    """HDF5 implementation of ExportStorageService; writes the locked layout
+    described in the module docstring."""
+
     def __init__(
         self,
         physics: PhysicsConversionManager,
         logger_: Optional[logging.Logger] = None,
     ) -> None:
+        """``physics`` provides ADU→keV conversions; ``logger_`` defaults to the module logger."""
         self._physics = physics
         self._logger = logger_ or logger
         self._coerced_fields = 0
@@ -128,6 +133,12 @@ class H5ExportStorageService(ExportStorageService):
         cancel_token: CancelToken,
         on_progress: Optional[ProgressCallback] = None,
     ) -> None:
+        """Write ``clusters`` and ``provenance`` to a new HDF5 file at ``out_path``.
+
+        Writes to a ``.partial`` sibling first and atomically renames on success.
+        Polls ``cancel_token.is_cancelled`` between clusters; partial files are
+        deleted on cancel or failure.
+        """
         total = len(clusters)
         tmp_path = out_path.with_suffix(out_path.suffix + ".partial")
         self._coerced_fields = 0
@@ -163,7 +174,7 @@ class H5ExportStorageService(ExportStorageService):
                 self._write_provenance(f, provenance)
             tmp_path.replace(out_path)
             if self._coerced_fields:
-                self._logger.warning(
+                self._logger.debug(
                     "h5 export coerced %d None cluster fields to defaults",
                     self._coerced_fields,
                 )
@@ -178,6 +189,11 @@ class H5ExportStorageService(ExportStorageService):
             raise
 
     def _row(self, c: Cluster) -> tuple:
+        """Serialise one cluster to the compound-dtype tuple expected by ``_cluster_dtype()``.
+
+        None fields are coerced to sentinel values via ``_i``/``_f``; each coercion
+        increments ``_coerced_fields`` so the caller can log a summary.
+        """
         bbox = c.boundingBox
         particle, _ = classify_particle(c)
         energy_adu = self._f(c.energy)
@@ -207,13 +223,15 @@ class H5ExportStorageService(ExportStorageService):
             particle.name,
         )
 
-    def _i(self, value, default: int = -1) -> int:
+    def _i(self, value: Any, default: int = -1) -> int:
+        """Coerce ``value`` to ``int``, returning ``default`` for ``None``. Increments ``_coerced_fields`` on coercion."""
         if value is None:
             self._coerced_fields += 1
             return default
         return int(value)
 
-    def _f(self, value, default: float = 0.0) -> float:
+    def _f(self, value: Any, default: float = 0.0) -> float:
+        """Coerce ``value`` to ``float``, returning ``default`` for ``None``. Increments ``_coerced_fields`` on coercion."""
         if value is None:
             self._coerced_fields += 1
             return default
@@ -221,6 +239,7 @@ class H5ExportStorageService(ExportStorageService):
 
     @staticmethod
     def _write_provenance(f: h5py.File, p: ExportProvenance) -> None:
+        """Write all ``ExportProvenance`` fields as HDF5 attributes on the ``/export_info`` group."""
         g = f.create_group("export_info")
         g.attrs["app_version"] = p.app_version
         g.attrs["export_timestamp_utc"] = p.export_timestamp_utc

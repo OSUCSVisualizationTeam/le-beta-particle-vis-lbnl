@@ -76,6 +76,7 @@ class DirectPNGClusterExportService(ClusterExportService):
     """Pillow-backed PNG renderer for single-cluster export."""
 
     def __init__(self, logger: Optional[logging.Logger] = None) -> None:
+        """Pass an optional logger for log-chain propagation from the orchestrator."""
         super().__init__(logger=logger)
 
     def export(
@@ -86,6 +87,7 @@ class DirectPNGClusterExportService(ClusterExportService):
         context: ClusterExportContext,
         colormap: Colormap,
     ) -> None:
+        """Render ``cluster`` pixel data and metadata to a PNG file at ``out_path``."""
         data_kev = self._compute_kev_array(cluster, context)
         lut = _colormap_lut(colormap)
         metadata = self.build_metadata(cluster, context)
@@ -157,6 +159,10 @@ class DirectPNGClusterExportService(ClusterExportService):
         vmin: float,
         vmax: float,
     ) -> None:
+        """Normalize ``data_kev`` to uint8 LUT indices, apply the colormap, and paste the
+        resulting RGB image into the plot area. Uses ``NEAREST`` resampling to preserve
+        per-pixel values without interpolation artifacts on small cluster footprints.
+        """
         indices = _normalize_to_indices(data_kev, vmin, vmax)
         rgb = lut[indices]  # (H, W, 3) uint8
         # Pillow coords: origin top-left, matching numpy row-major layout.
@@ -177,6 +183,7 @@ class DirectPNGClusterExportService(ClusterExportService):
     def _draw_axis_ticks(
         self, draw: ImageDraw.ImageDraw, cluster: Cluster
     ) -> None:
+        """Draw X and Y axis ticks using the cluster bounding-box coordinates as the world-space range mapped to plot-area pixels."""
         font = _load_font(_TICK_FONT_SIZE, monospace=False)
         rows, cols = np.asarray(cluster.data).shape
         x_min = cluster.boundingBox.left
@@ -226,6 +233,7 @@ class DirectPNGClusterExportService(ClusterExportService):
 
     @staticmethod
     def _paste_colorbar_strip(canvas: Image.Image, lut: np.ndarray) -> None:
+        """Paste the colormap gradient into the colorbar area. The LUT is reversed so LUT index 0 (vmin) appears at the bottom and index 255 (vmax) at the top, matching the conventional low-to-high colorbar orientation."""
         # Bottom → top: LUT index 0 at vmin, 255 at vmax.
         column = lut[::-1].reshape(256, 1, 3)
         strip = Image.fromarray(column, mode="RGB")
@@ -245,6 +253,7 @@ class DirectPNGClusterExportService(ClusterExportService):
     def _draw_colorbar_ticks(
         self, draw: ImageDraw.ImageDraw, vmin: float, vmax: float
     ) -> None:
+        """Draw 5 evenly spaced ticks on the right edge of the colorbar, mapping each keV value to its fractional pixel position within the colorbar height."""
         font = _load_font(_TICK_FONT_SIZE, monospace=False)
         ticks = _linear_ticks(vmin, vmax, count=5)
         height = _CBAR_Y1 - _CBAR_Y0
@@ -342,6 +351,7 @@ def _load_font(size: int, monospace: bool) -> ImageFont.ImageFont:
 
 
 def _value_range(data_kev: np.ndarray) -> Tuple[float, float]:
+    """Return ``(vmin, vmax)`` for ``data_kev``. Handles empty arrays, non-finite values, and the degenerate case where ``vmax <= vmin`` by adding a 1.0 span."""
     if data_kev.size == 0:
         return 0.0, 1.0
     vmin = float(np.nanmin(data_kev))
@@ -354,6 +364,7 @@ def _value_range(data_kev: np.ndarray) -> Tuple[float, float]:
 def _normalize_to_indices(
     data_kev: np.ndarray, vmin: float, vmax: float
 ) -> np.ndarray:
+    """Clip-normalize ``data_kev`` to ``[vmin, vmax]`` and return uint8 LUT indices in ``[0, 255]`` using rounding to avoid systematic bias at the boundaries."""
     span = vmax - vmin if vmax > vmin else 1.0
     normalized = np.clip((data_kev - vmin) / span, 0.0, 1.0)
     return (normalized * 255.0 + 0.5).astype(np.uint8)
@@ -388,6 +399,7 @@ def _linear_ticks(vmin: float, vmax: float, count: int) -> List[float]:
 
 
 def _format_tick(value: float) -> str:
+    """Format a tick value as scientific notation when ``|value| >= 1000`` or ``|value| < 0.01``, otherwise as two-decimal fixed."""
     if abs(value) >= 1000 or (value != 0 and abs(value) < 0.01):
         return f"{value:.2e}"
     return f"{value:.2f}"

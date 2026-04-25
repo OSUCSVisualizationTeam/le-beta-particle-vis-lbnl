@@ -53,6 +53,12 @@ logger = logging.getLogger(__name__)
 
 
 def _pct_step(total: int) -> int:
+    """Return the stride that yields at most ~100 progress ticks for ``total`` items.
+
+    Firing on every card floods the main-thread event queue on large exports
+    and can starve the GNOME heartbeat. Capping at 1 % granularity keeps the
+    UI smooth without sacrificing visible progress.
+    """
     return max(1, total // 100)
 
 
@@ -75,6 +81,8 @@ class ClusterCardRenderPipeline:
         workers: int = 4,
         logger_: Optional[logging.Logger] = None,
     ) -> None:
+        """``workers`` is clamped to [2, 16] — lower bound keeps the zip-writer
+        thread fed; upper bound caps thread pressure during large exports."""
         self._png = png_renderer
         self._workers = max(2, min(16, workers))
         self._logger = logger_ or logger
@@ -119,6 +127,7 @@ class ClusterCardRenderPipeline:
         context: ClusterExportContext,
         colormap: Colormap,
     ) -> List[_RenderJob]:
+        """Build one ``_RenderJob`` per cluster. Falls back to the list index as the card ID when ``cluster.clusterId`` is ``None``."""
         return [
             _RenderJob(
                 cid=str(
@@ -138,6 +147,7 @@ class ClusterCardRenderPipeline:
         cancel_token: CancelToken,
         result_queue: "queue.Queue",
     ) -> Dict[concurrent.futures.Future, str]:
+        """Submit one render future per job. Cancelled jobs are not submitted but are still placed on the queue as ``(cid, None)`` so the zip-writer thread receives exactly ``len(jobs)`` items and can exit cleanly."""
         futures: Dict[concurrent.futures.Future, str] = {}
         for job in jobs:
             if cancel_token.is_cancelled:
@@ -153,6 +163,7 @@ class ClusterCardRenderPipeline:
         cancel_token: CancelToken,
         result_queue: "queue.Queue",
     ) -> None:
+        """Drain completed futures into the result queue. Deletes the temp file for any card whose future resolved after cancellation to avoid leaking disk space."""
         for future in concurrent.futures.as_completed(futures):
             cid = futures[future]
             try:
@@ -195,6 +206,7 @@ class ClusterCardRenderPipeline:
     def _stop_zip_writer_thread(
         result_queue: "queue.Queue", zip_thread: threading.Thread
     ) -> None:
+        """Put a ``None`` sentinel to signal the consumer loop to exit, then join the thread."""
         result_queue.put(None)
         zip_thread.join()
 

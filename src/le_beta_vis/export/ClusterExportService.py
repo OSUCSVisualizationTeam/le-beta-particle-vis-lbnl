@@ -118,6 +118,7 @@ class ClusterExportService(ABC):
     """
 
     def __init__(self, logger: Optional[logging.Logger] = None) -> None:
+        """Accept an optional logger; fall back to the module logger when ``None``."""
         # Caller (usually HistoricalExportService) injects a child logger
         # so log lines carry the orchestrator → service chain. Fallback
         # keeps standalone use (tests, Raw Data single-cluster) sane.

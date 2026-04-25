@@ -25,13 +25,16 @@ class CancelToken:
     """
 
     def __init__(self) -> None:
+        """Initialise the internal threading.Event that backs the flag."""
         self._event = Event()
 
     def cancel(self) -> None:
+        """Signal cancellation; subsequent ``is_cancelled`` checks return True."""
         self._event.set()
 
     @property
     def is_cancelled(self) -> bool:
+        """True once ``cancel()`` has been called."""
         return self._event.is_set()
 
 

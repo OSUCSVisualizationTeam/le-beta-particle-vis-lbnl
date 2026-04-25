@@ -43,8 +43,13 @@ ProgressCallback = Callable[[int, int, str], None]
 """``(completed, total, stage)`` — stage is 'query', 'h5', or 'png'."""
 
 CompletionCallback = Callable[[Path], None]
+"""``(out_path)`` — fired on the worker thread when the export finishes."""
+
 ErrorCallback = Callable[[str], None]
+"""``(message)`` — fired on the worker thread when an exception aborts the export."""
+
 CancelledCallback = Callable[[], None]
+"""``()`` — fired on the worker thread when the cancel token was set."""
 
 
 def _pct_step(total: int) -> int:
@@ -61,6 +66,8 @@ def _pct_step(total: int) -> int:
 
 @dataclass
 class ExportRequest:
+    """Parameters for a single historical export run."""
+
     out_path: Path
     query_filter: Optional[ClusterQueryFilter]
     provenance: ExportProvenance
@@ -71,6 +78,8 @@ class ExportRequest:
 
 
 class HistoricalExportService:
+    """Orchestrates the export pipeline: query → FITS hydration → HDF5 → optional cluster-cards ZIP."""
+
     def __init__(
         self,
         repository: EventRepository,
@@ -81,6 +90,8 @@ class HistoricalExportService:
         png_render_workers: int = 4,
         logger_: Optional[logging.Logger] = None,
     ) -> None:
+        """Wire up repositories and services; ``png_render_workers`` controls the
+        ThreadPoolExecutor width used during the cluster card render phase."""
         self._repo = repository
         self._storage = storage
         self._physics = physics
@@ -101,6 +112,11 @@ class HistoricalExportService:
         on_error: Optional[ErrorCallback] = None,
         on_cancelled: Optional[CancelledCallback] = None,
     ) -> threading.Thread:
+        """Start the export pipeline on a daemon thread and return the thread.
+
+        All callbacks fire on the worker thread — callers that touch Qt must
+        marshal to the main thread (e.g. via ``QMetaObject.invokeMethod``).
+        """
         thread = threading.Thread(
             target=self._run,
             args=(
@@ -126,6 +142,11 @@ class HistoricalExportService:
         on_error: Optional[ErrorCallback],
         on_cancelled: Optional[CancelledCallback] = None,
     ) -> None:
+        """Worker-thread entry point. Runs the four pipeline steps in order; any step that returns
+        ``False`` (cancel or error) halts the pipeline immediately. The h5_path is a sibling
+        ``.h5`` file when bundling a ZIP so the final artifact can be assembled before replacing
+        ``out_path``.
+        """
         # When bundling a ZIP, the H5 is written to a sibling path first.
         h5_path = (
             request.out_path.with_suffix(".h5")
@@ -182,6 +203,11 @@ class HistoricalExportService:
         h5_path: Path,
         on_cancelled: Optional[CancelledCallback],
     ) -> Tuple[bool, List[Cluster]]:
+        """Query the repository, log the result count, and return ``(True, clusters)`` on success.
+
+        Fires a 0/0 progress tick before the query and a 0/N tick after so the UI shows the
+        cluster count before the FITS hydration stage begins.
+        """
         self._forward(on_progress, 0, 0, "query")
         clusters = self._collect_clusters(request.query_filter)
         self._logger.info("query complete: %d clusters", len(clusters))
@@ -201,6 +227,7 @@ class HistoricalExportService:
         h5_path: Path,
         on_cancelled: Optional[CancelledCallback],
     ) -> bool:
+        """Hydrate FITS pixel data into all clusters. Returns ``False`` and fires ``on_cancelled`` if the cancel token is set when hydration finishes."""
         self._hydrate_pixel_data(clusters, cancel_token, on_progress)
         if cancel_token.is_cancelled:
             self._cleanup(out_path, h5_path)
@@ -217,6 +244,7 @@ class HistoricalExportService:
         on_progress: Optional[ProgressCallback],
         on_cancelled: Optional[CancelledCallback],
     ) -> bool:
+        """Write the HDF5 file via the injected storage service. Wraps the per-row progress with a throttled lambda (fires at most every ``_pct_step`` rows) to avoid flooding the main-thread event queue."""
         h5_step = _pct_step(len(clusters))
         self._storage.write(
             h5_path,
@@ -245,6 +273,12 @@ class HistoricalExportService:
         on_progress: Optional[ProgressCallback],
         on_cancelled: Optional[CancelledCallback],
     ) -> bool:
+        """Render all cluster cards and bundle them with the HDF5 into a ZIP.
+
+        Writes to a ``.zip.partial`` sibling first; on success renames it over
+        ``out_path`` and removes the intermediate HDF5 file. On any failure the
+        partial file is deleted before re-raising.
+        """
         context = ClusterExportContext(
             physics=self._physics,
             labels=request.labels,
@@ -277,6 +311,10 @@ class HistoricalExportService:
         cancel_token: CancelToken,
         on_progress: Optional[ProgressCallback],
     ) -> None:
+        """Fan-out all FITS data requests before waiting on any result, so the thumbnail
+        service's internal workers stay saturated. Results are collected in submission order;
+        clusters with no pixel data are logged and left with ``data = None``.
+        """
         total = len(clusters)
         self._logger.info("fits hydration start: %d clusters", total)
         step = _pct_step(total)
@@ -315,6 +353,10 @@ class HistoricalExportService:
     def _collect_clusters(
         self, query_filter: Optional[ClusterQueryFilter]
     ) -> List[Cluster]:
+        """Bridge the callback-based ``EventRepository.query_clusters`` API to a blocking
+        return value using a ``threading.Event`` latch. Raises ``RuntimeError`` if the
+        repository reports an error.
+        """
         # query_clusters is callback-based; bridge to a synchronous list
         # via an Event. The repository is expected to fire exactly one
         # terminal callback (either success or error) per call.
