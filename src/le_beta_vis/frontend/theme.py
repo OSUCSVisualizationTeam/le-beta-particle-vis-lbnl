@@ -60,6 +60,36 @@ class MainWindowStatusBarColors:
     PROGRESS_BACKGROUND = "rgba(0, 0, 0, 40)"
 
 
+class ExportButtonColors:
+    """Colors for the Historical filter bar Save/Cancel toggle button (#56).
+
+    Material-spec shades chosen for WCAG-AA contrast with white foreground
+    (SAVE: ~6.5:1, CANCEL: ~6.4:1). Do not reuse the lighter
+    ParticleType.TRITIUM badge green (#2ecc71) — it fails contrast on
+    white text.
+    """
+
+    SAVE_BACKGROUND = "#2E7D32"
+    SAVE_FOREGROUND = "#FFFFFF"
+    CANCEL_BACKGROUND = "#C62828"
+    CANCEL_FOREGROUND = "#FFFFFF"
+
+
+class ExportOptionsDialogColors:
+    """Colors for ExportOptionsDialog (cluster card export options)."""
+
+    BACKGROUND = "#2d2d2d"
+    TEXT_NOTE = "#aaaaaa"
+    RADIO_FOREGROUND = "#eeeeee"
+    EXPORT_BUTTON_BACKGROUND = "#0078d7"
+    EXPORT_BUTTON_FOREGROUND = "#ffffff"
+    EXPORT_BUTTON_HOVER = "#005fa3"
+    CANCEL_BUTTON_BACKGROUND = "#3d3d3d"
+    CANCEL_BUTTON_FOREGROUND = "#cccccc"
+    CANCEL_BUTTON_BORDER = "#555555"
+    CANCEL_BUTTON_HOVER = "#505050"
+
+
 class TooltipStyle:
     """Shared QToolTip stylesheet snippets.
 

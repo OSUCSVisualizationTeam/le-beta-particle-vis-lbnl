@@ -40,9 +40,9 @@ class MainWindow(QMainWindow):
         self._setupWindowGeometry()
         self._setupCentralWidget()
         self._setupViewModels()
+        self._setupStatusBar()
         self._setupViews()
         self.setupMenuBar()
-        self._setupStatusBar()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
         if hasattr(self, "statusViewModel"):
@@ -211,7 +211,10 @@ class MainWindow(QMainWindow):
 
     def _setupViews(self) -> None:
         self.rawDataView = RawDataView(self.rawDataViewModel)
-        self.historicalView = HistoricalView(self.historicalViewModel)
+        self.historicalView = HistoricalView(
+            self.historicalViewModel,
+            statusViewModel=self.statusViewModel,
+        )
         self.tabs.addTab(self.rawDataView, self.tr("Raw Data Analysis"))
         self.tabs.addTab(self.historicalView, self.tr("Historical Analysis"))
 

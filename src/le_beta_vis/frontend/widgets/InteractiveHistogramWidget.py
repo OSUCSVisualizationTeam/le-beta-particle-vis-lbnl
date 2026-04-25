@@ -1,7 +1,8 @@
 """Interactive energy histogram widget backed by pyqtgraph.
 
-Replaces the static ``QLabel`` + matplotlib PNG approach with a
-native Qt ``PlotWidget`` that supports hover tooltips.
+Native Qt ``PlotWidget`` + hover tooltips. Bar colouring goes through
+``common.ColormapLUT`` (OpenCV-backed LUTs) so the widget has no
+matplotlib dependency — direct or transitive.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import numpy as np
 import pyqtgraph as pg
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QLabel,
     QSizePolicy,
@@ -21,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from le_beta_vis.common.ColormapLUT import colormap_lut, resolve_colormap
 from le_beta_vis.common.HistogramDataModel import HistogramDataModel
 
 logger = logging.getLogger(__name__)
@@ -221,32 +224,30 @@ class InteractiveHistogramWidget(QWidget):
         model: HistogramDataModel,
     ) -> list:
         """Returns a per-bar brush list, optionally colormap-mapped."""
+        n = len(model.counts)
         if model.colormap is None:
-            brush = pg.mkBrush(_DEFAULT_BAR_COLOR)
-            return [brush] * len(model.counts)
+            return [pg.mkBrush(_DEFAULT_BAR_COLOR)] * n
 
-        try:
-            cmap = pg.colormap.get(
-                model.colormap,
-                source="matplotlib",
-            )
-        except Exception:
+        cm = resolve_colormap(model.colormap)
+        if cm is None:
             logger.warning(
-                "Colormap %r not found, using default",
+                "Colormap %r not recognised, using default",
                 model.colormap,
             )
-            brush = pg.mkBrush(_DEFAULT_BAR_COLOR)
-            return [brush] * len(model.counts)
+            return [pg.mkBrush(_DEFAULT_BAR_COLOR)] * n
 
         centers = model.bin_centers
         lo, hi = float(centers.min()), float(centers.max())
         if hi <= lo:
-            brush = pg.mkBrush(_DEFAULT_BAR_COLOR)
-            return [brush] * len(model.counts)
+            return [pg.mkBrush(_DEFAULT_BAR_COLOR)] * n
 
+        lut = colormap_lut(cm)
         normed = (centers - lo) / (hi - lo)
-        colors = cmap.mapToQColor(normed)
-        return [pg.mkBrush(c) for c in colors]
+        indices = np.clip(
+            (normed * 255.0 + 0.5).astype(np.int32), 0, 255
+        )
+        rgb = lut[indices]
+        return [pg.mkBrush(QColor(int(r), int(g), int(b))) for r, g, b in rgb]
 
     # --- Hover tooltip ---
 

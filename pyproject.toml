@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10,<3.11"
 dependencies = [
     "astropy",
+    "h5py>=3.10",
     "matplotlib",
     "mlccd-diffusion",
     "mlccd-models",
@@ -59,6 +60,8 @@ le_beta_vis = [
     "backend/SAMPLE.env",
     "config/*.yaml",
     "resources/icons/*.png",
+    "common/fonts/*.ttf",
+    "common/fonts/LICENSE_DEJAVU",
 ]
 
 [tool.flake8]

@@ -1,20 +1,9 @@
-from enum import Enum
-
 import numpy as np
 
-
-class Colormap(str, Enum):
-    """Available colormaps for false-color visualization."""
-
-    VIRIDIS = "viridis"
-    PLASMA = "plasma"
-    INFERNO = "inferno"
-    MAGMA = "magma"
-    JET = "jet"
-    BONE = "bone"
-    HOT = "hot"
-    COOL = "cool"
-    GRAYSCALE = "grayscale"
+# Canonical Colormap enum lives in common/ so service-layer code can import
+# it without a frontend dependency. Re-exported here to keep existing
+# `from .colormaps import Colormap` importers working.
+from le_beta_vis.common.Colormap import Colormap  # noqa: F401
 
 
 def get_cv2_colormap_id(name: str) -> int:

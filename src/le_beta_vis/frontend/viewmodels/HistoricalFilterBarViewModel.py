@@ -68,6 +68,13 @@ class HistoricalFilterBarViewModel:
         # Callbacks
         self._on_filter_applied: List[Callable[[ClusterQueryFilter], None]] = []
         self._on_filter_reset: List[Callable[[], None]] = []
+        self._on_export_running_changed: List[Callable[[bool], None]] = []
+
+        # Export lock — flipped by HistoricalExportViewModel while a
+        # save is in-flight so the View can disable the filter inputs
+        # and avoid the ambiguous Save/Cancel toggle the user called
+        # out during #56 planning.
+        self._is_export_running: bool = False
 
     # --- Properties ---
 
@@ -313,3 +320,24 @@ class HistoricalFilterBarViewModel:
     def add_filter_reset_callback(self, callback: Callable[[], None]) -> None:
         """Registers a callback fired when ``reset()`` is called."""
         self._on_filter_reset.append(callback)
+
+    # --- Export lock ---
+
+    @property
+    def is_export_running(self) -> bool:
+        """True while an export is in-flight; View should disable inputs."""
+        return self._is_export_running
+
+    def set_export_running(self, flag: bool) -> None:
+        """Flips the export lock and notifies observers."""
+        if self._is_export_running == flag:
+            return
+        self._is_export_running = flag
+        for callback in self._on_export_running_changed:
+            callback(flag)
+
+    def add_export_running_callback(
+        self, callback: Callable[[bool], None]
+    ) -> None:
+        """Registers a callback fired when the export lock toggles."""
+        self._on_export_running_changed.append(callback)

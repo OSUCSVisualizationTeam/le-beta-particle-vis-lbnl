@@ -6,10 +6,6 @@ import numpy as np
 
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
-from le_beta_vis.common.HistogramRenderer import (
-    HistogramRenderer,
-    MatplotlibHistogramRenderer,
-)
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,
 )
@@ -34,15 +30,11 @@ class HistoricalViewModel:
         physicsManager: PhysicsConversionManager,
         repository: EventRepository,
         thumbnailService: ThumbnailLoaderService,
-        histogramRenderer: Optional[HistogramRenderer] = None,
     ):
         self._config = configService
         self._physics = physicsManager
         self._repository = repository
         self._thumbnail_service = thumbnailService
-        self._histogramRenderer: HistogramRenderer = (
-            histogramRenderer or MatplotlibHistogramRenderer()
-        )
 
         # Event state
         self._events: List[Cluster] = []
@@ -105,9 +97,19 @@ class HistoricalViewModel:
         return self._physics
 
     @property
-    def histogramRenderer(self) -> HistogramRenderer:
-        """The histogram rendering service."""
-        return self._histogramRenderer
+    def repository(self):
+        """Exposes the underlying EventRepository.
+
+        Used by HistoricalExportViewModel (#56) so the export pipeline
+        can query clusters without re-plumbing the repository through
+        another constructor.
+        """
+        return self._repository
+
+    @property
+    def thumbnail_service(self) -> ThumbnailLoaderService:
+        """The thumbnail loader used to fetch raw cluster pixel data from FITS."""
+        return self._thumbnail_service
 
     @property
     def classificationThreshold(self) -> float:
@@ -321,6 +323,7 @@ class HistoricalViewModel:
         for callback in events_loaded_callbacks:
             callback(events)
         self._notify_events_changed()
+        self._notify_selected_event_changed()
 
     def _notify_events_changed(self) -> None:
         with self._state_lock:

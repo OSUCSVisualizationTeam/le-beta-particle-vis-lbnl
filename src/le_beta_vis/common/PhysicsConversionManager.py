@@ -3,6 +3,7 @@ import numpy as np
 from typing import Union, overload
 from .ConfigurationService import ConfigurationService
 
+
 class PhysicsConversionManager(ABC):
     """
     Interface for managing physical unit conversions.
@@ -24,10 +25,10 @@ class PhysicsConversionManager(ABC):
     def calculate_threshold(self, sigma: float) -> float:
         """
         Calculates the signal detection threshold based on sigma and pedestal width.
-        
+
         Args:
             sigma: The multiplier for the standard deviation (sigma).
-            
+
         Returns:
             The threshold value in ADU.
         """

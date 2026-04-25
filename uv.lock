@@ -608,6 +608,7 @@ version = "0.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "astropy" },
+    { name = "h5py" },
     { name = "matplotlib" },
     { name = "mlccd-diffusion" },
     { name = "mlccd-models" },
@@ -644,6 +645,7 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'dev'" },
     { name = "dmgbuild", marker = "sys_platform == 'darwin' and extra == 'packaging'" },
     { name = "flake8", marker = "extra == 'dev'" },
+    { name = "h5py", specifier = ">=3.10" },
     { name = "matplotlib" },
     { name = "mlccd-diffusion", git = "https://gitlab.com/lbl-anp/mlccd/mlccd_diffusion.git" },
     { name = "mlccd-models", git = "https://gitlab.com/lbl-anp/mlccd/mlccd_models.git" },

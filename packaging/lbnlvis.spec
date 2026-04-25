@@ -19,6 +19,7 @@ _VERSION = _pyproject["project"]["version"]
 SRC = ROOT / "src"
 RESOURCES = SRC / "le_beta_vis" / "resources"
 CONFIG = SRC / "le_beta_vis" / "config"
+FONTS = SRC / "le_beta_vis" / "export" / "fonts"
 
 a = Analysis(
     [str(ROOT / "run_app.py")],
@@ -28,6 +29,7 @@ a = Analysis(
         (str(RESOURCES), "resources"),
         (str(CONFIG / "defaults.yaml"), "config"),
         (str(ROOT / "pyproject.toml"), "."),
+        (str(FONTS), "le_beta_vis/export/fonts"),
     ],
     hiddenimports=[
         "mlccd_models",

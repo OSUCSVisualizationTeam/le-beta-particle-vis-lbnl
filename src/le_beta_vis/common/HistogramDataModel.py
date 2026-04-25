@@ -21,7 +21,7 @@ class HistogramDataModel:
         counts: Number of occurrences per bin.
         bin_edges: Bin edge values (length = len(counts) + 1).
         x_label: Label for the horizontal axis.
-        colormap: Optional matplotlib colormap name for bar
+        colormap: Optional Colormap enum value (string form) for bar
             colouring.  ``None`` means a solid default colour.
         x_unit: Optional unit suffix for tooltip display
             (e.g. ``"keV"``, ``"ADU"``).  ``None`` omits the unit.
@@ -61,7 +61,7 @@ class HistogramDataModel:
             data: 1-D, 2-D, or 3-D pixel array.
             bins: Number of histogram bins.
             x_label: Axis label (e.g. ``"Energy (keV)"``).
-            colormap: Optional matplotlib colormap name.
+            colormap: Optional Colormap enum value (string form).
             x_unit: Optional unit suffix for tooltip display.
 
         Returns:

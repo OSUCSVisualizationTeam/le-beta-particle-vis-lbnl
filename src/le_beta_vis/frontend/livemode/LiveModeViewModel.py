@@ -180,6 +180,28 @@ class LiveModeViewModel:
         self._fresh_provider.deactivate()
         logger.info("LiveModeViewModel deactivated")
 
+    # --- Live Mode "Save frame" — placeholder for issue #183 ----------
+    #
+    # Issue #56 ships the export machinery (HistoricalExportViewModel +
+    # storage/PNG services); the actual Save-frame BUTTON lives on the
+    # Live Mode control strip implemented in issue #183. Wiring this
+    # method here now keeps the two issues decoupled — #183 only has to
+    # call `saveCurrentFrame()`. Do not remove without coordinating with
+    # #183.
+
+    def saveCurrentFrame(self) -> None:
+        """Placeholder hook for the Live Mode Save-frame button.
+
+        Wired to invoke ``HistoricalExportViewModel.export`` with a
+        single-frame ``ClusterQueryFilter(fits_id=<current>)`` so Live
+        Mode and Historical share one export code path.
+        """
+        # TODO(#183): Build ClusterQueryFilter(fits_id=<current>) from the
+        # paused frame and hand it to HistoricalExportViewModel.export().
+        # HistoricalExportViewModel is accessible via the MainWindow;
+        # wiring requires a reference not currently threaded into this VM.
+        logger.info("saveCurrentFrame: placeholder pending #183 wiring")
+
     # --- Grid advancement ---
 
     def advance(self) -> int:
