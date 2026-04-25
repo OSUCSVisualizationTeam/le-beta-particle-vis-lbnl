@@ -120,6 +120,11 @@ class EventPersistence:
             "offset": 0,
         }
 
+        self.cluster_to_classify = {
+            "cluster_id": None,
+            "classification": None,
+        }
+
         self.conn = self.db_connect()  # connect to DB before listening loop
         self.initialize_server()
 
@@ -263,6 +268,19 @@ class EventPersistence:
             except Exception as err:
                 socket.send_json(
                     {"result": "failure", "clusters": None, "error": str(err)}
+                )
+
+        elif request.get("Action") == "UpdateClassification":
+            try:
+                self.cluster_to_classify = {
+                    "cluster_id": request.get("cluster_id"),
+                    "classification": request.get("classification"),
+                }
+                response = self.classify_cluster()
+                socket.send_json(response)
+            except Exception as err:
+                socket.send_json(
+                    {"result": "failure", "error": str(err)}
                 )
 
     def fits_event(self, request: dict, socket: zmq.Socket):
@@ -541,6 +559,35 @@ class EventPersistence:
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
 
+    def classify_cluster(self) -> dict:
+        """Executes the insert_classifications stored procedure in the database based on the EPS
+            UpdateClassification request. 
+        """
+        try:
+            if not self.conn:
+                    self.conn = self.db_connect()
+            cursor = self.conn.cursor()
+            cluster_id = self.cluster_to_classify["cluster_id"]
+            classification = self.cluster_to_classify["classification"]
+            proc_args = (classification, cluster_id, None)
+            rows_updated = cursor.callproc("insert_classifications", proc_args)[-1]
+
+            if rows_updated is not None and rows_updated > 0:
+                self.conn.commit()
+                cursor.close()
+                return {"result": "success", "updated": rows_updated}
+            elif rows_updated == 0:
+                self.conn.commit()
+                cursor.close()
+                return {"result": "failure", "error": "No clusters were updated, incorrect ID or classification."}
+            else:    
+                self.conn.close()
+                self.conn = None
+                raise FailedProcException
+
+        except mysql.connector.Error as err:
+            logger.warning(f"Could not connect: {str(err)}")
+        
     def retrieve_recent_clusters(self) -> dict:
         """Selects the newest clusters ordered by FITS date, paginated.
 
