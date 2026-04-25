@@ -227,7 +227,8 @@ class HistoricalExportService:
         h5_path: Path,
         on_cancelled: Optional[CancelledCallback],
     ) -> bool:
-        """Hydrate FITS pixel data into all clusters. Returns ``False`` and fires ``on_cancelled`` if the cancel token is set when hydration finishes."""
+        """Hydrate FITS pixel data into all clusters. Returns ``False`` and fires ``on_cancelled`` if the cancel token is set
+        when hydration finishes."""
         self._hydrate_pixel_data(clusters, cancel_token, on_progress)
         if cancel_token.is_cancelled:
             self._cleanup(out_path, h5_path)
@@ -244,7 +245,8 @@ class HistoricalExportService:
         on_progress: Optional[ProgressCallback],
         on_cancelled: Optional[CancelledCallback],
     ) -> bool:
-        """Write the HDF5 file via the injected storage service. Wraps the per-row progress with a throttled lambda (fires at most every ``_pct_step`` rows) to avoid flooding the main-thread event queue."""
+        """Write the HDF5 file via the injected storage service. Wraps the per-row progress with a throttled lambda (fires at
+        most every ``_pct_step`` rows) to avoid flooding the main-thread event queue."""
         h5_step = _pct_step(len(clusters))
         self._storage.write(
             h5_path,

@@ -127,12 +127,11 @@ class ClusterCardRenderPipeline:
         context: ClusterExportContext,
         colormap: Colormap,
     ) -> List[_RenderJob]:
-        """Build one ``_RenderJob`` per cluster. Falls back to the list index as the card ID when ``cluster.clusterId`` is ``None``."""
+        """Build one ``_RenderJob`` per cluster. Falls back to the list index as the card ID when ``cluster.clusterId`` is
+        ``None``."""
         return [
             _RenderJob(
-                cid=str(
-                    cluster.clusterId if cluster.clusterId is not None else idx
-                ),
+                cid=str(cluster.clusterId if cluster.clusterId is not None else idx),
                 cluster=cluster,
                 context=context,
                 colormap=colormap,
@@ -147,7 +146,9 @@ class ClusterCardRenderPipeline:
         cancel_token: CancelToken,
         result_queue: "queue.Queue",
     ) -> Dict[concurrent.futures.Future, str]:
-        """Submit one render future per job. Cancelled jobs are not submitted but are still placed on the queue as ``(cid, None)`` so the zip-writer thread receives exactly ``len(jobs)`` items and can exit cleanly."""
+        """Submit one render future per job. Cancelled jobs are not submitted but are still placed on the queue as
+        ``(cid, None)`` so the zip-writer thread receives exactly ``len(jobs)`` items and can exit cleanly.
+        """
         futures: Dict[concurrent.futures.Future, str] = {}
         for job in jobs:
             if cancel_token.is_cancelled:
@@ -163,15 +164,14 @@ class ClusterCardRenderPipeline:
         cancel_token: CancelToken,
         result_queue: "queue.Queue",
     ) -> None:
-        """Drain completed futures into the result queue. Deletes the temp file for any card whose future resolved after cancellation to avoid leaking disk space."""
+        """Drain completed futures into the result queue. Deletes the temp file for any card whose future resolved after
+        cancellation to avoid leaking disk space."""
         for future in concurrent.futures.as_completed(futures):
             cid = futures[future]
             try:
                 _, tmp_path_str = future.result()
             except Exception:
-                self._logger.exception(
-                    "Cluster card render failed for %s", cid
-                )
+                self._logger.exception("Cluster card render failed for %s", cid)
                 result_queue.put((cid, None))
                 continue
 
@@ -181,9 +181,7 @@ class ClusterCardRenderPipeline:
                 result_queue.put((cid, None))
                 continue
 
-            result_queue.put(
-                (cid, Path(tmp_path_str) if tmp_path_str else None)
-            )
+            result_queue.put((cid, Path(tmp_path_str) if tmp_path_str else None))
 
     def _start_zip_writer_thread(
         self,
@@ -254,9 +252,7 @@ class ClusterCardRenderPipeline:
                 try:
                     zf.write(tmp_path, arcname=f"cluster_cards/{cid}.png")
                 except Exception:
-                    self._logger.exception(
-                        "Failed to add cluster card %s to zip", cid
-                    )
+                    self._logger.exception("Failed to add cluster card %s to zip", cid)
                 finally:
                     tmp_path.unlink(missing_ok=True)
             completed += 1

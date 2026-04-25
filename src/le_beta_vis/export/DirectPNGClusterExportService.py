@@ -12,6 +12,7 @@ Colormap LUTs are built once per ``Colormap`` value via
 axis/metadata text are loaded from ``export/fonts/`` (bundled with the
 package). No matplotlib imports live in this module or its call chain.
 """
+
 from __future__ import annotations
 
 import logging
@@ -180,10 +181,9 @@ class DirectPNGClusterExportService(ClusterExportService):
             width=1,
         )
 
-    def _draw_axis_ticks(
-        self, draw: ImageDraw.ImageDraw, cluster: Cluster
-    ) -> None:
-        """Draw X and Y axis ticks using the cluster bounding-box coordinates as the world-space range mapped to plot-area pixels."""
+    def _draw_axis_ticks(self, draw: ImageDraw.ImageDraw, cluster: Cluster) -> None:
+        """Draw X and Y axis ticks using the cluster bounding-box coordinates as the world-space range mapped to plot-area '
+        pixels."""
         font = _load_font(_TICK_FONT_SIZE, monospace=False)
         rows, cols = np.asarray(cluster.data).shape
         x_min = cluster.boundingBox.left
@@ -233,7 +233,9 @@ class DirectPNGClusterExportService(ClusterExportService):
 
     @staticmethod
     def _paste_colorbar_strip(canvas: Image.Image, lut: np.ndarray) -> None:
-        """Paste the colormap gradient into the colorbar area. The LUT is reversed so LUT index 0 (vmin) appears at the bottom and index 255 (vmax) at the top, matching the conventional low-to-high colorbar orientation."""
+        """Paste the colormap gradient into the colorbar area. The LUT is reversed so LUT index 0 (vmin) appears at the bottom
+        and index 255 (vmax) at the top, matching the conventional low-to-high colorbar orientation.
+        """
         # Bottom → top: LUT index 0 at vmin, 255 at vmax.
         column = lut[::-1].reshape(256, 1, 3)
         strip = Image.fromarray(column, mode="RGB")
@@ -253,7 +255,8 @@ class DirectPNGClusterExportService(ClusterExportService):
     def _draw_colorbar_ticks(
         self, draw: ImageDraw.ImageDraw, vmin: float, vmax: float
     ) -> None:
-        """Draw 5 evenly spaced ticks on the right edge of the colorbar, mapping each keV value to its fractional pixel position within the colorbar height."""
+        """Draw 5 evenly spaced ticks on the right edge of the colorbar, mapping each keV value to its fractional pixel
+        position within the colorbar height."""
         font = _load_font(_TICK_FONT_SIZE, monospace=False)
         ticks = _linear_ticks(vmin, vmax, count=5)
         height = _CBAR_Y1 - _CBAR_Y0
@@ -261,9 +264,7 @@ class DirectPNGClusterExportService(ClusterExportService):
         for value in ticks:
             frac = (value - vmin) / span
             py = int(round(_CBAR_Y1 - frac * height))
-            draw.line(
-                [(_CBAR_X1, py), (_CBAR_X1 + 4, py)], fill=_AXIS_COLOR
-            )
+            draw.line([(_CBAR_X1, py), (_CBAR_X1 + 4, py)], fill=_AXIS_COLOR)
             _draw_text_left_aligned(
                 draw,
                 (_CBAR_TICK_X + 2, py),
@@ -302,9 +303,7 @@ class DirectPNGClusterExportService(ClusterExportService):
         )
 
     @staticmethod
-    def _draw_metadata_text(
-        draw: ImageDraw.ImageDraw, lines: List[str]
-    ) -> None:
+    def _draw_metadata_text(draw: ImageDraw.ImageDraw, lines: List[str]) -> None:
         font = _load_font(_META_FONT_SIZE, monospace=True)
         text = "\n".join(lines)
         draw.multiline_text(
@@ -315,19 +314,13 @@ class DirectPNGClusterExportService(ClusterExportService):
             spacing=4,
         )
 
-    def _save_png(
-        self, canvas: Image.Image, out_path: Path, cluster: Cluster
-    ) -> None:
+    def _save_png(self, canvas: Image.Image, out_path: Path, cluster: Cluster) -> None:
         try:
             canvas.save(out_path, format="PNG", optimize=False)
         except Exception:
-            self._logger.exception(
-                "Failed to save cluster PNG to %s", out_path
-            )
+            self._logger.exception("Failed to save cluster PNG to %s", out_path)
             raise
-        self._logger.debug(
-            "Exported cluster %s → %s", cluster.clusterId, out_path
-        )
+        self._logger.debug("Exported cluster %s → %s", cluster.clusterId, out_path)
 
 
 # --- module-level helpers ---------------------------------------------------
@@ -351,7 +344,8 @@ def _load_font(size: int, monospace: bool) -> ImageFont.ImageFont:
 
 
 def _value_range(data_kev: np.ndarray) -> Tuple[float, float]:
-    """Return ``(vmin, vmax)`` for ``data_kev``. Handles empty arrays, non-finite values, and the degenerate case where ``vmax <= vmin`` by adding a 1.0 span."""
+    """Return ``(vmin, vmax)`` for ``data_kev``. Handles empty arrays, non-finite values, and the degenerate case where
+    ``vmax <= vmin`` by adding a 1.0 span."""
     if data_kev.size == 0:
         return 0.0, 1.0
     vmin = float(np.nanmin(data_kev))
@@ -361,10 +355,9 @@ def _value_range(data_kev: np.ndarray) -> Tuple[float, float]:
     return vmin, vmax
 
 
-def _normalize_to_indices(
-    data_kev: np.ndarray, vmin: float, vmax: float
-) -> np.ndarray:
-    """Clip-normalize ``data_kev`` to ``[vmin, vmax]`` and return uint8 LUT indices in ``[0, 255]`` using rounding to avoid systematic bias at the boundaries."""
+def _normalize_to_indices(data_kev: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
+    """Clip-normalize ``data_kev`` to ``[vmin, vmax]`` and return uint8 LUT indices in ``[0, 255]`` using rounding to avoid
+    systematic bias at the boundaries."""
     span = vmax - vmin if vmax > vmin else 1.0
     normalized = np.clip((data_kev - vmin) / span, 0.0, 1.0)
     return (normalized * 255.0 + 0.5).astype(np.uint8)
@@ -399,7 +392,9 @@ def _linear_ticks(vmin: float, vmax: float, count: int) -> List[float]:
 
 
 def _format_tick(value: float) -> str:
-    """Format a tick value as scientific notation when ``|value| >= 1000`` or ``|value| < 0.01``, otherwise as two-decimal fixed."""
+    """
+    Format a tick value as scientific notation when ``|value| >= 1000`` or ``|value| < 0.01``, otherwise as two-decimal fixed.
+    """
     if abs(value) >= 1000 or (value != 0 and abs(value) < 0.01):
         return f"{value:.2e}"
     return f"{value:.2f}"
