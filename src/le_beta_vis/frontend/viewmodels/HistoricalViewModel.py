@@ -323,6 +323,7 @@ class HistoricalViewModel:
         for callback in events_loaded_callbacks:
             callback(events)
         self._notify_events_changed()
+        self._notify_selected_event_changed()
 
     def _notify_events_changed(self) -> None:
         with self._state_lock:
