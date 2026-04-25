@@ -12,7 +12,7 @@ from pathlib import Path
 from threading import Event
 from typing import Callable, Dict, List, Optional
 
-from .Cluster import Cluster
+from ..common.Cluster import Cluster
 
 
 class CancelToken:

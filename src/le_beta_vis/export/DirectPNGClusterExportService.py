@@ -9,7 +9,7 @@ no GUI backend).
 
 Colormap LUTs are built once per ``Colormap`` value via
 ``cv2.applyColorMap`` on a 0-255 ramp, and the DejaVu fonts used for
-axis/metadata text are loaded from ``common/fonts/`` (bundled with the
+axis/metadata text are loaded from ``export/fonts/`` (bundled with the
 package). No matplotlib imports live in this module or its call chain.
 """
 from __future__ import annotations
@@ -22,14 +22,15 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from .Cluster import Cluster
+from ..common.Cluster import Cluster
+from ..common.ColormapLUT import colormap_lut as _colormap_lut  # noqa: F401 — re-export
+from ..common.Colormap import Colormap
 from .ClusterExportService import (
     ClusterExportContext,
     ClusterExportMetadata,
     ClusterExportService,
     ClusterMetadataLabels,
 )
-from .Colormap import Colormap
 
 
 logger = logging.getLogger(__name__)
@@ -321,12 +322,6 @@ class DirectPNGClusterExportService(ClusterExportService):
 
 
 # --- module-level helpers ---------------------------------------------------
-
-
-# Re-exported alias so the test suite and other export-path consumers
-# continue to find ``_colormap_lut`` here; the canonical implementation
-# lives in ``common.ColormapLUT``.
-from .ColormapLUT import colormap_lut as _colormap_lut  # noqa: E402,F401 — re-export
 
 
 @lru_cache(maxsize=8)

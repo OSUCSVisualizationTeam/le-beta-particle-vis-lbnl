@@ -41,9 +41,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .Cluster import Cluster
+from ..common.Cluster import Cluster
+from ..common.Colormap import Colormap
 from .ClusterExportService import ClusterExportContext, ClusterExportService
-from .Colormap import Colormap
 from .ExportStorageService import CancelToken
 
 ProgressCallback = Callable[[int, int, str], None]

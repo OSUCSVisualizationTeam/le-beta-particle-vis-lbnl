@@ -21,9 +21,9 @@ from typing import Any, Optional, Tuple
 
 import numpy as np
 
-from .Cluster import Cluster
-from .Colormap import Colormap
-from .PhysicsConversionManager import PhysicsConversionManager
+from ..common.Cluster import Cluster
+from ..common.Colormap import Colormap
+from ..common.PhysicsConversionManager import PhysicsConversionManager
 
 
 @dataclass(frozen=True)

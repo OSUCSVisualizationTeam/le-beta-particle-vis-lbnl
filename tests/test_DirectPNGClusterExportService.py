@@ -10,13 +10,13 @@ from PIL import Image
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.common.ClusterExportService import (
+from le_beta_vis.common.Colormap import Colormap
+from le_beta_vis.export.ClusterExportService import (
     ClusterExportContext,
     ClusterExportMetadata,
     ClusterMetadataLabels,
 )
-from le_beta_vis.common.Colormap import Colormap
-from le_beta_vis.common.DirectPNGClusterExportService import (
+from le_beta_vis.export.DirectPNGClusterExportService import (
     DirectPNGClusterExportService,
     _colormap_lut,
 )
