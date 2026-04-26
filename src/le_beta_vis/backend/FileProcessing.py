@@ -5,6 +5,10 @@ from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.cluster_sigma import compute_cluster_sigmas
+from le_beta_vis.common.EPSDataClasses import (
+    FitsStoreRequest,
+    ClusterStoreRequest,
+)
 from astropy.io import fits
 from scipy.ndimage import label, maximum_position
 import numpy as np
@@ -21,7 +25,7 @@ def process_file(config_service: ConfigurationService, file: Path):
         ped_width = config.get(key = "global:physics:ped_width")
         fits_name = file
         capture = CCDCaptureModel.load(file)
-        fits_id = None
+        fits_id = None 
         process_context = zmq.Context()
         try:
             fits_id = store_fits(process_context, config, fits_name, capture, fits_id, kev, ped_width)
@@ -38,14 +42,14 @@ def store_fits(process_context: zmq.Context, config: ConfigurationService, fits_
     try:
         socket.connect(config.get("eps:fits_ipc"))
         # Form JSON request with fits data, send to endpoint and grab response
-        request = {
-        "Action": "Storage",
+        request_format = {
         "filename": fits_name,
         "date": str(capture[0].info().captureDate()),
         "minimum": float(min(capture[0].info().min, capture[1].info().min, capture[2].info().min, capture[3].info().min)),
         "maximum": float(max(capture[0].info().max, capture[1].info().max, capture[2].info().max, capture[3].info().max)),
         "exposure_time": str(capture[0].info().exposureDuration())
         }
+        request = FitsStoreRequest.from_eps_dict(request_format)
         socket.send_json(request)
         logger.info("New store FITS request sent to EPS.")
         response = socket.recv_json()
@@ -135,7 +139,7 @@ def store_cluster(config: ConfigurationService, process_context: zmq.Context, cl
     try:
         socket.connect(config.get("eps:cluster_ipc"))
         # Form JSON request with cluster data, send to endpoint and grab response
-        request = {
+        request_format = {
                 "Action": "Storage",
                 "data": None,
                 "hdu_id": cluster.hdu_id,
@@ -152,6 +156,7 @@ def store_cluster(config: ConfigurationService, process_context: zmq.Context, cl
                 "fits_id": cluster.fitsId,
                 "classification": cluster.classification
             }
+        request = ClusterStoreRequest.from_eps_dict(request_format)
         socket.send_json(request)
         response = socket.recv_json()
         if response["result"] == "success":

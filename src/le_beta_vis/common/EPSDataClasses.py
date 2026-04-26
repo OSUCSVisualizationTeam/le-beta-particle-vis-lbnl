@@ -121,6 +121,15 @@ class ClusterRecentQueryFilter:
             "limit": self.limit,
             "offset": self.offset,
         }
+    
+    @staticmethod
+    def from_eps_dict(d: dict[str, any]) -> "ClusterRecentQueryFilter":
+        """Parses one ClusterRecentQuery request."""
+        return ClusterRecentQueryFilter(
+            limit=(d.get("limit")),
+            offset=(d.get("offset", 0))
+        )
+
 
 
 @dataclass(frozen=True)
@@ -193,6 +202,37 @@ class FitsClusterQueryFilter:
             d["exposure_time"] = self.exposure_time
         return d
 
+@dataclass(frozen=True)
+class FitsStoreRequest:
+    """Payload for an EPS Fits Storage request"""
+    filename: str
+    date: str
+    min: float
+    max: float
+    exposure_time: float
+
+    def to_eps_dict(self) -> Dict[str, Any]:
+        """Builds the JSON dict expected by the EPS Fits socket"""
+        return {
+            "filename": self.filename,
+            "date": self.date,
+            "min": self.min,
+            "max": self.max,
+            "exposure_time": self.exposure_time,
+        }
+    
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "FitsStoreRequest":
+        """Parses one Fits storage request."""
+        return FitsStoreRequest(
+            filename=d.get("filename", ""),
+            date=str(d.get("date", "")),
+            min=d.get("min", 0.0),
+            max=d.get("max", 0.0),
+            exposure_time=d.get("exposure_time", 0.0),
+        )
+
+
 
 @dataclass(frozen=True)
 class ClusterStoreRequest:
@@ -222,6 +262,21 @@ class ClusterStoreRequest:
             "fits_id": self.fits_id,
             "classification": self.classification,
         }
+    
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "ClusterStoreRequest":
+        """Parses one ``clusters`` storage request."""
+        return ClusterStoreRequest(
+            data=d.get("data", []),
+            hdu_id=d.get("hdu_id", 0),
+            bounding_box=d.get("bounding_box"),
+            sigma_x=float(d.get("sigmaX", 0.0)),
+            sigma_y=float(d.get("sigmaY", 0.0)),
+            total_energy=float(d.get("total_energy", 0.0)),
+            total_pixels=int(d.get("total_pixels", 0)),
+            fits_id=d.get("fits_id", 0),
+            classification=str(d.get("classification", "")),
+        )
 
 
 @dataclass(frozen=True)
@@ -239,6 +294,13 @@ class ClassificationUpdateRequest:
             "classification": self.classification,
         }
 
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "ClassificationUpdateRequest":
+        """Parses one ClassificationUpdateRequest"""
+        return ClassificationUpdateRequest(
+            cluster_id=(d.get("cluster_id", 0)),
+            classification=(d.get("classification", ""))
+         )
 
 # ---------------------------------------------------------------------------
 # Response DTOs
@@ -250,6 +312,7 @@ class EPSClusterRecord:
     """A single cluster record from an EPS Cluster Retrieval response."""
 
     fits_id: int
+    fits_list: List
     hdu_id: int
     cluster_id: int
     bounding_box: dict
@@ -267,6 +330,7 @@ class EPSClusterRecord:
         """Parses one element of the ``clusters`` response array."""
         return EPSClusterRecord(
             fits_id=d.get("fits_id", 0),
+            fits_list=d.get("fits_list", []),
             hdu_id=d.get("hdu_id", 0),
             cluster_id=d.get("cluster_id", 0),
             bounding_box=d.get("bounding_box"),
