@@ -345,7 +345,7 @@ class EPSClusterRecord:
     """A single cluster record from an EPS Cluster Retrieval response."""
 
     fits_id: int
-    fits_list: Optional[List[int]] = None
+    fits_list: Optional[List[int]]
     hdu_id: int
     cluster_id: int
     bounding_box: dict
