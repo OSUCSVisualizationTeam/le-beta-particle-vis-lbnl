@@ -558,7 +558,7 @@ class EventPersistence:
 
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
-
+        
     def classify_cluster(self) -> dict:
         """Executes the insert_classifications stored procedure in the database based on the EPS
             UpdateClassification request. 
