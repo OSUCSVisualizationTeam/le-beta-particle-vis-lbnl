@@ -1,3 +1,5 @@
+from typing import Optional, Tuple
+
 from PySide6.QtCore import QMetaObject, QRectF, QSize, Qt, Slot
 from PySide6.QtGui import (
     QColor,
@@ -48,6 +50,10 @@ class RawDataView(QWidget):
     def __init__(self, viewModel: RawDataViewModel):
         super().__init__()
         self.viewModel = viewModel
+        self._pendingClusterFocus: Optional[
+            Tuple[Optional[int], Tuple[int, int, int, int]]
+        ] = None
+        self._pendingClusterRoiAdded: bool = False
         self.initUI()
         self.bindViewModel()
 
@@ -523,6 +529,10 @@ class RawDataView(QWidget):
 
             # Update magnifier source data
             self._updateMagnifierSourceData(pixmap)
+
+            # Apply any deferred focus-on-ROI request now that the
+            # scene rect and viewport are valid.
+            self._consumePendingClusterFocus()
         else:
             self.pixmapItem.setPixmap(QPixmap())
 
@@ -537,6 +547,59 @@ class RawDataView(QWidget):
             hud = self._centerContainer.hudWidget
             if hud is not None:
                 hud.refreshMagnifier()
+
+    def openClusterForAnalysis(
+        self,
+        fitsPath: str,
+        hdu_id: Optional[int],
+        roi: Tuple[int, int, int, int],
+    ) -> None:
+        """Loads a FITS, selects an HDU, and pans to an ROI at 1× zoom.
+
+        Pre-selects the ROI Info tab, resets the zoom to 1×, clears
+        existing ROIs, and stashes the pending pan state. The render
+        completes asynchronously; ``updateImage`` then runs
+        ``_consumePendingClusterFocus`` which drops the ROI and pans
+        the captureView to its center. We deliberately do not zoom —
+        viewport-size measurement after a cold tab-switch + mosaic-
+        strip reveal is unreliable across platforms, and the user can
+        zoom in further with the existing controls.
+
+        Args:
+            fitsPath: Absolute path to the FITS file.
+            hdu_id: Parent HDU index, or None to keep the default.
+            roi: (top, left, bottom, right) in FITS pixel coordinates.
+        """
+        self._rightSidebarTabs.setCurrentIndex(self._roiInfoTabIndex)
+        self.viewModel.resetZoom()
+        self.viewModel.clearRois()
+        self._pendingClusterFocus = (hdu_id, roi)
+        self._pendingClusterRoiAdded = False
+        self.viewModel.loadFile(fitsPath)
+        if hdu_id is not None:
+            self.viewModel.setActiveHDU(hdu_id)
+
+    def _consumePendingClusterFocus(self) -> None:
+        """Adds the ROI and pans the captureView to its center.
+
+        Called from the tail of ``updateImage``. ``addRoi`` is
+        latched via ``_pendingClusterRoiAdded`` so multiple renders
+        (auto-HDU-0 + explicit-HDU) only add the ROI once.
+        """
+        if self._pendingClusterFocus is None:
+            return
+        _hdu_id, (top, left, bottom, right) = self._pendingClusterFocus
+
+        if not self._pendingClusterRoiAdded:
+            self.viewModel.addRoi(top, left, bottom, right)
+            self._pendingClusterRoiAdded = True
+
+        cx = (left + right) / 2.0
+        cy = (top + bottom) / 2.0
+        self.graphicsView.centerOn(cx, cy)
+
+        self._pendingClusterFocus = None
+        self._pendingClusterRoiAdded = False
 
     @Slot()
     def updateZoom(self):
