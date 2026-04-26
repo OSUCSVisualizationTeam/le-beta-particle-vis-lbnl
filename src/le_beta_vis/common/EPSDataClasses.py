@@ -54,6 +54,7 @@ class ClusterQueryFilter:
 
     cluster_id: Optional[int] = None
     fits_id: Optional[int] = None
+    fits_list: Optional[List] = None
     hdu_id: Optional[int] = None
     bounding_box: Optional[dict] = None
     date_start: Optional[datetime] = None
@@ -74,6 +75,8 @@ class ClusterQueryFilter:
             d["cluster_id"] = self.cluster_id
         if self.fits_id is not None:
             d["fits_id"] = self.fits_id
+        if self.fits_list is not None:
+            d["fits_list"] = self.fits_list
         if self.hdu_id is not None:
             d["hdu_id"] = self.hdu_id
         if self.date_start is not None and self.date_end is not None:
@@ -94,7 +97,25 @@ class ClusterQueryFilter:
         if self.classification is not None:
             d["classification"] = self.classification
         return d
-
+    
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "ClusterQueryFilter":
+        """Parses one ClusterQueryFilter request."""
+        date = d.get("date", None)
+        return ClusterQueryFilter(
+            cluster_id = d.get("cluster_id", None),
+            fits_id = d.get("fits_id", None),
+            fits_list = d.get("fits_list", None),
+            hdu_id = d.get("hdu_id", None),
+            bounding_box = d.get("bounding_box", None),
+            date_start = date.get("start", None) if date else None,
+            date_end = date.get("end", None) if date else None,
+            min_sigma_x = d.get("sigmaX", None),
+            min_sigma_y = d.get("sigmaY", None),
+            min_total_energy = d.get("total_energy", None),
+            min_total_pixels = d.get("total_pixels", None),
+            classification = d.get("classification", None),
+        )
 
 @dataclass(frozen=True)
 class ClusterRecentQueryFilter:
@@ -130,8 +151,6 @@ class ClusterRecentQueryFilter:
             offset=(d.get("offset", 0))
         )
 
-
-
 @dataclass(frozen=True)
 class FitsQueryFilter:
     """Filter criteria for an EPS FITS Retrieval request."""
@@ -166,6 +185,19 @@ class FitsQueryFilter:
         if self.exposure_time is not None:
             d["exposure_time"] = self.exposure_time
         return d
+    
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "FitsQueryFilter":
+        """Parses one FitsQueryFilter request"""
+        return FitsQueryFilter(
+            fits_id = d.get("fits_id", None),
+            filename = d.get("filename", None),
+            date_start = datetime(d.get("date_start", None)),
+            date_end = datetime(d.get("date_end", None)),
+            minimum = d.get("minimum", None),
+            maximum = d.get("maximum", None),
+            exposure_time = d.get("exposure_time", None),
+        )
 
 @dataclass(frozen=True)
 class FitsClusterQueryFilter:
