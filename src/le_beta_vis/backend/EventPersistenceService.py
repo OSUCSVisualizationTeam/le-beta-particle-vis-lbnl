@@ -341,8 +341,8 @@ class EventPersistence:
 
             filename = fits.filename
             fits_id = fits.fits_id
-            date_start = str(fits.date_start)
-            date_end = str(fits.date_end)
+            date_start = str(fits.date_start) if fits.date_start else None
+            date_end = str(fits.date_end) if fits.date_start else None
             date_range = _parse_date_filter({"start": date_start, "end": date_end})
             minimum = fits.minimum
             maximum = fits.maximum
@@ -390,8 +390,8 @@ class EventPersistence:
             cursor = self.conn.cursor(dictionary=True)
             hdu = clusters.hdu_id
             cluster_id = clusters.cluster_id
-            date_start = str(clusters.date_start)
-            date_end = str(clusters.date_end)
+            date_start = str(clusters.date_start) if clusters.date_start else None
+            date_end = str(clusters.date_end) if clusters.date_end else None
             date_range = _parse_date_filter({"start": date_start, "end": date_end})
             bounding_box = clusters.bounding_box
             fits_id = clusters.fits_id
