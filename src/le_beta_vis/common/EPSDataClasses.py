@@ -97,7 +97,7 @@ class ClusterQueryFilter:
         if self.classification is not None:
             d["classification"] = self.classification
         return d
-    
+
     @staticmethod
     def from_eps_dict(d: Dict[str, Any]) -> "ClusterQueryFilter":
         """Parses one ClusterQueryFilter request."""
@@ -108,8 +108,8 @@ class ClusterQueryFilter:
             fits_list = d.get("fits_list", None),
             hdu_id = d.get("hdu_id", None),
             bounding_box = d.get("bounding_box", None),
-            date_start = datetime(date.get("start", None)) if date else None,
-            date_end = datetime(date.get("end", None)) if date else None,
+            date_start = datetime.strptime(date.get("start", None), _DATE_FILTER_FORMAT) if date else None,
+            date_end = datetime.strptime(date.get("end", None), _DATE_FILTER_FORMAT) if date else None,
             min_sigma_x = d.get("sigmaX", None),
             min_sigma_y = d.get("sigmaY", None),
             min_total_energy = d.get("total_energy", None),
@@ -142,7 +142,7 @@ class ClusterRecentQueryFilter:
             "limit": self.limit,
             "offset": self.offset,
         }
-    
+
     @staticmethod
     def from_eps_dict(d: dict[str, any]) -> "ClusterRecentQueryFilter":
         """Parses one ClusterRecentQuery request."""
@@ -185,7 +185,7 @@ class FitsQueryFilter:
         if self.exposure_time is not None:
             d["exposure_time"] = self.exposure_time
         return d
-    
+
     @staticmethod
     def from_eps_dict(d: Dict[str, Any]) -> "FitsQueryFilter":
         """Parses one FitsQueryFilter request"""
@@ -193,8 +193,8 @@ class FitsQueryFilter:
         return FitsQueryFilter(
             fits_id = d.get("fits_id", None),
             filename = d.get("filename", None),
-            date_start = datetime(date.get("start", None)) if date else None,
-            date_end = datetime(date.get("end", None)) if date else None,
+            date_start = datetime.strptime(date.get("start", None), _DATE_FILTER_FORMAT) if date else None,
+            date_end = datetime.strptime(date.get("end", None), _DATE_FILTER_FORMAT) if date else None,
             minimum = d.get("minimum", None),
             maximum = d.get("maximum", None),
             exposure_time = d.get("exposure_time", None),
@@ -253,7 +253,7 @@ class FitsStoreRequest:
             "max": self.max,
             "exposure_time": self.exposure_time,
         }
-    
+
     @staticmethod
     def from_eps_dict(d: Dict[str, Any]) -> "FitsStoreRequest":
         """Parses one Fits storage request."""
@@ -295,7 +295,7 @@ class ClusterStoreRequest:
             "fits_id": self.fits_id,
             "classification": self.classification,
         }
-    
+
     @staticmethod
     def from_eps_dict(d: Dict[str, Any]) -> "ClusterStoreRequest":
         """Parses one ``clusters`` storage request."""
@@ -354,7 +354,7 @@ class EPSClusterRecord:
     sigma_x: float
     sigma_y: float
     classification: str
-    total_pixels: int 
+    total_pixels: int
     filename: str
     date: str
 
