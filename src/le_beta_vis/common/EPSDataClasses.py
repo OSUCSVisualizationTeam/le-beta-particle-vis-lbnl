@@ -108,8 +108,8 @@ class ClusterQueryFilter:
             fits_list = d.get("fits_list", None),
             hdu_id = d.get("hdu_id", None),
             bounding_box = d.get("bounding_box", None),
-            date_start = date.get("start", None) if date else None,
-            date_end = date.get("end", None) if date else None,
+            date_start = datetime(date.get("start", None)) if date else None,
+            date_end = datetime(date.get("end", None)) if date else None,
             min_sigma_x = d.get("sigmaX", None),
             min_sigma_y = d.get("sigmaY", None),
             min_total_energy = d.get("total_energy", None),
@@ -189,11 +189,12 @@ class FitsQueryFilter:
     @staticmethod
     def from_eps_dict(d: Dict[str, Any]) -> "FitsQueryFilter":
         """Parses one FitsQueryFilter request"""
+        date = d.get("date", None)
         return FitsQueryFilter(
             fits_id = d.get("fits_id", None),
             filename = d.get("filename", None),
-            date_start = datetime(d.get("date_start", None)),
-            date_end = datetime(d.get("date_end", None)),
+            date_start = datetime(date.get("start", None)) if date else None,
+            date_end = datetime(date.get("end", None)) if date else None,
             minimum = d.get("minimum", None),
             maximum = d.get("maximum", None),
             exposure_time = d.get("exposure_time", None),

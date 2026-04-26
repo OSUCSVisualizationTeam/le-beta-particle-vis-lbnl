@@ -9,14 +9,39 @@ from unittest.mock import Mock, MagicMock, patch, call
 import numpy as np
 import sys
 import os
+import types
 
 # Add the src directory to the path so we can import the module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+# Keep tests importable even when mysql-connector isn't installed locally.
+try:
+    import mysql.connector  # type: ignore # noqa: F401
+except ModuleNotFoundError:
+    mysql_module = types.ModuleType("mysql")
+    connector_module = types.ModuleType("mysql.connector")
+
+    class _DummyMySQLError(Exception):
+        pass
+
+    connector_module.Error = _DummyMySQLError
+    connector_module.connect = MagicMock()
+    mysql_module.connector = connector_module
+    sys.modules["mysql"] = mysql_module
+    sys.modules["mysql.connector"] = connector_module
 
 from le_beta_vis.backend.EventPersistenceService import (
     EventPersistence,
     FailedProcException,
     _parse_date_filter,
+)
+from le_beta_vis.common.EPSDataClasses import (
+    ClassificationUpdateRequest,
+    ClusterQueryFilter,
+    ClusterRecentQueryFilter,
+    ClusterStoreRequest,
+    FitsQueryFilter,
+    FitsStoreRequest,
 )
 import zmq
 
@@ -208,15 +233,15 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.fits_to_store = {
-            "filename": "test.fits",
-            "date": "2022-10-03",
-            "minimum": 100,
-            "maximum": 5000,
-            "exposure_time": 3600
-        }
+        fits_request = FitsStoreRequest(
+            filename="test.fits",
+            date="2022-10-03",
+            min=100,
+            max=5000,
+            exposure_time=3600,
+        )
 
-        result = ep.store_fits()
+        result = ep.store_fits(fits_request)
 
         self.assertEqual(result, 42)
         mock_cursor.callproc.assert_called_once()
@@ -246,16 +271,16 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.fits_to_store = {
-            "filename": "test.fits",
-            "date": "2022-10-03",
-            "minimum": 100,
-            "maximum": 5000,
-            "exposure_time": 3600
-        }
+        fits_request = FitsStoreRequest(
+            filename="test.fits",
+            date="2022-10-03",
+            min=100,
+            max=5000,
+            exposure_time=3600,
+        )
 
         with self.assertRaises(FailedProcException):
-            ep.store_fits()
+            ep.store_fits(fits_request)
 
         self.assertIsNone(ep.conn)
 
@@ -279,15 +304,15 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
         with patch.object(EventPersistence, 'db_connect', return_value=mock_connection):
             ep = EventPersistence()
             ep.conn = None
-            ep.fits_to_store = {
-                "filename": "test.fits",
-                "date": "2022-10-03",
-                "minimum": 100,
-                "maximum": 5000,
-                "exposure_time": 3600
-            }
+            fits_request = FitsStoreRequest(
+                filename="test.fits",
+                date="2022-10-03",
+                min=100,
+                max=5000,
+                exposure_time=3600,
+            )
 
-            result = ep.store_fits()
+            result = ep.store_fits(fits_request)
             self.assertEqual(result, 42)
 
 
@@ -326,19 +351,19 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
             "right": 40
         }
 
-        ep.cluster_to_store = {
-            "fits_id": 1,
-            "data": np.array([[1, 2], [3, 4]]),
-            "hdu_id": 0,
-            "bounding_box": mock_bbox,
-            "total_energy": 5000,
-            "sigmaX": 1.5,
-            "sigmaY": 1.5,
-            "classification": "alpha",
-            "total_pixels": 100
-        }
+        cluster_request = ClusterStoreRequest(
+            fits_id=1,
+            data=np.array([[1, 2], [3, 4]]),
+            hdu_id=0,
+            bounding_box=mock_bbox,
+            total_energy=5000,
+            sigma_x=1.5,
+            sigma_y=1.5,
+            classification="alpha",
+            total_pixels=100,
+        )
 
-        result = ep.store_cluster()
+        result = ep.store_cluster(cluster_request)
 
         self.assertEqual(result, 99)
         mock_cursor.callproc.assert_called_once()
@@ -375,20 +400,20 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
             "right": 40
         }
 
-        ep.cluster_to_store = {
-            "fits_id": 1,
-            "data": np.array([[1, 2]]),
-            "hdu_id": 0,
-            "bounding_box": mock_bbox,
-            "total_energy": 5000,
-            "sigmaX": 1.5,
-            "sigmaY": 1.5,
-            "classification": "alpha",
-            "total_pixels": 100
-        }
+        cluster_request = ClusterStoreRequest(
+            fits_id=1,
+            data=np.array([[1, 2]]),
+            hdu_id=0,
+            bounding_box=mock_bbox,
+            total_energy=5000,
+            sigma_x=1.5,
+            sigma_y=1.5,
+            classification="alpha",
+            total_pixels=100,
+        )
 
         with self.assertRaises(FailedProcException):
-            ep.store_cluster()
+            ep.store_cluster(cluster_request)
 
 
 class TestEventPersistenceRetrieveFits(unittest.TestCase):
@@ -412,24 +437,35 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
         mock_db_connect.return_value = mock_connection
 
-        # Mock database results: (fitsID, fileName, date, min, max, exposureTime)
+        # Mock database results returned by a dictionary cursor
         mock_cursor.fetchall.return_value = [
-            (1, "test.fits", "2022-10-03", 100, 5000, 3600),
-            (2, "test2.fits", "2022-10-04", 200, 6000, 3600)
+            {
+                "fitsID": 1,
+                "fileName": "test.fits",
+                "date": "2022-10-03",
+                "min": 100,
+                "max": 5000,
+                "exposureTime": 3600,
+            },
+            {
+                "fitsID": 2,
+                "fileName": "test2.fits",
+                "date": "2022-10-04",
+                "min": 200,
+                "max": 6000,
+                "exposureTime": 3600,
+            },
         ]
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.retrieval_fits = {
-            "filename": "test.fits",
-            "fits_id": None,
-            "date": None,
-            "minimum": None,
-            "maximum": None,
-            "exposure_time": None
-        }
+        retrieval_fits = FitsQueryFilter(
+            filename="test.fits",
+            date_start=datetime(2022, 10, 3, 0, 0, 0),
+            date_end=datetime(2022, 10, 3, 23, 59, 59),
+        )
 
-        result = ep.retrieve_fits()
+        result = ep.retrieve_fits(retrieval_fits)
 
         self.assertEqual(result["result"], "success")
         self.assertEqual(len(result["fits"]), 2)
@@ -454,20 +490,30 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
         mock_db_connect.return_value = mock_connection
 
-        mock_cursor.fetchall.return_value = [(1, "test.fits", "2022-10-03 00:00:00", 100, 5000, 3600)]
+        mock_cursor.fetchall.return_value = [
+            {
+                "fitsID": 1,
+                "fileName": "test.fits",
+                "date": "2022-10-03 00:00:00",
+                "min": 100,
+                "max": 5000,
+                "exposureTime": 3600,
+            }
+        ]
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.retrieval_fits = {
-            "filename": "test.fits",
-            "fits_id": 1,
-            "date": {"start": "2022-10-03 00:00:00", "end": "2022-10-03 23:59:59"},
-            "minimum": 100,
-            "maximum": 5000,
-            "exposure_time": 3600
-        }
+        retrieval_fits = FitsQueryFilter(
+            filename="test.fits",
+            fits_id=1,
+            date_start=datetime(2022, 10, 3, 0, 0, 0),
+            date_end=datetime(2022, 10, 3, 23, 59, 59),
+            minimum=100,
+            maximum=5000,
+            exposure_time=3600,
+        )
 
-        result = ep.retrieve_fits()
+        result = ep.retrieve_fits(retrieval_fits)
 
         self.assertEqual(result["result"], "success")
         # Verify the SELECT query was called with proper WHERE clause
@@ -519,21 +565,13 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
         ep = EventPersistence()
         ep.conn = mock_connection
 
-        ep.retrieval_clusters = {
-            "data": None,
-            "hdu_id": None,
-            "cluster_id": None,
-            "bounding_box": None,
-            "date": None,
-            "fits_id": 1,
-            "sigmaX": None,
-            "sigmaY": None,
-            "total_energy": None,
-            "total_pixels": None,
-            "classification": None
-        }
+        retrieval_clusters = ClusterQueryFilter(
+            fits_id=1,
+            date_start=datetime(2022, 10, 3, 0, 0, 0),
+            date_end=datetime(2022, 10, 3, 23, 59, 59),
+        )
 
-        result = ep.retrieve_clusters()
+        result = ep.retrieve_clusters(retrieval_clusters)
 
         self.assertEqual(result["result"], "success")
         self.assertEqual(len(result["clusters"]), 1)
@@ -568,9 +606,9 @@ class TestEventPersistenceRecentRetrieval(unittest.TestCase):
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.retrieval_recent_clusters = {"limit": 25, "offset": 50}
+        retrieval_recent_clusters = ClusterRecentQueryFilter(limit=25, offset=50)
 
-        ep.retrieve_recent_clusters()
+        ep.retrieve_recent_clusters(retrieval_recent_clusters)
 
         mock_cursor.execute.assert_called_once()
         sql, params = mock_cursor.execute.call_args[0]
@@ -620,9 +658,9 @@ class TestEventPersistenceRecentRetrieval(unittest.TestCase):
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.retrieval_recent_clusters = {"limit": 1, "offset": 0}
+        retrieval_recent_clusters = ClusterRecentQueryFilter(limit=1, offset=0)
 
-        result = ep.retrieve_recent_clusters()
+        result = ep.retrieve_recent_clusters(retrieval_recent_clusters)
 
         self.assertEqual(result["result"], "success")
         self.assertEqual(len(result["clusters"]), 1)
@@ -655,8 +693,10 @@ class TestEventPersistenceRecentRetrieval(unittest.TestCase):
         ep.cluster_event(request, mock_socket)
 
         mock_retrieve_recent.assert_called_once()
-        self.assertEqual(ep.retrieval_recent_clusters["limit"], 10)
-        self.assertEqual(ep.retrieval_recent_clusters["offset"], 20)
+        recent_filter = mock_retrieve_recent.call_args.args[0]
+        self.assertIsInstance(recent_filter, ClusterRecentQueryFilter)
+        self.assertEqual(recent_filter.limit, 10)
+        self.assertEqual(recent_filter.offset, 20)
         mock_socket.send_json.assert_called_once()
         sent = mock_socket.send_json.call_args[0][0]
         self.assertEqual(sent["result"], "success")
@@ -686,12 +726,12 @@ class TestEventPersistenceClassifyCluster(unittest.TestCase):
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.cluster_to_classify = {
-            "cluster_id": 123,
-            "classification": "tritium",
-        }
+        cluster_to_classify = ClassificationUpdateRequest(
+            cluster_id=123,
+            classification="tritium",
+        )
 
-        result = ep.classify_cluster()
+        result = ep.classify_cluster(cluster_to_classify)
 
         self.assertEqual(result["result"], "success")
         self.assertEqual(result["updated"], 1)
@@ -722,147 +762,12 @@ class TestEventPersistenceClassifyCluster(unittest.TestCase):
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.cluster_to_classify = {
-            "cluster_id": 123,
-            "classification": "tritium",
-        }
-
-        result = ep.classify_cluster()
-
-        self.assertEqual(result["result"], "failure")
-        self.assertIn("No clusters were updated", result["error"])
-        mock_connection.commit.assert_called_once()
-        mock_cursor.close.assert_called_once()
-
-    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
-    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
-    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    def test_classify_cluster_failed_proc_output(self, mock_db_connect, mock_init_server, mock_config):
-        """Test classification update where procedure reports failure"""
-        instance = mock_config.return_value
-        instance.get.side_effect = lambda key: {
-            "global:db:hostname": "localhost",
-            "global:db:username": "test_user",
-            "global:db:password": "test_pass",
-            "global:db:database": "test_db"
-        }.get(key, None)
-
-        mock_cursor = MagicMock()
-        mock_connection = MagicMock()
-        mock_connection.cursor.return_value = mock_cursor
-        mock_db_connect.return_value = mock_connection
-        mock_cursor.callproc.return_value = ("tritium", 123, -1)
-
-        ep = EventPersistence()
-        ep.conn = mock_connection
-        ep.cluster_to_classify = {
-            "cluster_id": 123,
-            "classification": "tritium",
-        }
-
-        with self.assertRaises(FailedProcException):
-            ep.classify_cluster()
-
-        mock_connection.close.assert_called_once()
-        self.assertIsNone(ep.conn)
-
-    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
-    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
-    def test_classify_cluster_reconnect_on_no_connection(self, mock_init_server, mock_config):
-        """Test classify_cluster reconnects when connection is missing"""
-        instance = mock_config.return_value
-        instance.get.side_effect = lambda key: {
-            "global:db:hostname": "localhost",
-            "global:db:username": "test_user",
-            "global:db:password": "test_pass",
-            "global:db:database": "test_db"
-        }.get(key, None)
-
-        mock_cursor = MagicMock()
-        mock_connection = MagicMock()
-        mock_connection.cursor.return_value = mock_cursor
-        mock_cursor.callproc.return_value = ("alpha", 7, 1)
-
-        with patch.object(EventPersistence, 'db_connect', return_value=mock_connection):
-            ep = EventPersistence()
-            ep.conn = None
-            ep.cluster_to_classify = {
-                "cluster_id": 7,
-                "classification": "alpha",
-            }
-
-            result = ep.classify_cluster()
-
-            self.assertEqual(result["result"], "success")
-            self.assertEqual(result["updated"], 1)
-
-
-class TestEventPersistenceClassifyCluster(unittest.TestCase):
-    """Test cases for classify_cluster method"""
-
-    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
-    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
-    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    def test_classify_cluster_success(self, mock_db_connect, mock_init_server, mock_config):
-        """Test successful classification update"""
-        instance = mock_config.return_value
-        instance.get.side_effect = lambda key: {
-            "global:db:hostname": "localhost",
-            "global:db:username": "test_user",
-            "global:db:password": "test_pass",
-            "global:db:database": "test_db"
-        }.get(key, None)
-
-        mock_cursor = MagicMock()
-        mock_connection = MagicMock()
-        mock_connection.cursor.return_value = mock_cursor
-        mock_db_connect.return_value = mock_connection
-        mock_cursor.callproc.return_value = ("tritium", 123, 1)
-
-        ep = EventPersistence()
-        ep.conn = mock_connection
-        ep.cluster_to_classify = {
-            "cluster_id": 123,
-            "classification": "tritium",
-        }
-
-        result = ep.classify_cluster()
-
-        self.assertEqual(result["result"], "success")
-        self.assertEqual(result["updated"], 1)
-        mock_cursor.callproc.assert_called_once_with(
-            "insert_classifications", ("tritium", 123, None)
+        cluster_to_classify = ClassificationUpdateRequest(
+            cluster_id=123,
+            classification="tritium",
         )
-        mock_connection.commit.assert_called_once()
-        mock_cursor.close.assert_called_once()
 
-    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
-    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
-    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    def test_classify_cluster_no_rows_updated(self, mock_db_connect, mock_init_server, mock_config):
-        """Test classification update where no row is changed"""
-        instance = mock_config.return_value
-        instance.get.side_effect = lambda key: {
-            "global:db:hostname": "localhost",
-            "global:db:username": "test_user",
-            "global:db:password": "test_pass",
-            "global:db:database": "test_db"
-        }.get(key, None)
-
-        mock_cursor = MagicMock()
-        mock_connection = MagicMock()
-        mock_connection.cursor.return_value = mock_cursor
-        mock_db_connect.return_value = mock_connection
-        mock_cursor.callproc.return_value = ("tritium", 123, 0)
-
-        ep = EventPersistence()
-        ep.conn = mock_connection
-        ep.cluster_to_classify = {
-            "cluster_id": 123,
-            "classification": "tritium",
-        }
-
-        result = ep.classify_cluster()
+        result = ep.classify_cluster(cluster_to_classify)
 
         self.assertEqual(result["result"], "failure")
         self.assertIn("No clusters were updated", result["error"])
@@ -890,13 +795,13 @@ class TestEventPersistenceClassifyCluster(unittest.TestCase):
 
         ep = EventPersistence()
         ep.conn = mock_connection
-        ep.cluster_to_classify = {
-            "cluster_id": 123,
-            "classification": "tritium",
-        }
+        cluster_to_classify = ClassificationUpdateRequest(
+            cluster_id=123,
+            classification="tritium",
+        )
 
         with self.assertRaises(FailedProcException):
-            ep.classify_cluster()
+            ep.classify_cluster(cluster_to_classify)
 
         mock_connection.close.assert_called_once()
         self.assertIsNone(ep.conn)
@@ -921,12 +826,12 @@ class TestEventPersistenceClassifyCluster(unittest.TestCase):
         with patch.object(EventPersistence, 'db_connect', return_value=mock_connection):
             ep = EventPersistence()
             ep.conn = None
-            ep.cluster_to_classify = {
-                "cluster_id": 7,
-                "classification": "alpha",
-            }
+            cluster_to_classify = ClassificationUpdateRequest(
+                cluster_id=7,
+                classification="alpha",
+            )
 
-            result = ep.classify_cluster()
+            result = ep.classify_cluster(cluster_to_classify)
 
             self.assertEqual(result["result"], "success")
             self.assertEqual(result["updated"], 1)
@@ -951,8 +856,22 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
         ep = EventPersistence()
 
         results = [
-            (1, "test1.fits", "2022-10-03", 100, 5000, 3600),
-            (2, "test2.fits", "2022-10-04", 200, 6000, 3600)
+            {
+                "fitsID": 1,
+                "fileName": "test1.fits",
+                "date": "2022-10-03",
+                "min": 100,
+                "max": 5000,
+                "exposureTime": 3600,
+            },
+            {
+                "fitsID": 2,
+                "fileName": "test2.fits",
+                "date": "2022-10-04",
+                "min": 200,
+                "max": 6000,
+                "exposureTime": 3600,
+            },
         ]
 
         response = ep.process_retrieval_fits(results)
@@ -1264,8 +1183,10 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
 
         ep.cluster_event(request, mock_socket)
 
-        self.assertEqual(ep.cluster_to_classify["cluster_id"], 123)
-        self.assertEqual(ep.cluster_to_classify["classification"], "tritium")
+        classify_request = mock_classify_cluster.call_args.args[0]
+        self.assertIsInstance(classify_request, ClassificationUpdateRequest)
+        self.assertEqual(classify_request.cluster_id, 123)
+        self.assertEqual(classify_request.classification, "tritium")
         mock_socket.send_json.assert_called_once_with({"result": "success", "updated": 1})
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
@@ -1356,8 +1277,8 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
             "Action": "Storage",
             "filename": "test.fits",
             "date": "2022-10-03",
-            "minimum": 100,
-            "maximum": 5000,
+            "min": 100,
+            "max": 5000,
             "exposure_time": 3600
         }
 
@@ -1392,8 +1313,8 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
             "Action": "Storage",
             "filename": "test.fits",
             "date": "2022-10-03",
-            "minimum": 100,
-            "maximum": 5000,
+            "min": 100,
+            "max": 5000,
             "exposure_time": 3600
         }
 
