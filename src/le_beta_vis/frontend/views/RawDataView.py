@@ -1,17 +1,7 @@
-from PySide6.QtCore import QMetaObject, QRectF, QSize, Qt, Slot
-from PySide6.QtGui import (
-    QColor,
-    QFont,
-    QIcon,
-    QImage,
-    QPainter,
-    QPen,
-    QPixmap,
-    QTransform,
-)
+from PySide6.QtCore import QMetaObject, QRectF, Qt, Slot
+from PySide6.QtGui import QImage, QPixmap, QTransform
 from PySide6.QtWidgets import (
     QApplication,
-    QButtonGroup,
     QComboBox,
     QFrame,
     QGraphicsPixmapItem,
@@ -22,18 +12,17 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QStyleFactory,
     QTabWidget,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from ..fitsconverters import Colormap, ScalingFunction
 from ..viewmodels.RawDataViewModel import (
-    ActiveTool,
     ClusteringState,
     RawDataViewModel,
 )
 from ..widgets.CaptureGraphicsView import CaptureGraphicsView
+from ..widgets.RawDataManipulationToolbar import RawDataManipulationToolbar
 from ..widgets.MagnifierGraphicsItem import MagnifierGraphicsItem
 from ..widgets.ClusteringProgressOverlay import ClusteringProgressOverlay
 from ..widgets.HDUVisualizationWidget import HDUVisualizationWidget
@@ -91,144 +80,14 @@ class RawDataView(QWidget):
 
         self.bodyLayout.addWidget(self.leftToolbar)
 
-    def _setupTopToolbar(self) -> None:
-        """Creates the horizontal top toolbar with tool and zoom buttons."""
-        self.topToolbar = QFrame()
-        self.topToolbar.setFixedHeight(46)
-        self.topToolbar.setStyleSheet(_Style.TOP_TOOLBAR)
-        layout = QHBoxLayout(self.topToolbar)
-        layout.setContentsMargins(8, 3, 8, 3)
-        layout.setSpacing(4)
-
-        self._createToolButtons(layout)
-        self._createZoomButtons(layout)
-
-    def _createToolButtons(self, layout: QHBoxLayout) -> None:
-        """Creates the exclusive tool button group (ROI + Magnifier)
-        and adds them to the given toolbar layout."""
-        btn_size = QSize(36, 36)
-        style = _Style.LEFT_TOOLBAR_BUTTON
-
-        self._toolButtonGroup = QButtonGroup(self)
-        self._toolButtonGroup.setExclusive(True)
-
-        self.btnBoxSelect = QToolButton()
-        self.btnBoxSelect.setIcon(self._createBoxSelectIcon())
-        self.btnBoxSelect.setToolTip(self.tr("Region Of Interest"))
-        self.btnBoxSelect.setCheckable(True)
-        self.btnBoxSelect.setChecked(True)
-        self.btnBoxSelect.setFixedSize(btn_size)
-        self.btnBoxSelect.setStyleSheet(style)
-        self.btnBoxSelect.clicked.connect(
-            lambda: self.viewModel.setActiveTool(ActiveTool.BOX_SELECT)
-        )
-        self._toolButtonGroup.addButton(self.btnBoxSelect)
-        layout.addWidget(self.btnBoxSelect)
-
-        self.btnMagnifier = QToolButton()
-        self.btnMagnifier.setIcon(self._createMagnifierIcon())
-        self.btnMagnifier.setToolTip(self.tr("Magnifier: Inspect pixels in detail"))
-        self.btnMagnifier.setCheckable(True)
-        self.btnMagnifier.setFixedSize(btn_size)
-        self.btnMagnifier.setStyleSheet(style)
-        self.btnMagnifier.clicked.connect(
-            lambda: self.viewModel.setActiveTool(ActiveTool.MAGNIFIER)
-        )
-        self._toolButtonGroup.addButton(self.btnMagnifier)
-        layout.addWidget(self.btnMagnifier)
-
-    def _createZoomButtons(self, layout: QHBoxLayout) -> None:
-        """Adds a vertical separator and the three zoom buttons
-        (Zoom In, Reset, Zoom Out) plus a trailing stretch."""
-        btn_size = QSize(36, 36)
-        style = _Style.LEFT_TOOLBAR_BUTTON
-
-        sep = QFrame()
-        sep.setFrameShape(QFrame.VLine)
-        sep.setFrameShadow(QFrame.Sunken)
-        sep.setStyleSheet(_Style.LEFT_TOOLBAR_DIVIDER)
-        sep.setFixedHeight(28)
-        layout.addWidget(sep)
-
-        self.btnZoomIn = QToolButton()
-        self.btnZoomIn.setText("+")
-        self.btnZoomIn.setToolTip(self.tr("Zoom In"))
-        self.btnZoomIn.setFixedSize(btn_size)
-        self.btnZoomIn.setStyleSheet(_Style.ZOOM_IN)
-        self.btnZoomIn.clicked.connect(self.viewModel.zoomIn)
-        layout.addWidget(self.btnZoomIn)
-
-        self.btnZoomReset = QToolButton()
-        self.btnZoomReset.setText("1x")
-        self.btnZoomReset.setToolTip(self.tr("Reset Zoom (1:1)"))
-        self.btnZoomReset.setFixedSize(btn_size)
-        self.btnZoomReset.setStyleSheet(style)
-        self.btnZoomReset.clicked.connect(self.viewModel.resetZoom)
-        layout.addWidget(self.btnZoomReset)
-
-        self.btnZoomOut = QToolButton()
-        self.btnZoomOut.setText("-")
-        self.btnZoomOut.setToolTip(self.tr("Zoom Out"))
-        self.btnZoomOut.setFixedSize(btn_size)
-        self.btnZoomOut.setStyleSheet(_Style.ZOOM_OUT)
-        self.btnZoomOut.clicked.connect(self.viewModel.zoomOut)
-        layout.addWidget(self.btnZoomOut)
-
-        layout.addStretch()
-
-    def _createMagnifierIcon(self) -> QIcon:
-        """Creates a magnifier icon from theme or painted fallback."""
-        icon = QIcon.fromTheme("edit-find")
-        if not icon.isNull():
-            return icon
-
-        pixmap = QPixmap(40, 40)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setPen(QColor("#ffffff"))
-        font = QFont()
-        font.setPixelSize(24)
-        painter.setFont(font)
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, "\U0001f50d")
-        painter.end()
-        return QIcon(pixmap)
-
-    def _createBoxSelectIcon(self) -> QIcon:
-        """Creates a dashed rectangle icon for the Box Select tool."""
-        size = 40
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        pen = QPen(QColor("#ffffff"))
-        pen.setWidth(2)
-        pen.setStyle(Qt.DashLine)
-        painter.setPen(pen)
-        margin = 8
-        painter.drawRect(margin, margin, size - 2 * margin, size - 2 * margin)
-        # Corner handles
-        handle = 4
-        corners = [
-            (margin, margin),
-            (size - margin, margin),
-            (margin, size - margin),
-            (size - margin, size - margin),
-        ]
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#ffffff"))
-        for cx, cy in corners:
-            painter.drawRect(cx - handle // 2, cy - handle // 2, handle, handle)
-        painter.end()
-        return QIcon(pixmap)
-
     def _setupCenterImageArea(self) -> None:
         """Assembles the center image area: toolbar, graphics scene,
         overlays, status bar, and clustering overlay."""
         self._centerContainer = HDUVisualizationWidget()
         centerLayout = self._centerContainer.contentLayout
 
-        self._setupTopToolbar()
-        centerLayout.addWidget(self.topToolbar)
+        self._toolbar = RawDataManipulationToolbar(self.viewModel)
+        centerLayout.addWidget(self._toolbar)
 
         self._setupGraphicsScene(centerLayout)
         self._setupSceneOverlays()
@@ -541,31 +400,20 @@ class RawDataView(QWidget):
     @Slot()
     def updateZoom(self):
         """Updates the graphics view transform based on scale."""
-        # UX Feedback: Busy Cursor & Disable Buttons
         QApplication.setOverrideCursor(Qt.WaitCursor)
-        self.btnZoomIn.setEnabled(False)
-        self.btnZoomOut.setEnabled(False)
-        self.btnZoomReset.setEnabled(False)
-
+        self._toolbar.setZoomControlsEnabled(False)
         try:
             scale = self.viewModel.scale
             transform = QTransform()
             transform.scale(scale, scale)
             self.graphicsView.setTransform(transform)
         finally:
-            # Restore UX
-            self.btnZoomIn.setEnabled(True)
-            self.btnZoomOut.setEnabled(True)
-            self.btnZoomReset.setEnabled(True)
+            self._toolbar.setZoomControlsEnabled(True)
             QApplication.restoreOverrideCursor()
 
     @Slot()
     def _updateActiveTool(self):
-        """Syncs toolbar button states, cursor modes, and overlays."""
-        tool = self.viewModel.activeTool
-        self.btnMagnifier.setChecked(tool == ActiveTool.MAGNIFIER)
-        self.btnBoxSelect.setChecked(tool == ActiveTool.BOX_SELECT)
-
+        """Syncs cursor modes, overlays, and hint label with the active tool."""
         magnifierActive = self.viewModel.isMagnifierActive
         boxSelectActive = self.viewModel.isBoxSelectActive
 
@@ -718,7 +566,7 @@ class RawDataView(QWidget):
 
     def _setInteractionEnabled(self, enabled: bool) -> None:
         """Enables or disables interactive controls."""
-        self.topToolbar.setEnabled(enabled)
+        self._toolbar.setEnabled(enabled)
         self.leftToolbar.setEnabled(enabled)
         self.rightSidebar.setEnabled(enabled)
 

@@ -6,9 +6,44 @@ from PySide6.QtWidgets import (
     QScroller,
     QScrollerProperties,
 )
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtCore import Qt, QRect, QSize
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPixmap
+from ..theme import MosaicThumbnailColors
 from ..viewmodels.MosaicViewModel import MosaicViewModel
+
+
+class ThumbnailButton(QToolButton):
+    """QToolButton that paints an 'HDU N' label overlay on the icon."""
+
+    def __init__(self, index: int, parent=None) -> None:
+        super().__init__(parent)
+        self._index = index
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        label = f"HDU {self._index}"
+        font = QFont()
+        font.setPixelSize(10)
+        font.setBold(True)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+        padding = 2
+        bg_rect = QRect(
+            2, 2,
+            fm.horizontalAdvance(label) + 2 * padding,
+            fm.height() + padding,
+        )
+        r, g, b, a = MosaicThumbnailColors.LABEL_BACKGROUND_RGBA
+        painter.fillRect(bg_rect, QColor(r, g, b, a))
+        color_hex = (
+            MosaicThumbnailColors.LABEL_TEXT_SELECTED
+            if self.isChecked()
+            else MosaicThumbnailColors.LABEL_TEXT
+        )
+        painter.setPen(QColor(color_hex))
+        painter.drawText(bg_rect, Qt.AlignCenter, label)
+        painter.end()
 
 
 class MosaicView(QWidget):
@@ -98,10 +133,10 @@ class MosaicView(QWidget):
         """Calculates and sets the fixed height based on content + scrollbar."""
         thumb_h = self.viewModel.thumbnailHeight
 
-        # Button height = thumb_h + 10 (padding) + 20 (text) = thumb_h + 30
+        # Button height = thumb_h + 10 (padding; label is overlaid on icon)
         # Container margins = 5 top + 5 bottom = 10
         # Scrollbar height = 12
-        total_h = (thumb_h + 30) + 10 + 12
+        total_h = (thumb_h + 10) + 10 + 12
         total_h = max(total_h, self.MIN_HEIGHT)
 
         self.setFixedHeight(total_h)
@@ -130,10 +165,9 @@ class MosaicView(QWidget):
             q_img = QImage(buffer.data, width, height, width, QImage.Format_Grayscale8)
             pixmap = QPixmap.fromImage(q_img.copy())
 
-            btn = QToolButton()
+            btn = ThumbnailButton(i)
             btn.setIcon(QIcon(pixmap))
-            btn.setText(f"HDU {i}")
-            btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+            btn.setToolButtonStyle(Qt.ToolButtonIconOnly)
 
             # Calculate aspect ratio
             if height > 0:
@@ -146,9 +180,7 @@ class MosaicView(QWidget):
             # Set Icon Size (Actual Image)
             btn.setIconSize(QSize(target_w, target_h))
 
-            # Set Button Size (Image + Text/Padding)
-            # TextUnderIcon adds height, we adjust button size
-            btn.setFixedSize(target_w + btn_padding, target_h + btn_padding + 20)
+            btn.setFixedSize(target_w + btn_padding, target_h + btn_padding)
 
             btn.setCheckable(True)
             btn.setAutoExclusive(True)  # Only one can be checked

@@ -52,7 +52,6 @@ def test_initial_colormap_from_config():
 def test_initial_state(view_model):
     """Test the initial state of the ViewModel."""
     assert view_model.activeIndex == -1
-    assert view_model.hduSummaries == []
 
 
 def test_load_file_success(view_model):
@@ -79,7 +78,6 @@ def test_load_file_success(view_model):
             mock_load.assert_called_once()
             mock_file_loaded_cb.assert_called_once()
             assert view_model.activeIndex == 0
-            assert "100x100" in view_model.hduSummaries[0]
 
 
 def test_load_file_renders_first_hdu(view_model):

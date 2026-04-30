@@ -136,6 +136,7 @@ class RawDataViewModel:
         self._on_clustering_error_callbacks: List[Callable] = []
         self._on_clustering_progress_callbacks: List[Callable] = []
         self._on_selected_cluster_changed_callbacks: List[Callable] = []
+        self._on_active_hdu_changed_callbacks: List[Callable] = []
 
     def loadFile(self, filePath: str):
         path = Path(filePath)
@@ -154,6 +155,7 @@ class RawDataViewModel:
             if self._activeIndex == index:
                 return
             self._activeIndex = index
+            self._notify_active_hdu_changed()
             self.mosaicViewModel.selectIndex(index)
             self._request_render()
 
@@ -665,15 +667,15 @@ class RawDataViewModel:
         return self._physics_manager.kev_conversion_factor
 
     @property
-    def hduSummaries(self) -> List[str]:
-        return [
-            f"HDU {i}: {c.info().rows}x{c.info().cols}"
-            for i, c in enumerate(self._captures)
-        ]
-
-    @property
     def activeIndex(self) -> int:
         return self._activeIndex
+
+    @property
+    def activeHDULabel(self) -> Optional[str]:
+        """Returns 'HDU <N>' when active, None when no file is loaded."""
+        if self._activeIndex == -1 or not self._captures:
+            return None
+        return f"HDU {self._activeIndex}"
 
     @property
     def scale(self) -> float:
@@ -758,6 +760,14 @@ class RawDataViewModel:
 
     def add_file_loaded_callback(self, callback: Callable):
         self._on_file_loaded_callbacks.append(callback)
+
+    def add_active_hdu_changed_callback(self, callback: Callable) -> None:
+        """Register a callback fired whenever the active HDU index changes."""
+        self._on_active_hdu_changed_callbacks.append(callback)
+
+    def _notify_active_hdu_changed(self) -> None:
+        for callback in self._on_active_hdu_changed_callbacks:
+            callback()
 
     def add_scale_changed_callback(self, callback: Callable):
         self._on_scale_changed_callbacks.append(callback)
