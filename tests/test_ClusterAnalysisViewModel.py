@@ -1,182 +1,285 @@
-# Citation for Unit Tests: Verifies ClusterAnalysisViewModel delegation to parent RawDataViewModel.
-# Date: 28/02/2026
-# Adapted from Claude Code:
-# Write headless PyTest unit tests for ClusterAnalysisViewModel verifying properties and callbacks
-# are correctly forwarded to its parent RawDataViewModel.
+"""Tests for ClusterAnalysisViewModel.
 
-"""Tests for ClusterAnalysisViewModel delegation.
-
-Verifies that ClusterAnalysisViewModel correctly forwards
-all properties, methods, and callback registrations to the
-parent RawDataViewModel.
+Verifies state initialization, property defaults, ROI integration,
+clustering integration, and callback forwarding.
 
 Pure Python tests — no QApplication instantiation.
 """
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 
 from mock_configuration_service import MockConfigurationService
+from le_beta_vis.common.MockClusterExtractor import MockClusterExtractor
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManagerImpl,
 )
-from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
-    RawDataViewModel,
+from le_beta_vis.frontend.viewmodels.ClusterAnalysisViewModel import (
+    ClusterAnalysisViewModel,
+    ClusteringState,
 )
+from le_beta_vis.frontend.fitsconverters import Colormap
+
+_DEFAULT_RAW = np.arange(100, dtype=float).reshape(10, 10)
 
 
 @pytest.fixture
-def parent_vm():
+def config():
+    return MockConfigurationService()
+
+
+@pytest.fixture
+def physics(config):
+    return PhysicsConversionManagerImpl(config)
+
+
+@pytest.fixture
+def vm(config, physics):
+    return ClusterAnalysisViewModel(
+        config, physics, lambda: _DEFAULT_RAW.copy()
+    )
+
+
+@pytest.fixture
+def vm_no_data(config, physics):
+    return ClusterAnalysisViewModel(config, physics, lambda: None)
+
+
+# --- Initial state ---
+
+
+def test_initial_clustering_state(vm):
+    """State starts IDLE."""
+    assert vm.clusteringState == ClusteringState.IDLE
+
+
+def test_initial_selected_cluster_index(vm):
+    """Selected cluster starts at -1."""
+    assert vm.selectedClusterIndex == -1
+
+
+def test_initial_clustering_results_empty(vm):
+    """No results until extraction runs."""
+    assert vm.clusteringResults == []
+
+
+def test_initial_clustering_error_none(vm):
+    """No error on construction."""
+    assert vm.clusteringError is None
+
+
+def test_initial_clustering_progress_zero(vm):
+    """Progress starts at 0.0."""
+    assert vm.clusteringProgress == 0.0
+
+
+def test_initial_rois_empty(vm):
+    """ROI list starts empty."""
+    assert vm.rois == []
+
+
+# --- Config-driven properties ---
+
+
+def test_clustering_threshold_default(vm):
+    """Default threshold is 4.0 σ."""
+    assert vm.clusteringThreshold == 4.0
+
+
+def test_display_energy_in_kev_default(vm):
+    """displayEnergyInKev defaults to True."""
+    assert vm.displayEnergyInKev is True
+
+
+def test_kev_conversion_from_physics(vm, physics):
+    """kevConversion reads from physics manager."""
+    assert vm.kevConversion == physics.kev_conversion_factor
+
+
+def test_box_select_color_default(vm):
+    """boxSelectColor returns the default config value."""
+    assert vm.boxSelectColor == "#00BFFF"
+
+
+def test_box_select_border_width_default(vm):
+    """boxSelectBorderWidth returns the default config value."""
+    assert vm.boxSelectBorderWidth == 2
+
+
+def test_cluster_thumbnail_colormap_no_provider(vm):
+    """Returns None when no colormap_provider is wired."""
+    assert vm.clusterThumbnailColormap is None
+
+
+def test_cluster_thumbnail_colormap_with_provider(config, physics):
+    """Returns colormap when provider is wired and config enabled."""
+    vm = ClusterAnalysisViewModel(
+        config, physics,
+        lambda: None,
+        colormap_provider=lambda: Colormap.VIRIDIS,
+    )
+    assert vm.clusterThumbnailColormap == Colormap.VIRIDIS
+
+
+def test_cluster_thumbnail_colormap_disabled(config, physics):
+    """Returns None when feature is disabled in config."""
+    config.set("gui:raw_analysis:cluster_thumbnail_use_colormap", False)
+    vm = ClusterAnalysisViewModel(
+        config, physics,
+        lambda: None,
+        colormap_provider=lambda: Colormap.VIRIDIS,
+    )
+    assert vm.clusterThumbnailColormap is None
+
+
+# --- isClusteringAvailable ---
+
+
+def test_clustering_available_all_conditions(vm):
+    """True when extractor, ROI, idle state, and data are present."""
+    vm.setClusterExtractor(MockClusterExtractor(delay_seconds=0.0))
+    vm.addRoi(0, 0, 5, 5)
+    assert vm.isClusteringAvailable is True
+
+
+def test_clustering_unavailable_no_extractor(vm):
+    """False without an extractor."""
+    vm.addRoi(0, 0, 5, 5)
+    assert vm.isClusteringAvailable is False
+
+
+def test_clustering_unavailable_no_roi(vm):
+    """False without an ROI."""
+    vm.setClusterExtractor(MockClusterExtractor(delay_seconds=0.0))
+    assert vm.isClusteringAvailable is False
+
+
+def test_clustering_unavailable_no_data(vm_no_data):
+    """False when no raw data is available."""
+    vm_no_data.setClusterExtractor(MockClusterExtractor(delay_seconds=0.0))
+    vm_no_data.addRoi(0, 0, 5, 5)
+    assert vm_no_data.isClusteringAvailable is False
+
+
+# --- selectedRoiRawData / selectedRoiBoundingBox ---
+
+
+def test_selected_roi_raw_data_no_roi(vm):
+    """None when no ROI exists."""
+    assert vm.selectedRoiRawData is None
+
+
+def test_selected_roi_raw_data_with_roi(vm):
+    """Crops data to ROI bounding box."""
+    vm.addRoi(0, 0, 5, 5)
+    result = vm.selectedRoiRawData
+    assert result is not None
+    assert result.shape == (5, 5)
+
+
+def test_selected_roi_raw_data_no_raw_data(vm_no_data):
+    """None when raw data callable returns None."""
+    vm_no_data.addRoi(0, 0, 5, 5)
+    assert vm_no_data.selectedRoiRawData is None
+
+
+def test_selected_roi_bounding_box_no_roi(vm):
+    """None when no ROI exists."""
+    assert vm.selectedRoiBoundingBox is None
+
+
+def test_selected_roi_bounding_box_with_roi(vm):
+    """Returns the correct bounding box after addRoi."""
+    from le_beta_vis.common.BoundingBox import BoundingBox
+    vm.addRoi(2, 3, 8, 9)
+    bbox = vm.selectedRoiBoundingBox
+    assert bbox == BoundingBox(2, 3, 8, 9)
+
+
+# --- Callback forwarding ---
+
+
+def test_roi_changed_callback_on_add(vm):
+    """add_roi_changed_callback fires when ROI is added."""
+    called = []
+    vm.add_roi_changed_callback(lambda: called.append(True))
+    vm.addRoi(0, 0, 5, 5)
+    assert called
+
+
+def test_box_selection_completed_callback_on_add(vm):
+    """add_box_selection_completed_callback fires when ROI is added."""
+    called = []
+    vm.add_box_selection_completed_callback(lambda: called.append(True))
+    vm.addRoi(0, 0, 5, 5)
+    assert called
+
+
+def test_clustering_state_callback_fires(vm):
+    """add_clustering_state_changed_callback fires on state change."""
+    called = []
+    vm.add_clustering_state_changed_callback(lambda: called.append(True))
+    vm._notify_clustering_state_changed()
+    assert called
+
+
+def test_clustering_completed_callback_fires(vm):
+    """add_clustering_completed_callback fires on completion."""
+    called = []
+    vm.add_clustering_completed_callback(lambda: called.append(True))
+    vm._notify_clustering_completed()
+    assert called
+
+
+def test_clustering_error_callback_fires(vm):
+    """add_clustering_error_callback fires on error."""
+    called = []
+    vm.add_clustering_error_callback(lambda: called.append(True))
+    vm._notify_clustering_error()
+    assert called
+
+
+def test_clustering_progress_callback_fires(vm):
+    """add_clustering_progress_callback fires on progress update."""
+    called = []
+    vm.add_clustering_progress_callback(lambda: called.append(True))
+    vm._notify_clustering_progress()
+    assert called
+
+
+def test_selected_cluster_callback_fires(vm):
+    """add_selected_cluster_changed_callback fires on selection change."""
+    called = []
+    vm.add_selected_cluster_changed_callback(lambda: called.append(True))
+    vm._notify_selected_cluster_changed()
+    assert called
+
+
+def test_active_tool_callback_fires(vm):
+    """add_active_tool_changed_callback fires when notified."""
+    called = []
+    vm.add_active_tool_changed_callback(lambda: called.append(True))
+    vm._notify_active_tool_changed()
+    assert called
+
+
+# --- active_tool forwarding from RawDataViewModel ---
+
+
+def test_rdvm_tool_change_reaches_cavm():
+    """Tool-change from RDVM propagates to CAVM listeners."""
+    from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
+        RawDataViewModel,
+    )
     config = MockConfigurationService()
     physics = PhysicsConversionManagerImpl(config)
-    vm = RawDataViewModel(config, physics)
-    vm._converter = MagicMock()
-    vm._request_render = lambda: vm._render_worker_logic()
-    return vm
+    rdvm = RawDataViewModel(config, physics)
+    rdvm._converter = MagicMock()
 
-
-@pytest.fixture
-def facade(parent_vm):
-    return parent_vm.clusterAnalysisViewModel
-
-
-# --- Property delegation ---
-
-
-def test_clustering_threshold(facade, parent_vm):
-    """clusteringThreshold delegates to parent."""
-    assert facade.clusteringThreshold == parent_vm.clusteringThreshold
-
-
-def test_is_clustering_available(facade, parent_vm):
-    """isClusteringAvailable delegates to parent."""
-    assert facade.isClusteringAvailable == parent_vm.isClusteringAvailable
-
-
-def test_clustering_state(facade, parent_vm):
-    """clusteringState delegates to parent."""
-    assert facade.clusteringState == parent_vm.clusteringState
-
-
-def test_clustering_results(facade, parent_vm):
-    """clusteringResults delegates to parent."""
-    assert facade.clusteringResults == parent_vm.clusteringResults
-
-
-def test_clustering_progress(facade, parent_vm):
-    """clusteringProgress delegates to parent."""
-    assert facade.clusteringProgress == parent_vm.clusteringProgress
-
-
-def test_clustering_error(facade, parent_vm):
-    """clusteringError delegates to parent."""
-    assert facade.clusteringError == parent_vm.clusteringError
-
-
-def test_cluster_thumbnail_colormap(facade, parent_vm):
-    """clusterThumbnailColormap delegates to parent."""
-    assert facade.clusterThumbnailColormap == parent_vm.clusterThumbnailColormap
-
-
-def test_display_energy_in_kev(facade, parent_vm):
-    """displayEnergyInKev delegates to parent."""
-    assert facade.displayEnergyInKev == parent_vm.displayEnergyInKev
-
-
-def test_kev_conversion(facade, parent_vm):
-    """kevConversion delegates to parent."""
-    assert facade.kevConversion == parent_vm.kevConversion
-
-
-def test_selected_cluster_index(facade, parent_vm):
-    """selectedClusterIndex delegates to parent."""
-    assert facade.selectedClusterIndex == parent_vm.selectedClusterIndex
-
-
-# --- Method delegation ---
-
-
-def test_trigger_clustering(facade, parent_vm):
-    """triggerClustering delegates to parent (no-op when unavailable)."""
-    facade.triggerClustering()
-    # No error — clustering not available so it's a safe no-op
-
-
-def test_cancel_clustering(facade, parent_vm):
-    """cancelClustering delegates to parent."""
-    facade.cancelClustering()
-
-
-def test_select_cluster(facade, parent_vm):
-    """selectCluster delegates to parent."""
-    facade.selectCluster(-1)
-    assert parent_vm.selectedClusterIndex == -1
-
-
-def test_classify_selected_cluster(facade):
-    """classifySelectedCluster delegates without error."""
-    facade.classifySelectedCluster()
-
-
-def test_export_selected_cluster(facade):
-    """exportSelectedCluster delegates without error."""
-    facade.exportSelectedCluster()
-
-
-# --- Callback delegation ---
-
-
-def test_add_clustering_state_changed_callback(facade, parent_vm):
-    """Callback registered via facade fires on parent state change."""
     called = []
-    facade.add_clustering_state_changed_callback(lambda: called.append(True))
-    parent_vm._notify_clustering_state_changed()
-    assert called
-
-
-def test_add_clustering_completed_callback(facade, parent_vm):
-    """Callback registered via facade fires on parent completion."""
-    called = []
-    facade.add_clustering_completed_callback(lambda: called.append(True))
-    parent_vm._notify_clustering_completed()
-    assert called
-
-
-def test_add_clustering_error_callback(facade, parent_vm):
-    """Callback registered via facade fires on parent error."""
-    called = []
-    facade.add_clustering_error_callback(lambda: called.append(True))
-    parent_vm._notify_clustering_error()
-    assert called
-
-
-def test_add_clustering_progress_callback(facade, parent_vm):
-    """Callback registered via facade fires on parent progress."""
-    called = []
-    facade.add_clustering_progress_callback(lambda: called.append(True))
-    parent_vm._notify_clustering_progress()
-    assert called
-
-
-def test_add_selected_cluster_changed_callback(facade, parent_vm):
-    """Callback registered via facade fires on selection change."""
-    called = []
-    facade.add_selected_cluster_changed_callback(lambda: called.append(True))
-    parent_vm._notify_selected_cluster_changed()
-    assert called
-
-
-def test_add_active_tool_changed_callback(facade, parent_vm):
-    """Callback registered via facade fires on tool change."""
-    called = []
-    facade.add_active_tool_changed_callback(lambda: called.append(True))
-    parent_vm._notify_active_tool_changed()
-    assert called
-
-
-def test_add_roi_changed_callback(facade, parent_vm):
-    """Callback registered via facade fires on ROI change."""
-    called = []
-    facade.add_roi_changed_callback(lambda: called.append(True))
-    parent_vm._notify_roi_changed()
+    rdvm.clusterAnalysisViewModel.add_active_tool_changed_callback(
+        lambda: called.append(True)
+    )
+    rdvm._notify_active_tool_changed()
     assert called

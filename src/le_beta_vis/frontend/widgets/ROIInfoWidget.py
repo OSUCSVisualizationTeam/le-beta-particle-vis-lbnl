@@ -25,6 +25,9 @@ from le_beta_vis.frontend.widgets.InteractiveHistogramWidget import (
 )
 
 if TYPE_CHECKING:
+    from le_beta_vis.frontend.viewmodels.ClusterAnalysisViewModel import (
+        ClusterAnalysisViewModel,
+    )
     from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
         RawDataViewModel,
     )
@@ -36,7 +39,9 @@ _HISTOGRAM_BINS = 50
 
 class _Style:
     HEADER = "font-weight: bold; font-size: 13px; color: #333333;"
-    STAT_LABEL = "font-weight: bold; font-size: 11px; color: #555555; border: none;"
+    STAT_LABEL = (
+        "font-weight: bold; font-size: 11px; color: #555555; border: none;"
+    )
     STAT_VALUE = "font-size: 11px; color: #222222; border: none;"
 
 
@@ -50,6 +55,9 @@ class ROIInfoWidget(QWidget):
     ) -> None:
         super().__init__(parent)
         self._vm = viewModel
+        self._cavm: ClusterAnalysisViewModel = (
+            viewModel.clusterAnalysisViewModel
+        )
         self._stat_labels: Dict[str, QLabel] = {}
         self._roi_coord_labels: Dict[str, QLabel] = {}
         self._initUI()
@@ -137,7 +145,7 @@ class ROIInfoWidget(QWidget):
 
     def _bindViewModel(self) -> None:
         """Connects ViewModel callbacks to the render slot."""
-        self._vm.add_roi_changed_callback(self._onRoiChanged)
+        self._cavm.add_roi_changed_callback(self._onRoiChanged)
         self._vm.add_image_changed_callback(self._onImageChanged)
 
     def _onRoiChanged(self) -> None:
@@ -161,7 +169,7 @@ class ROIInfoWidget(QWidget):
     @Slot()
     def _scheduleRender(self) -> None:
         """Builds all display sections from current ROI data."""
-        roi_data = self._vm.selectedRoiRawData
+        roi_data = self._cavm.selectedRoiRawData
         if roi_data is None:
             self._clearAll()
             return
@@ -173,7 +181,7 @@ class ROIInfoWidget(QWidget):
 
     def _updateCoords(self) -> None:
         """Populates ROI origin and dimensions from the bounding box."""
-        bbox = self._vm.selectedRoiBoundingBox
+        bbox = self._cavm.selectedRoiBoundingBox
         if bbox is None:
             return
         width = bbox.right - bbox.left
@@ -187,7 +195,7 @@ class ROIInfoWidget(QWidget):
 
     def _updateStatistics(self, data: np.ndarray) -> None:
         """Computes and displays ROI statistics."""
-        bbox = self._vm.selectedRoiBoundingBox
+        bbox = self._cavm.selectedRoiBoundingBox
         if bbox is None:
             return
         stats = ROIStatistics.from_roi_data(
@@ -199,10 +207,10 @@ class ROIInfoWidget(QWidget):
 
     def _updateHistogram(self, data: np.ndarray) -> None:
         """Builds a histogram model and pushes it to the widget."""
-        cmap_enum = self._vm.clusterThumbnailColormap
+        cmap_enum = self._cavm.clusterThumbnailColormap
         colormap_str = cmap_enum.value if cmap_enum is not None else None
 
-        if self._vm.displayEnergyInKev:
+        if self._cavm.displayEnergyInKev:
             data = self._vm.physics_manager.adu_to_kev(data)
             x_label = "Energy (keV)"
             x_unit = "keV"

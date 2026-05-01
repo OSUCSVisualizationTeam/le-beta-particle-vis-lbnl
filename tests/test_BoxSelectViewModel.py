@@ -4,67 +4,73 @@ import numpy as np
 import pytest
 
 from le_beta_vis.common.BoundingBox import BoundingBox
-from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.RoiRect import RoiRect
+from mock_configuration_service import MockConfigurationService
+from le_beta_vis.common.PhysicsConversionManager import (
+    PhysicsConversionManagerImpl,
+)
+from le_beta_vis.frontend.viewmodels.ClusterAnalysisViewModel import (
+    ClusterAnalysisViewModel,
+)
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     RawDataViewModel,
 )
-from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
+
+_RAW = np.zeros((10, 10), dtype=float)
 
 
 @pytest.fixture
-def view_model():
+def cavm():
     config = MockConfigurationService()
-    physics_manager = PhysicsConversionManagerImpl(config)
-    vm = RawDataViewModel(config, physics_manager)
+    physics = PhysicsConversionManagerImpl(config)
+    return ClusterAnalysisViewModel(config, physics, lambda: _RAW.copy())
+
+
+@pytest.fixture
+def rdvm():
+    config = MockConfigurationService()
+    physics = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics)
     vm._converter = MagicMock()
-    vm._converter.convert.return_value = np.zeros(
-        (10, 10, 3), dtype=np.uint8
-    )
-
-    def mock_request():
-        vm._render_worker_logic()
-
-    vm._request_render = mock_request
+    vm._converter.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
     return vm
 
 
-# --- isBoxSelectActive ---
+# --- isBoxSelectActive (RDVM tool state) ---
 
 
-def test_is_box_select_active_initial(view_model):
-    """Test that box select is active by default."""
-    assert view_model.isBoxSelectActive is True
+def test_is_box_select_active_initial(rdvm):
+    """Box select is active by default."""
+    assert rdvm.isBoxSelectActive is True
 
 
-def test_is_box_select_active_after_switch(view_model):
-    """Test isBoxSelectActive is True after switching to BOX_SELECT."""
-    view_model.setActiveTool(ActiveTool.BOX_SELECT)
-    assert view_model.isBoxSelectActive is True
+def test_is_box_select_active_after_switch(rdvm):
+    """isBoxSelectActive remains True after explicit BOX_SELECT set."""
+    rdvm.setActiveTool(ActiveTool.BOX_SELECT)
+    assert rdvm.isBoxSelectActive is True
 
 
-def test_is_box_select_active_after_switch_away(view_model):
-    """Test isBoxSelectActive returns False after switching away."""
-    view_model.setActiveTool(ActiveTool.BOX_SELECT)
-    view_model.setActiveTool(ActiveTool.MAGNIFIER)
-    assert view_model.isBoxSelectActive is False
+def test_is_box_select_active_after_switch_away(rdvm):
+    """isBoxSelectActive is False after switching to MAGNIFIER."""
+    rdvm.setActiveTool(ActiveTool.MAGNIFIER)
+    assert rdvm.isBoxSelectActive is False
 
 
 # --- addRoi ---
 
 
-def test_add_roi_stores_roi(view_model):
-    """Test that addRoi creates and stores the ROI."""
-    roi = view_model.addRoi(10, 20, 50, 80)
+def test_add_roi_stores_roi(cavm):
+    """addRoi creates and stores the ROI."""
+    roi = cavm.addRoi(10, 20, 50, 80)
     assert isinstance(roi, RoiRect)
     assert roi.geometry() == BoundingBox(10, 20, 50, 80)
-    assert len(view_model.rois) == 1
+    assert len(cavm.rois) == 1
 
 
-def test_add_roi_normalizes_coords(view_model):
-    """Test that addRoi normalizes inverted coordinates."""
-    roi = view_model.addRoi(50, 80, 10, 20)
+def test_add_roi_normalizes_coords(cavm):
+    """addRoi normalizes inverted coordinates."""
+    roi = cavm.addRoi(50, 80, 10, 20)
     bbox = roi.geometry()
     assert bbox.top == 10
     assert bbox.left == 20
@@ -72,117 +78,117 @@ def test_add_roi_normalizes_coords(view_model):
     assert bbox.right == 80
 
 
-def test_add_roi_fires_callbacks(view_model):
-    """Test that addRoi fires both roi_changed and selection_completed."""
+def test_add_roi_fires_callbacks(cavm):
+    """addRoi fires both roi_changed and box_selection_completed."""
     roi_cb = MagicMock()
     sel_cb = MagicMock()
-    view_model.add_roi_changed_callback(roi_cb)
-    view_model.add_box_selection_completed_callback(sel_cb)
-    view_model.addRoi(0, 0, 10, 10)
+    cavm.add_roi_changed_callback(roi_cb)
+    cavm.add_box_selection_completed_callback(sel_cb)
+    cavm.addRoi(0, 0, 10, 10)
     roi_cb.assert_called_once()
     sel_cb.assert_called_once()
 
 
-def test_multiple_rois(view_model):
-    """Test adding multiple ROIs."""
-    view_model.addRoi(0, 0, 10, 10)
-    view_model.addRoi(20, 20, 30, 30)
-    assert len(view_model.rois) == 2
+def test_multiple_rois(cavm):
+    """Multiple ROIs can be added."""
+    cavm.addRoi(0, 0, 10, 10)
+    cavm.addRoi(20, 20, 30, 30)
+    assert len(cavm.rois) == 2
 
 
 # --- clearRois ---
 
 
-def test_clear_rois(view_model):
-    """Test that clearRois removes all ROIs and fires callback."""
-    view_model.addRoi(0, 0, 10, 10)
+def test_clear_rois(cavm):
+    """clearRois removes all ROIs and fires callback."""
+    cavm.addRoi(0, 0, 10, 10)
     cb = MagicMock()
-    view_model.add_roi_changed_callback(cb)
-    view_model.clearRois()
-    assert len(view_model.rois) == 0
+    cavm.add_roi_changed_callback(cb)
+    cavm.clearRois()
+    assert len(cavm.rois) == 0
     cb.assert_called_once()
 
 
-def test_clear_rois_when_empty(view_model):
-    """Test that clearRois does not fire if already empty."""
+def test_clear_rois_when_empty(cavm):
+    """clearRois does not fire if already empty."""
     cb = MagicMock()
-    view_model.add_roi_changed_callback(cb)
-    view_model.clearRois()
+    cavm.add_roi_changed_callback(cb)
+    cavm.clearRois()
     cb.assert_not_called()
 
 
 # --- removeRoi ---
 
 
-def test_remove_roi(view_model):
-    """Test removing an ROI by index."""
-    view_model.addRoi(0, 0, 10, 10)
-    view_model.addRoi(20, 20, 30, 30)
+def test_remove_roi(cavm):
+    """Removing ROI by index works."""
+    cavm.addRoi(0, 0, 10, 10)
+    cavm.addRoi(20, 20, 30, 30)
     cb = MagicMock()
-    view_model.add_roi_changed_callback(cb)
-    view_model.removeRoi(0)
-    assert len(view_model.rois) == 1
-    assert view_model.rois[0].geometry() == BoundingBox(20, 20, 30, 30)
+    cavm.add_roi_changed_callback(cb)
+    cavm.removeRoi(0)
+    assert len(cavm.rois) == 1
+    assert cavm.rois[0].geometry() == BoundingBox(20, 20, 30, 30)
     cb.assert_called_once()
 
 
-def test_remove_roi_invalid_index(view_model):
-    """Test that removing an invalid index does nothing."""
-    view_model.addRoi(0, 0, 10, 10)
+def test_remove_roi_invalid_index(cavm):
+    """Removing out-of-bounds index does nothing."""
+    cavm.addRoi(0, 0, 10, 10)
     cb = MagicMock()
-    view_model.add_roi_changed_callback(cb)
-    view_model.removeRoi(5)
-    assert len(view_model.rois) == 1
+    cavm.add_roi_changed_callback(cb)
+    cavm.removeRoi(5)
+    assert len(cavm.rois) == 1
     cb.assert_not_called()
 
 
-def test_remove_roi_negative_index(view_model):
-    """Test that removing a negative index does nothing."""
-    view_model.addRoi(0, 0, 10, 10)
+def test_remove_roi_negative_index(cavm):
+    """Removing negative index does nothing."""
+    cavm.addRoi(0, 0, 10, 10)
     cb = MagicMock()
-    view_model.add_roi_changed_callback(cb)
-    view_model.removeRoi(-1)
-    assert len(view_model.rois) == 1
+    cavm.add_roi_changed_callback(cb)
+    cavm.removeRoi(-1)
+    assert len(cavm.rois) == 1
     cb.assert_not_called()
 
 
 # --- rois returns copy ---
 
 
-def test_rois_returns_copy(view_model):
-    """Test that rois property returns a copy, not the internal list."""
-    view_model.addRoi(0, 0, 10, 10)
-    rois_copy = view_model.rois
+def test_rois_returns_copy(cavm):
+    """rois property returns a copy, not the internal list."""
+    cavm.addRoi(0, 0, 10, 10)
+    rois_copy = cavm.rois
     rois_copy.clear()
-    assert len(view_model.rois) == 1
+    assert len(cavm.rois) == 1
 
 
 # --- Config properties ---
 
 
-def test_box_select_color(view_model):
-    """Test boxSelectColor returns config value."""
-    assert view_model.boxSelectColor == "#00BFFF"
+def test_box_select_color(cavm):
+    """boxSelectColor returns config default."""
+    assert cavm.boxSelectColor == "#00BFFF"
 
 
-def test_box_select_border_width(view_model):
-    """Test boxSelectBorderWidth returns config value."""
-    assert view_model.boxSelectBorderWidth == 2
+def test_box_select_border_width(cavm):
+    """boxSelectBorderWidth returns config default."""
+    assert cavm.boxSelectBorderWidth == 2
 
 
 # --- clear + re-add cycle ---
 
 
-def test_clear_then_readd_roi(view_model):
-    """Test that clearing ROIs then adding a new one works correctly."""
-    view_model.addRoi(0, 0, 10, 10)
-    assert len(view_model.rois) == 1
+def test_clear_then_readd_roi(cavm):
+    """Clearing then adding a new ROI works correctly."""
+    cavm.addRoi(0, 0, 10, 10)
+    assert len(cavm.rois) == 1
 
-    view_model.clearRois()
-    assert len(view_model.rois) == 0
+    cavm.clearRois()
+    assert len(cavm.rois) == 0
 
-    roi = view_model.addRoi(20, 30, 40, 50)
-    assert len(view_model.rois) == 1
+    roi = cavm.addRoi(20, 30, 40, 50)
+    assert len(cavm.rois) == 1
     bbox = roi.geometry()
     assert bbox.top == 20
     assert bbox.left == 30
