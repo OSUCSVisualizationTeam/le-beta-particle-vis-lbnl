@@ -1,5 +1,16 @@
-from PySide6.QtCore import QMetaObject, QRectF, Qt, Slot
-from PySide6.QtGui import QImage, QPixmap, QTransform
+from typing import Optional, Tuple
+
+from PySide6.QtCore import (
+    QMetaObject,
+    QRectF,
+    Qt,
+    Slot,
+)
+from PySide6.QtGui import (
+    QImage,
+    QPixmap,
+    QTransform,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -35,6 +46,10 @@ class RawDataView(QWidget):
     def __init__(self, viewModel: RawDataViewModel):
         super().__init__()
         self.viewModel = viewModel
+        self._pendingClusterFocus: Optional[
+            Tuple[Optional[int], Tuple[int, int, int, int]]
+        ] = None
+        self._pendingClusterRoiAdded: bool = False
         self.initUI()
         self.bindViewModel()
 
@@ -97,9 +112,7 @@ class RawDataView(QWidget):
         centerLayout.addWidget(self._createStatusBar())
         self._activateDefaultTool()
 
-        self._clusteringOverlay = ClusteringProgressOverlay(
-            self._centerContainer
-        )
+        self._clusteringOverlay = ClusteringProgressOverlay(self._centerContainer)
         self.bodyLayout.addWidget(self._centerContainer)
 
     def _setupGraphicsScene(self, centerLayout: QVBoxLayout) -> None:
@@ -163,9 +176,7 @@ class RawDataView(QWidget):
         """Sets the box-select cursor mode and shows the initial hint."""
         self.graphicsView.setBoxSelectActive(True)
         if self.viewModel.showToolHints:
-            self._hintLabel.setText(
-                self.tr("\u21e7 Shift + drag to select ROI")
-            )
+            self._hintLabel.setText(self.tr("\u21e7 Shift + drag to select ROI"))
             self._hintLabel.setVisible(True)
 
     def _setupRightSidebar(self):
@@ -183,12 +194,8 @@ class RawDataView(QWidget):
 
     def _setupRightSidebarTabs(self):
         self._rightSidebarTabs = QTabWidget()
-        self._rightSidebarTabs.addTab(
-            self._buildVisualizationTab(), self.tr("Vis")
-        )
-        self._rightSidebarTabs.addTab(
-            self._buildClusteringTab(), self.tr("Clustering")
-        )
+        self._rightSidebarTabs.addTab(self._buildVisualizationTab(), self.tr("Vis"))
+        self._rightSidebarTabs.addTab(self._buildClusteringTab(), self.tr("Clustering"))
         self._roiInfoTabIndex = self._rightSidebarTabs.addTab(
             self._buildRoiInfoTab(), self.tr("ROI Info")
         )
@@ -267,14 +274,10 @@ class RawDataView(QWidget):
         """Wire active tool, magnifier, and pointer hover callbacks."""
 
         def on_active_tool_changed():
-            QMetaObject.invokeMethod(
-                self, "_updateActiveTool", Qt.QueuedConnection
-            )
+            QMetaObject.invokeMethod(self, "_updateActiveTool", Qt.QueuedConnection)
 
         def on_magnifier_state_changed():
-            QMetaObject.invokeMethod(
-                self, "_updateMagnifierState", Qt.QueuedConnection
-            )
+            QMetaObject.invokeMethod(self, "_updateMagnifierState", Qt.QueuedConnection)
 
         def on_magnifier_position_changed():
             QMetaObject.invokeMethod(
@@ -291,15 +294,11 @@ class RawDataView(QWidget):
             )
 
         self.viewModel.add_active_tool_changed_callback(on_active_tool_changed)
-        self.viewModel.add_magnifier_state_changed_callback(
-            on_magnifier_state_changed
-        )
+        self.viewModel.add_magnifier_state_changed_callback(on_magnifier_state_changed)
         self.viewModel.add_magnifier_position_changed_callback(
             on_magnifier_position_changed
         )
-        self.viewModel.add_pointer_hover_changed_callback(
-            on_pointer_hover_changed
-        )
+        self.viewModel.add_pointer_hover_changed_callback(on_pointer_hover_changed)
 
     def _bindGraphicsViewSignals(self):
         """Connect CaptureGraphicsView Qt signals to handlers."""
@@ -309,18 +308,14 @@ class RawDataView(QWidget):
             self.viewModel.adjustMagnification
         )
         self.graphicsView.mouseLeft.connect(self.viewModel.clearPointerHover)
-        self.graphicsView.boxSelectionCompleted.connect(
-            self._onBoxSelectionCompleted
-        )
+        self.graphicsView.boxSelectionCompleted.connect(self._onBoxSelectionCompleted)
         self.graphicsView.boxSelectClicked.connect(self._onBoxSelectClicked)
 
     def _bindRoiCallbacks(self):
         """Wire ROI change callback for the box selection visual."""
 
         def on_roi_changed():
-            QMetaObject.invokeMethod(
-                self, "_updateBoxSelection", Qt.QueuedConnection
-            )
+            QMetaObject.invokeMethod(self, "_updateBoxSelection", Qt.QueuedConnection)
 
         self._cavm.add_roi_changed_callback(on_roi_changed)
 
@@ -339,9 +334,7 @@ class RawDataView(QWidget):
                 Qt.AutoConnection,
             )
 
-        self._cavm.add_clustering_state_changed_callback(
-            on_clustering_state_changed
-        )
+        self._cavm.add_clustering_state_changed_callback(on_clustering_state_changed)
 
         def on_clustering_progress():
             QMetaObject.invokeMethod(
@@ -352,9 +345,7 @@ class RawDataView(QWidget):
 
         self._cavm.add_clustering_progress_callback(on_clustering_progress)
 
-        self._clusteringOverlay.cancelRequested.connect(
-            self._cavm.cancelClustering
-        )
+        self._clusteringOverlay.cancelRequested.connect(self._cavm.cancelClustering)
 
         def on_clustering_error():
             QMetaObject.invokeMethod(
@@ -407,6 +398,10 @@ class RawDataView(QWidget):
 
             # Update magnifier source data
             self._updateMagnifierSourceData(pixmap)
+
+            # Apply any deferred focus-on-ROI request now that the
+            # scene rect and viewport are valid.
+            self._consumePendingClusterFocus()
         else:
             self.pixmapItem.setPixmap(QPixmap())
 
@@ -421,6 +416,59 @@ class RawDataView(QWidget):
             hud = self._centerContainer.hudWidget
             if hud is not None:
                 hud.refreshMagnifier()
+
+    def openClusterForAnalysis(
+        self,
+        fitsPath: str,
+        hdu_id: Optional[int],
+        roi: Tuple[int, int, int, int],
+    ) -> None:
+        """Loads a FITS, selects an HDU, and pans to an ROI at 1× zoom.
+
+        Pre-selects the ROI Info tab, resets the zoom to 1×, clears
+        existing ROIs, and stashes the pending pan state. The render
+        completes asynchronously; ``updateImage`` then runs
+        ``_consumePendingClusterFocus`` which drops the ROI and pans
+        the captureView to its center. We deliberately do not zoom —
+        viewport-size measurement after a cold tab-switch + mosaic-
+        strip reveal is unreliable across platforms, and the user can
+        zoom in further with the existing controls.
+
+        Args:
+            fitsPath: Absolute path to the FITS file.
+            hdu_id: Parent HDU index, or None to keep the default.
+            roi: (top, left, bottom, right) in FITS pixel coordinates.
+        """
+        self._rightSidebarTabs.setCurrentIndex(self._roiInfoTabIndex)
+        self.viewModel.resetZoom()
+        self.viewModel.clearRois()
+        self._pendingClusterFocus = (hdu_id, roi)
+        self._pendingClusterRoiAdded = False
+        self.viewModel.loadFile(fitsPath)
+        if hdu_id is not None:
+            self.viewModel.setActiveHDU(hdu_id)
+
+    def _consumePendingClusterFocus(self) -> None:
+        """Adds the ROI and pans the captureView to its center.
+
+        Called from the tail of ``updateImage``. ``addRoi`` is
+        latched via ``_pendingClusterRoiAdded`` so multiple renders
+        (auto-HDU-0 + explicit-HDU) only add the ROI once.
+        """
+        if self._pendingClusterFocus is None:
+            return
+        _hdu_id, (top, left, bottom, right) = self._pendingClusterFocus
+
+        if not self._pendingClusterRoiAdded:
+            self.viewModel.addRoi(top, left, bottom, right)
+            self._pendingClusterRoiAdded = True
+
+        cx = (left + right) / 2.0
+        cy = (top + bottom) / 2.0
+        self.graphicsView.centerOn(cx, cy)
+
+        self._pendingClusterFocus = None
+        self._pendingClusterRoiAdded = False
 
     @Slot()
     def updateZoom(self):
@@ -453,9 +501,7 @@ class RawDataView(QWidget):
             self.viewModel.clearPointerHover()
 
         if boxSelectActive and self.viewModel.showToolHints:
-            self._hintLabel.setText(
-                self.tr("\u21e7 Shift + drag to select ROI")
-            )
+            self._hintLabel.setText(self.tr("\u21e7 Shift + drag to select ROI"))
             self._hintLabel.setVisible(True)
         else:
             self._hintLabel.setVisible(False)
@@ -466,9 +512,7 @@ class RawDataView(QWidget):
     @Slot()
     def _updateMagnifierState(self):
         """Updates the magnifier graphics item's magnification factor."""
-        self._magnifierItem.setMagnificationFactor(
-            self.viewModel.magnificationFactor
-        )
+        self._magnifierItem.setMagnificationFactor(self.viewModel.magnificationFactor)
         hud = self._centerContainer.hudWidget
         if hud is not None:
             hud.refreshMagnifier()
@@ -520,12 +564,8 @@ class RawDataView(QWidget):
         desiredX = col - (self._magnifierItem.displaySize / 2)
         desiredY = row - (magHeight / 2)
 
-        clampedX = max(
-            imageRect.left(), min(desiredX, imageRect.right() - magWidth)
-        )
-        clampedY = max(
-            imageRect.top(), min(desiredY, imageRect.bottom() - magHeight)
-        )
+        clampedX = max(imageRect.left(), min(desiredX, imageRect.right() - magWidth))
+        clampedY = max(imageRect.top(), min(desiredY, imageRect.bottom() - magHeight))
 
         if magWidth > imageRect.width():
             clampedX = imageRect.left()
@@ -535,9 +575,7 @@ class RawDataView(QWidget):
         self._magnifierItem.setPos(clampedX, clampedY)
 
     @Slot(int, int, int, int)
-    def _onBoxSelectionCompleted(
-        self, top: int, left: int, bottom: int, right: int
-    ):
+    def _onBoxSelectionCompleted(self, top: int, left: int, bottom: int, right: int):
         """Handles a completed box selection from the graphics view."""
         self._cavm.clearRois()
         self._cavm.addRoi(top, left, bottom, right)
@@ -550,12 +588,7 @@ class RawDataView(QWidget):
         if not rois:
             return
         bbox = rois[-1].geometry()
-        if (
-            row < bbox.top
-            or row >= bbox.bottom
-            or col < bbox.left
-            or col >= bbox.right
-        ):
+        if row < bbox.top or row >= bbox.bottom or col < bbox.left or col >= bbox.right:
             self._cavm.clearRois()
 
     @Slot()

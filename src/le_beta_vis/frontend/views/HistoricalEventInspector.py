@@ -112,7 +112,10 @@ class HistoricalEventInspector(QWidget):
         rightCol = QVBoxLayout()
         rightCol.setAlignment(Qt.AlignTop)
 
-        self._detailLabel = ClusterDetailWidget(self._vm, show_filename=True)
+        self._detailLabel = ClusterDetailWidget(
+            self._vm, show_filename=True, show_open_action=True,
+        )
+        self._detailLabel.openClicked.connect(self._vm.openInRawData)
         rightCol.addWidget(self._detailLabel)
 
         rightCol.addStretch()
