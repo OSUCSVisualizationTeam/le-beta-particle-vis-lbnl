@@ -81,6 +81,9 @@ class HistoricalEventInspectorViewModel:
         self._threshold = threshold
         self._displayKeV = displayKeV
         self._on_event_changed: List[Callable[[Optional[Cluster]], None]] = []
+        self._open_in_raw_data_handler: Optional[
+            Callable[[Cluster], None]
+        ] = None
 
     # --- Properties ---
 
@@ -130,6 +133,36 @@ class HistoricalEventInspectorViewModel:
             enabled: True for keV, False for raw ADU.
         """
         self._displayKeV = enabled
+
+    def setOpenInRawDataHandler(
+        self, handler: Optional[Callable[[Cluster], None]]
+    ) -> None:
+        """Injects the cross-tab navigation handler.
+
+        Pure-Python ViewModels can't switch a QTabWidget; the host
+        (MainWindow) supplies a handler that performs the navigation,
+        FITS load, HDU selection, ROI placement, and zoom/pan.
+
+        Args:
+            handler: Called with the current cluster when the user
+                requests to open it in Raw Data Analysis. Pass None
+                to clear.
+        """
+        self._open_in_raw_data_handler = handler
+
+    def openInRawData(self) -> None:
+        """Requests opening the current cluster in Raw Data Analysis.
+
+        No-ops when no cluster is loaded or no handler is wired.
+        """
+        if self._cluster is None or self._open_in_raw_data_handler is None:
+            return
+        self._open_in_raw_data_handler(self._cluster)
+
+    @property
+    def canOpenInRawData(self) -> bool:
+        """True when the current cluster has a FITS filename to open."""
+        return bool(self._cluster and self._cluster.fitsFilename)
 
     # --- Formatting ---
 

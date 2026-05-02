@@ -261,6 +261,16 @@ gui:historical:classification_threshold:
     Min confidence for positive classification in the
     Historical Analysis grid and inspector.
 
+gui:historical:roi_padding_factor:
+  type: float
+  default: 2.0
+  description: >-
+    Multiplier applied to a cluster's bounding box when the
+    Historical Inspector "Open in Raw Data" action drops an
+    ROI rectangle in the Raw Data Analysis tab. A factor of
+    2.0 produces a box twice the cluster geometry, centered
+    on the cluster.
+
 gui:historical:grid_item_width:
   type: int
   default: 140

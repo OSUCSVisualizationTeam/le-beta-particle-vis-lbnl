@@ -78,6 +78,7 @@ class FeaturedClusterWidget(QWidget):
         self._statsWidget = ClusterDetailWidget(
             self._inspector_vm,
             show_filename=False,
+            show_open_action=False,
         )
         self._statsWidget.setStyleSheet(
             f"background-color: {LiveModeColors.STATS_BACKGROUND};"

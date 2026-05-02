@@ -3,6 +3,7 @@ import sys
 from PySide6.QtCore import Qt, QMetaObject, Slot
 from PySide6.QtWidgets import (
     QMainWindow,
+    QMessageBox,
     QTabWidget,
     QWidget,
     QVBoxLayout,
@@ -23,6 +24,7 @@ from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
 from .viewmodels.HistoricalViewModel import HistoricalViewModel
 from . import theme
+from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.ClusterExtractorFactory import (
     create_cluster_extractor,
 )
@@ -214,6 +216,7 @@ class MainWindow(QMainWindow):
         self.historicalView = HistoricalView(
             self.historicalViewModel,
             statusViewModel=self.statusViewModel,
+            openInRawDataHandler=self._openClusterInRawData,
         )
         self.tabs.addTab(self.rawDataView, self.tr("Raw Data Analysis"))
         self.tabs.addTab(self.historicalView, self.tr("Historical Analysis"))
@@ -321,3 +324,43 @@ class MainWindow(QMainWindow):
         if filePath:
             self.tabs.setCurrentWidget(self.rawDataView)
             self.rawDataViewModel.loadFile(filePath)
+
+    def _openClusterInRawData(self, cluster: Cluster) -> None:
+        """Navigates from the Historical Inspector to Raw Data Analysis.
+
+        Performs a preflight check on the cluster's FITS path, switches
+        to the Raw Data Analysis tab, computes a padded ROI rectangle
+        around the cluster's bounding box, and delegates the load /
+        HDU select / fit-to-ROI sequence to ``RawDataView``.
+        """
+        path = cluster.fitsFilename
+        if not path or not Path(path).exists():
+            msg = self.tr(
+                "FITS file not found:\n{path}"
+            ).format(path=path or self.tr("(no path on cluster)"))
+            self.statusViewModel.set_message(msg, severity=Severity.WARNING)
+            QMessageBox.warning(self, self.tr("Open in Raw Data"), msg)
+            return
+
+        self.tabs.setCurrentWidget(self.rawDataView)
+
+        bb = cluster.boundingBox
+        pad = float(
+            self.viewModel.configService.get(
+                "gui:historical:roi_padding_factor", 2.0,
+            )
+        )
+        # Center the ROI on the bounding-box geometric center so the
+        # cluster sits in the middle of the rectangle. The peak-energy
+        # pixel (cluster.centerX/Y) is often offset within the bbox.
+        cx = (bb.left + bb.right) / 2.0
+        cy = (bb.top + bb.bottom) / 2.0
+        half_w = ((bb.right - bb.left) * pad) / 2.0
+        half_h = ((bb.bottom - bb.top) * pad) / 2.0
+        roi = (
+            int(round(cy - half_h)),
+            int(round(cx - half_w)),
+            int(round(cy + half_h)),
+            int(round(cx + half_w)),
+        )
+        self.rawDataView.openClusterForAnalysis(path, cluster.hdu_id, roi)

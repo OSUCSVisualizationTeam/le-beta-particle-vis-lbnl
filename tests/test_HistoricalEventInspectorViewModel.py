@@ -325,3 +325,54 @@ def test_set_display_kev(vm):
 def test_physics_property(vm, physics):
     """physics property should return injected manager."""
     assert vm.physics is physics
+
+
+# --- openInRawData handler ---
+
+
+def test_open_in_raw_data_invokes_handler_with_cluster(vm, cluster):
+    """openInRawData should invoke the registered handler with the current cluster."""
+    handler = MagicMock()
+    vm.setOpenInRawDataHandler(handler)
+    vm.setEvent(cluster)
+    vm.openInRawData()
+    handler.assert_called_once_with(cluster)
+
+
+def test_open_in_raw_data_no_op_without_handler(vm, cluster):
+    """openInRawData should silently no-op when no handler is wired."""
+    vm.setEvent(cluster)
+    vm.openInRawData()  # must not raise
+
+
+def test_open_in_raw_data_no_op_without_cluster(vm):
+    """openInRawData should not call the handler when no cluster is set."""
+    handler = MagicMock()
+    vm.setOpenInRawDataHandler(handler)
+    vm.openInRawData()
+    handler.assert_not_called()
+
+
+def test_can_open_in_raw_data_false_when_no_cluster(vm):
+    assert vm.canOpenInRawData is False
+
+
+def test_can_open_in_raw_data_false_when_no_filename(vm, cluster):
+    cluster.fitsFilename = None
+    vm.setEvent(cluster)
+    assert vm.canOpenInRawData is False
+
+
+def test_can_open_in_raw_data_true_with_filename(vm, cluster):
+    cluster.fitsFilename = "/data/run42.fits"
+    vm.setEvent(cluster)
+    assert vm.canOpenInRawData is True
+
+
+def test_clear_handler_via_none(vm, cluster):
+    handler = MagicMock()
+    vm.setOpenInRawDataHandler(handler)
+    vm.setOpenInRawDataHandler(None)
+    vm.setEvent(cluster)
+    vm.openInRawData()
+    handler.assert_not_called()

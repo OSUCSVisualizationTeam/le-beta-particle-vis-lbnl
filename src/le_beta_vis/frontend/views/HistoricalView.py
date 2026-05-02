@@ -33,7 +33,9 @@ import numpy as np
 import collections
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
+
+from le_beta_vis.common.Cluster import Cluster
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +63,12 @@ class HistoricalView(QWidget):
         self,
         viewModel: HistoricalViewModel,
         statusViewModel: Optional[MainWindowStatusViewModel] = None,
+        openInRawDataHandler: Optional[Callable[[Cluster], None]] = None,
     ):
         super().__init__()
         self.viewModel = viewModel
         self._statusVM = statusViewModel
+        self._openInRawDataHandler = openInRawDataHandler
         self._pendingFilter = None
         self._pendingLoadError: Optional[str] = None
         self._thumbnailQueue: collections.deque = collections.deque()
@@ -147,6 +151,10 @@ class HistoricalView(QWidget):
             threshold=self.viewModel.classificationThreshold,
             displayKeV=self.viewModel.displayEnergyInKev,
         )
+        if self._openInRawDataHandler is not None:
+            self._inspectorVM.setOpenInRawDataHandler(
+                self._openInRawDataHandler
+            )
         self._inspector = HistoricalEventInspector(self._inspectorVM)
         self._splitter.addWidget(self._inspector)
 
