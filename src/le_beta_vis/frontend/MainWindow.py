@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
             self.statusViewModel.shutdown()
         super().closeEvent(event)
 
-    # -- Initialization helpers ------------------------------------------------
+    # -- Initialization helpers -----------------------------------------------
 
     def _setupWindowIdentity(self) -> None:
         self.setWindowTitle(self.tr("LE Beta Particle Visualization"))
@@ -65,8 +65,12 @@ class MainWindow(QMainWindow):
 
     def _setupWindowGeometry(self) -> None:
         self.setMinimumSize(960, 600)
-        width = self.viewModel.configService.get("gui:window:default_width", 1024)
-        height = self.viewModel.configService.get("gui:window:default_height", 700)
+        width = self.viewModel.configService.get(
+            "gui:window:default_width", 1024
+        )
+        height = self.viewModel.configService.get(
+            "gui:window:default_height", 700
+        )
         self.resize(width, height)
 
     def _setupCentralWidget(self) -> None:
@@ -80,7 +84,7 @@ class MainWindow(QMainWindow):
         self.rawDataViewModel = RawDataViewModel(
             self.viewModel.configService, self.viewModel.physicsManager
         )
-        self.rawDataViewModel.setClusterExtractor(
+        self.rawDataViewModel.clusterAnalysisViewModel.setClusterExtractor(
             create_cluster_extractor(
                 self.viewModel.configService, self.viewModel.physicsManager
             )
@@ -221,7 +225,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.rawDataView, self.tr("Raw Data Analysis"))
         self.tabs.addTab(self.historicalView, self.tr("Historical Analysis"))
 
-    # -- Menu bar --------------------------------------------------------------
+    # -- Menu bar ------------------------------------------------------------
 
     def setupMenuBar(self) -> None:
         menuBar = self.menuBar()
@@ -274,7 +278,7 @@ class MainWindow(QMainWindow):
         aboutAction.triggered.connect(self._onShowAbout)
         helpMenu.addAction(aboutAction)
 
-    # -- Slots -----------------------------------------------------------------
+    # -- Slots ---------------------------------------------------------------
 
     def _onShowAbout(self) -> None:
         """Open the About dialog."""

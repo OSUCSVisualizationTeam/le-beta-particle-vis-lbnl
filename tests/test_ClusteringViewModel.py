@@ -11,11 +11,12 @@ from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,
     PhysicsConversionManagerImpl,
 )
-from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
-    ActiveTool,
+from le_beta_vis.frontend.viewmodels.ClusterAnalysisViewModel import (
+    ClusterAnalysisViewModel,
     ClusteringState,
-    RawDataViewModel,
 )
+
+_DEFAULT_RAW = np.arange(100, dtype=float).reshape(10, 10)
 
 
 class MockPhysicsManager(PhysicsConversionManager):
@@ -34,34 +35,36 @@ class MockPhysicsManager(PhysicsConversionManager):
     def calculate_threshold(self, sigma: float) -> float:
         return sigma * self._ped_width
 
-    def adu_to_kev(self, value: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+    def adu_to_kev(
+        self, value: Union[float, np.ndarray]
+    ) -> Union[float, np.ndarray]:
         return value * self._factor
 
 
 @pytest.fixture
-def view_model():
+def raw_holder():
+    """Mutable container so tests can swap the raw data array."""
+    return [_DEFAULT_RAW.copy()]
+
+
+@pytest.fixture
+def vm(raw_holder):
     config = MockConfigurationService()
-    physics_manager = PhysicsConversionManagerImpl(config)
-    vm = RawDataViewModel(config, physics_manager)
-    vm._converter = MagicMock()
-    vm._converter.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
-
-    def mock_request():
-        vm._render_worker_logic()
-
-    vm._request_render = mock_request
-    return vm
+    physics = PhysicsConversionManagerImpl(config)
+    return ClusterAnalysisViewModel(
+        config, physics, lambda: raw_holder[0]
+    )
 
 
-def _setup_for_clustering(vm):
-    """Helper: load mock data, set tool, add ROI, set extractor."""
-    mock_capture = MagicMock()
-    mock_capture.rawData.return_value = np.arange(100, dtype=float).reshape(10, 10)
-    mock_capture.info.return_value = MagicMock(rows=10, cols=10, min=0, max=99)
-    vm._captures = [mock_capture]
-    vm._activeIndex = 0
-    vm._image_bounds = (10, 10)
+@pytest.fixture
+def vm_no_data():
+    config = MockConfigurationService()
+    physics = PhysicsConversionManagerImpl(config)
+    return ClusterAnalysisViewModel(config, physics, lambda: None)
 
+
+def _setup_for_clustering(vm: ClusterAnalysisViewModel) -> None:
+    """Inject extractor and add ROI so clustering is available."""
     vm.setClusterExtractor(MockClusterExtractor(delay_seconds=0.01))
     vm.addRoi(0, 0, 5, 5)
 
@@ -69,117 +72,112 @@ def _setup_for_clustering(vm):
 # --- isClusteringAvailable ---
 
 
-def test_clustering_unavailable_no_extractor(view_model):
+def test_clustering_unavailable_no_extractor(vm):
     """False when no extractor is set."""
-    assert view_model.isClusteringAvailable is False
+    assert vm.isClusteringAvailable is False
 
 
-def test_clustering_unavailable_no_roi(view_model):
+def test_clustering_unavailable_no_roi(vm):
     """False when no ROI exists."""
-    _setup_for_clustering(view_model)
-    view_model.clearRois()
-    assert view_model.isClusteringAvailable is False
+    _setup_for_clustering(vm)
+    vm.clearRois()
+    assert vm.isClusteringAvailable is False
 
 
-def test_clustering_unavailable_no_data(view_model):
-    """False when no raw data is loaded."""
-    view_model.setClusterExtractor(MockClusterExtractor(delay_seconds=0.01))
-    view_model.setActiveTool(ActiveTool.BOX_SELECT)
-    view_model.addRoi(0, 0, 5, 5)
-    assert view_model.isClusteringAvailable is False
+def test_clustering_unavailable_no_data(vm_no_data):
+    """False when no raw data is available."""
+    vm_no_data.setClusterExtractor(MockClusterExtractor(delay_seconds=0.01))
+    vm_no_data.addRoi(0, 0, 5, 5)
+    assert vm_no_data.isClusteringAvailable is False
 
 
-def test_clustering_available(view_model):
+def test_clustering_available(vm):
     """True when all conditions are met."""
-    _setup_for_clustering(view_model)
-    assert view_model.isClusteringAvailable is True
+    _setup_for_clustering(vm)
+    assert vm.isClusteringAvailable is True
 
 
 # --- triggerClustering ---
 
 
-def test_trigger_sets_running(view_model):
+def test_trigger_sets_running(vm):
     """triggerClustering sets state to RUNNING."""
-    _setup_for_clustering(view_model)
-    view_model.triggerClustering()
-    assert view_model.clusteringState == ClusteringState.RUNNING
+    _setup_for_clustering(vm)
+    vm.triggerClustering()
+    assert vm.clusteringState == ClusteringState.RUNNING
 
 
-def test_trigger_fires_state_callback(view_model):
+def test_trigger_fires_state_callback(vm):
     """triggerClustering fires the state changed callback."""
-    _setup_for_clustering(view_model)
+    _setup_for_clustering(vm)
     cb = MagicMock()
-    view_model.add_clustering_state_changed_callback(cb)
-    view_model.triggerClustering()
+    vm.add_clustering_state_changed_callback(cb)
+    vm.triggerClustering()
     cb.assert_called()
 
 
-def test_trigger_noop_when_unavailable(view_model):
+def test_trigger_noop_when_unavailable(vm):
     """triggerClustering does nothing when conditions not met."""
     cb = MagicMock()
-    view_model.add_clustering_state_changed_callback(cb)
-    view_model.triggerClustering()
-    assert view_model.clusteringState == ClusteringState.IDLE
+    vm.add_clustering_state_changed_callback(cb)
+    vm.triggerClustering()
+    assert vm.clusteringState == ClusteringState.IDLE
     cb.assert_not_called()
 
 
 # --- cancelClustering ---
 
 
-def test_cancel_resets_idle(view_model):
+def test_cancel_resets_idle(vm):
     """cancelClustering sets state back to IDLE."""
-    _setup_for_clustering(view_model)
-    view_model.triggerClustering()
-    view_model.cancelClustering()
-    assert view_model.clusteringState == ClusteringState.IDLE
+    _setup_for_clustering(vm)
+    vm.triggerClustering()
+    vm.cancelClustering()
+    assert vm.clusteringState == ClusteringState.IDLE
 
 
 # --- Extraction completion ---
 
 
-def test_success_stores_results(view_model):
+def test_success_stores_results(vm):
     """Results are populated after extraction completes."""
-    _setup_for_clustering(view_model)
+    _setup_for_clustering(vm)
     done = threading.Event()
 
-    def on_completed():
-        done.set()
-
-    view_model.add_clustering_completed_callback(on_completed)
-    view_model.triggerClustering()
+    vm.add_clustering_completed_callback(lambda: done.set())
+    vm.triggerClustering()
     done.wait(timeout=2.0)
 
-    results = view_model.clusteringResults
+    results = vm.clusteringResults
     assert len(results) == 1
-    assert view_model.clusteringState == ClusteringState.IDLE
+    assert vm.clusteringState == ClusteringState.IDLE
 
 
-def test_success_fires_completed_callback(view_model):
+def test_success_fires_completed_callback(vm):
     """Completed callback fires on success."""
-    _setup_for_clustering(view_model)
+    _setup_for_clustering(vm)
     done = threading.Event()
     cb = MagicMock(side_effect=lambda: done.set())
 
-    view_model.add_clustering_completed_callback(cb)
-    view_model.triggerClustering()
+    vm.add_clustering_completed_callback(cb)
+    vm.triggerClustering()
     done.wait(timeout=2.0)
 
     cb.assert_called_once()
 
 
-def test_cancel_prevents_completed_callback(view_model):
+def test_cancel_prevents_completed_callback(vm):
     """Cancelling during extraction suppresses completed callback."""
     extractor = MockClusterExtractor(delay_seconds=1.0)
-    _setup_for_clustering(view_model)
-    view_model.setClusterExtractor(extractor)
+    vm.setClusterExtractor(extractor)
+    vm.addRoi(0, 0, 5, 5)
 
     cb = MagicMock()
-    view_model.add_clustering_completed_callback(cb)
-    view_model.triggerClustering()
-    view_model.cancelClustering()
+    vm.add_clustering_completed_callback(cb)
+    vm.triggerClustering()
+    vm.cancelClustering()
 
     import time
-
     time.sleep(0.1)
     cb.assert_not_called()
 
@@ -187,133 +185,125 @@ def test_cancel_prevents_completed_callback(view_model):
 # --- Timeout ---
 
 
-def test_timeout_fires_error_callback(view_model):
+def test_timeout_fires_error_callback(vm):
     """Error callback fires when extraction times out."""
-    # Use a slow extractor and a very short timeout
     slow = MockClusterExtractor(delay_seconds=5.0)
-    _setup_for_clustering(view_model)
-    view_model.setClusterExtractor(slow)
-    view_model._config.set("gui:raw_analysis:clustering_timeout_seconds", 0.1)
+    vm.setClusterExtractor(slow)
+    vm.addRoi(0, 0, 5, 5)
+    vm._config.set("gui:raw_analysis:clustering_timeout_seconds", 0.1)
 
     error_fired = threading.Event()
-    view_model.add_clustering_error_callback(lambda: error_fired.set())
+    vm.add_clustering_error_callback(lambda: error_fired.set())
 
-    view_model.triggerClustering()
+    vm.triggerClustering()
     assert error_fired.wait(timeout=2.0), "Error callback not fired"
-    assert view_model.clusteringState == ClusteringState.IDLE
-    assert view_model.clusteringError is not None
-    assert "timed out" in view_model.clusteringError.lower()
+    assert vm.clusteringState == ClusteringState.IDLE
+    assert vm.clusteringError is not None
+    assert "timed out" in vm.clusteringError.lower()
 
 
-def test_timeout_cancels_extractor(view_model):
+def test_timeout_cancels_extractor(vm):
     """Timeout calls cancel() on the extractor."""
     slow = MockClusterExtractor(delay_seconds=5.0)
-    _setup_for_clustering(view_model)
-    view_model.setClusterExtractor(slow)
-    view_model._config.set("gui:raw_analysis:clustering_timeout_seconds", 0.1)
+    vm.setClusterExtractor(slow)
+    vm.addRoi(0, 0, 5, 5)
+    vm._config.set("gui:raw_analysis:clustering_timeout_seconds", 0.1)
 
     done = threading.Event()
-    view_model.add_clustering_error_callback(lambda: done.set())
+    vm.add_clustering_error_callback(lambda: done.set())
 
-    view_model.triggerClustering()
+    vm.triggerClustering()
     done.wait(timeout=2.0)
-    # MockClusterExtractor sets _cancelled = True on cancel()
     assert slow._cancelled is True
 
 
-def test_successful_completion_cancels_timer(view_model):
+def test_successful_completion_cancels_timer(vm):
     """Successful extraction cancels the timeout timer."""
-    _setup_for_clustering(view_model)
-    view_model._config.set("gui:raw_analysis:clustering_timeout_seconds", 60)
+    _setup_for_clustering(vm)
+    vm._config.set("gui:raw_analysis:clustering_timeout_seconds", 60)
 
     done = threading.Event()
-    view_model.add_clustering_completed_callback(lambda: done.set())
+    vm.add_clustering_completed_callback(lambda: done.set())
 
-    view_model.triggerClustering()
+    vm.triggerClustering()
     assert done.wait(timeout=2.0), "Completion callback not fired"
-    assert view_model._clustering_timeout_timer is None
-    assert view_model.clusteringError is None
+    assert vm._clustering_timeout_timer is None
+    assert vm.clusteringError is None
 
 
-def test_clustering_error_cleared_on_new_trigger(view_model):
+def test_clustering_error_cleared_on_new_trigger(vm):
     """A new triggerClustering clears any previous error."""
-    _setup_for_clustering(view_model)
-    view_model._clusteringError = "previous error"
+    _setup_for_clustering(vm)
+    vm._clusteringError = "previous error"
 
     done = threading.Event()
-    view_model.add_clustering_completed_callback(lambda: done.set())
-    view_model.triggerClustering()
+    vm.add_clustering_completed_callback(lambda: done.set())
+    vm.triggerClustering()
     done.wait(timeout=2.0)
-    assert view_model.clusteringError is None
+    assert vm.clusteringError is None
 
 
 # --- Progress tracking ---
 
 
-def test_trigger_resets_progress(view_model):
+def test_trigger_resets_progress(vm):
     """triggerClustering resets clusteringProgress to 0.0."""
-    _setup_for_clustering(view_model)
-    view_model._clusteringProgress = 0.5
-    view_model.triggerClustering()
-    # Progress is reset before extraction starts
-    assert view_model.clusteringProgress == 0.0
+    _setup_for_clustering(vm)
+    vm._clusteringProgress = 0.5
+    vm.triggerClustering()
+    assert vm.clusteringProgress == 0.0
 
 
-def test_progress_callback_fires(view_model):
+def test_progress_callback_fires(raw_holder):
     """Progress callback is registered and fires on extractor call."""
     from le_beta_vis.common.GeneralClusterExtractor import (
         GeneralClusterExtractor,
     )
 
-    # Use GeneralClusterExtractor since it actually reports progress
     physics = MockPhysicsManager(factor=0.01, ped_width=100)
+    config = MockConfigurationService()
     extractor = GeneralClusterExtractor(
         sigma_multiplier=4.0,
         physics_manager=physics,
     )
-    _setup_for_clustering(view_model)
 
-    # Give it data with a cluster above threshold (4*100=400)
     data = np.zeros((20, 20), dtype=float)
     for i in range(5):
         data[10, 10 + i] = 500
-    mock_capture = MagicMock()
-    mock_capture.rawData.return_value = data
-    mock_capture.info.return_value = MagicMock(rows=20, cols=20, min=0, max=500)
-    view_model._captures = [mock_capture]
-    view_model._image_bounds = (20, 20)
-    view_model.clearRois()
-    view_model.addRoi(0, 0, 20, 20)
-    view_model.setClusterExtractor(extractor)
+    raw_holder[0] = data
+
+    vm = ClusterAnalysisViewModel(config, physics, lambda: raw_holder[0])
+    vm.addRoi(0, 0, 20, 20)
+    vm.setClusterExtractor(extractor)
 
     progress_fired = threading.Event()
-    view_model.add_clustering_progress_callback(lambda: progress_fired.set())
+    vm.add_clustering_progress_callback(lambda: progress_fired.set())
 
     done = threading.Event()
-    view_model.add_clustering_completed_callback(lambda: done.set())
-    view_model.triggerClustering()
+    vm.add_clustering_completed_callback(lambda: done.set())
+    vm.triggerClustering()
     done.wait(timeout=5.0)
 
     assert progress_fired.is_set()
-    assert view_model.clusteringProgress > 0.0
+    assert vm.clusteringProgress > 0.0
 
 
-def test_progress_passes_callback_to_extractor(view_model):
+def test_progress_passes_callback_to_extractor(vm):
     """triggerClustering passes progress_callback to the extractor."""
-    _setup_for_clustering(view_model)
+    _setup_for_clustering(vm)
 
     extract_kwargs = {}
-    original_extract = view_model._clusterExtractor.extract
+    original_extract = vm._clusterExtractor.extract
 
     def spy_extract(*args, **kwargs):
         extract_kwargs.update(kwargs)
         return original_extract(*args, **kwargs)
 
-    view_model._clusterExtractor.extract = spy_extract
+    vm._clusterExtractor.extract = spy_extract
 
     done = threading.Event()
-    view_model.add_clustering_completed_callback(lambda: done.set())
-    view_model.triggerClustering()
+    vm.add_clustering_completed_callback(lambda: done.set())
+    vm.triggerClustering()
     done.wait(timeout=2.0)
 
     assert "progress_callback" in extract_kwargs

@@ -90,6 +90,20 @@ class ExportOptionsDialogColors:
     CANCEL_BUTTON_HOVER = "#505050"
 
 
+class RawDataManipulationToolbarColors:
+    """Colors for RawDataManipulationToolbar."""
+
+    HDU_LABEL = "#aaaaaa"
+
+
+class MosaicThumbnailColors:
+    """Colors for ThumbnailButton paintEvent overlay."""
+
+    LABEL_TEXT = "#ffffff"
+    LABEL_TEXT_SELECTED = "#4fc3f7"
+    LABEL_BACKGROUND_RGBA = (0, 0, 0, 140)
+
+
 class TooltipStyle:
     """Shared QToolTip stylesheet snippets.
 

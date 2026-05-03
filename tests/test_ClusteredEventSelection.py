@@ -1,9 +1,5 @@
-# Citation for Unit Tests: Verifies RawDataViewModel cluster selection logic, results management,
-# and clustering tool state.
-# Date: 28/02/2026
-# Adapted from Claude Code:
-# Write headless PyTest unit tests for RawDataViewModel covering cluster selection state changes,
-# clearing results on ROI clearing, and cluster thumbnail configuration without Qt dependencies.
+"""Tests for cluster selection state, result management,
+and thumbnail config properties on ClusterAnalysisViewModel."""
 
 from unittest.mock import MagicMock
 
@@ -14,40 +10,44 @@ from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.MockClusterExtractor import MockClusterExtractor
-from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
-from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
-    ActiveTool,
-    RawDataViewModel,
+from le_beta_vis.common.PhysicsConversionManager import (
+    PhysicsConversionManagerImpl,
 )
+from le_beta_vis.frontend.viewmodels.RawDataViewModel import RawDataViewModel
 
 
 @pytest.fixture
-def view_model():
+def rdvm():
     config = MockConfigurationService()
-    physics_manager = PhysicsConversionManagerImpl(config)
-    vm = RawDataViewModel(config, physics_manager)
+    physics = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics)
     vm._converter = MagicMock()
     vm._converter.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
-
-    def mock_request():
-        vm._render_worker_logic()
-
-    vm._request_render = mock_request
+    vm._request_render = lambda: vm._render_worker_logic()
     return vm
 
 
-def _setup_for_clustering(vm):
-    """Helper: load mock data, set tool, add ROI, set extractor."""
-    mock_capture = MagicMock()
-    mock_capture.rawData.return_value = np.arange(100, dtype=float).reshape(10, 10)
-    mock_capture.info.return_value = MagicMock(rows=10, cols=10, min=0, max=99)
-    vm._captures = [mock_capture]
-    vm._activeIndex = 0
-    vm._image_bounds = (10, 10)
+@pytest.fixture
+def cavm(rdvm):
+    return rdvm.clusterAnalysisViewModel
 
-    vm.setClusterExtractor(MockClusterExtractor(delay_seconds=0.01))
-    vm.setActiveTool(ActiveTool.BOX_SELECT)
-    vm.addRoi(0, 0, 5, 5)
+
+def _setup_for_clustering(rdvm: RawDataViewModel) -> None:
+    """Load mock data into RDVM and configure CAVM for clustering."""
+    mock_capture = MagicMock()
+    mock_capture.rawData.return_value = (
+        np.arange(100, dtype=float).reshape(10, 10)
+    )
+    mock_capture.info.return_value = MagicMock(
+        rows=10, cols=10, min=0, max=99
+    )
+    rdvm._captures = [mock_capture]
+    rdvm._activeIndex = 0
+    rdvm._image_bounds = (10, 10)
+
+    cavm = rdvm.clusterAnalysisViewModel
+    cavm.setClusterExtractor(MockClusterExtractor(delay_seconds=0.01))
+    cavm.addRoi(0, 0, 5, 5)
 
 
 def _make_cluster(
@@ -70,199 +70,200 @@ def _make_cluster(
 # --- Initial state ---
 
 
-def test_initial_selection_is_negative_one(view_model):
+def test_initial_selection_is_negative_one(cavm):
     """selectedClusterIndex starts at -1."""
-    assert view_model.selectedClusterIndex == -1
+    assert cavm.selectedClusterIndex == -1
 
 
-def test_selected_cluster_returns_none_when_empty(view_model):
+def test_selected_cluster_returns_none_when_empty(cavm):
     """selectedCluster returns None when no results exist."""
-    assert view_model.selectedCluster is None
+    assert cavm.selectedCluster is None
 
 
 # --- selectCluster ---
 
 
-def test_select_cluster_valid_index(view_model):
+def test_select_cluster_valid_index(cavm):
     """selectCluster with a valid index updates selectedClusterIndex."""
-    view_model._clusteringResults = [_make_cluster(), _make_cluster()]
-    view_model.selectCluster(1)
-    assert view_model.selectedClusterIndex == 1
+    cavm._clusteringResults = [_make_cluster(), _make_cluster()]
+    cavm.selectCluster(1)
+    assert cavm.selectedClusterIndex == 1
 
 
-def test_select_cluster_fires_callback(view_model):
+def test_select_cluster_fires_callback(cavm):
     """selectCluster fires selected_cluster_changed callback."""
-    view_model._clusteringResults = [_make_cluster()]
+    cavm._clusteringResults = [_make_cluster()]
     cb = MagicMock()
-    view_model.add_selected_cluster_changed_callback(cb)
-    view_model.selectCluster(0)
+    cavm.add_selected_cluster_changed_callback(cb)
+    cavm.selectCluster(0)
     cb.assert_called_once()
 
 
-def test_select_cluster_no_double_fire(view_model):
+def test_select_cluster_no_double_fire(cavm):
     """selectCluster with same index does not fire callback."""
-    view_model._clusteringResults = [_make_cluster()]
-    view_model.selectCluster(0)
+    cavm._clusteringResults = [_make_cluster()]
+    cavm.selectCluster(0)
     cb = MagicMock()
-    view_model.add_selected_cluster_changed_callback(cb)
-    view_model.selectCluster(0)
+    cavm.add_selected_cluster_changed_callback(cb)
+    cavm.selectCluster(0)
     cb.assert_not_called()
 
 
-def test_select_cluster_invalid_index_ignored(view_model):
+def test_select_cluster_invalid_index_ignored(cavm):
     """selectCluster with out-of-range index is a no-op."""
-    view_model._clusteringResults = [_make_cluster()]
+    cavm._clusteringResults = [_make_cluster()]
     cb = MagicMock()
-    view_model.add_selected_cluster_changed_callback(cb)
-    view_model.selectCluster(5)
-    assert view_model.selectedClusterIndex == -1
+    cavm.add_selected_cluster_changed_callback(cb)
+    cavm.selectCluster(5)
+    assert cavm.selectedClusterIndex == -1
     cb.assert_not_called()
 
 
-def test_select_cluster_negative_below_minus_one_ignored(view_model):
+def test_select_cluster_negative_below_minus_one_ignored(cavm):
     """selectCluster with index < -1 is a no-op."""
-    view_model._clusteringResults = [_make_cluster()]
-    view_model.selectCluster(-2)
-    assert view_model.selectedClusterIndex == -1
+    cavm._clusteringResults = [_make_cluster()]
+    cavm.selectCluster(-2)
+    assert cavm.selectedClusterIndex == -1
 
 
-def test_select_cluster_deselect(view_model):
+def test_select_cluster_deselect(cavm):
     """selectCluster(-1) deselects."""
-    view_model._clusteringResults = [_make_cluster()]
-    view_model.selectCluster(0)
-    view_model.selectCluster(-1)
-    assert view_model.selectedClusterIndex == -1
+    cavm._clusteringResults = [_make_cluster()]
+    cavm.selectCluster(0)
+    cavm.selectCluster(-1)
+    assert cavm.selectedClusterIndex == -1
 
 
 # --- selectedCluster property ---
 
 
-def test_selected_cluster_returns_correct_info(view_model):
+def test_selected_cluster_returns_correct_info(cavm):
     """selectedCluster returns the correct ClusteredEventInfo."""
     c1 = _make_cluster(cx=1, cy=2, energy=50.0)
     c2 = _make_cluster(cx=3, cy=4, energy=200.0)
-    view_model._clusteringResults = [c1, c2]
-    view_model.selectCluster(1)
-    assert view_model.selectedCluster is c2
+    cavm._clusteringResults = [c1, c2]
+    cavm.selectCluster(1)
+    assert cavm.selectedCluster is c2
 
 
 # --- clearClusteringResults ---
 
 
-def test_clear_clustering_results(view_model):
+def test_clear_clustering_results(cavm):
     """clearClusteringResults empties results and resets selection."""
-    view_model._clusteringResults = [_make_cluster()]
-    view_model.selectCluster(0)
-    view_model.clearClusteringResults()
-    assert view_model.clusteringResults == []
-    assert view_model.selectedClusterIndex == -1
+    cavm._clusteringResults = [_make_cluster()]
+    cavm.selectCluster(0)
+    cavm.clearClusteringResults()
+    assert cavm.clusteringResults == []
+    assert cavm.selectedClusterIndex == -1
 
 
-def test_clear_clustering_results_fires_callbacks(view_model):
+def test_clear_clustering_results_fires_callbacks(cavm):
     """clearClusteringResults fires completed and selection callbacks."""
-    view_model._clusteringResults = [_make_cluster()]
+    cavm._clusteringResults = [_make_cluster()]
     completed_cb = MagicMock()
     selection_cb = MagicMock()
-    view_model.add_clustering_completed_callback(completed_cb)
-    view_model.add_selected_cluster_changed_callback(selection_cb)
+    cavm.add_clustering_completed_callback(completed_cb)
+    cavm.add_selected_cluster_changed_callback(selection_cb)
 
-    view_model.clearClusteringResults()
+    cavm.clearClusteringResults()
     completed_cb.assert_called_once()
     selection_cb.assert_called_once()
 
 
-def test_clear_clustering_noop_when_already_empty(view_model):
+def test_clear_clustering_noop_when_already_empty(cavm):
     """clearClusteringResults is a no-op when already empty."""
     cb = MagicMock()
-    view_model.add_clustering_completed_callback(cb)
-    view_model.clearClusteringResults()
+    cavm.add_clustering_completed_callback(cb)
+    cavm.clearClusteringResults()
     cb.assert_not_called()
 
 
 # --- clearRois clears clustering ---
 
 
-def test_clear_rois_clears_clustering_results(view_model):
+def test_clear_rois_clears_clustering_results(rdvm, cavm):
     """clearRois also clears clustering results."""
-    _setup_for_clustering(view_model)
-    view_model._clusteringResults = [_make_cluster()]
-    view_model.selectCluster(0)
-    view_model.clearRois()
-    assert view_model.clusteringResults == []
-    assert view_model.selectedClusterIndex == -1
+    _setup_for_clustering(rdvm)
+    cavm._clusteringResults = [_make_cluster()]
+    cavm.selectCluster(0)
+    cavm.clearRois()
+    assert cavm.clusteringResults == []
+    assert cavm.selectedClusterIndex == -1
 
 
 # --- triggerClustering clears previous results ---
 
 
-def test_trigger_clustering_clears_previous_results(view_model):
+def test_trigger_clustering_clears_previous_results(rdvm, cavm):
     """New triggerClustering clears old results and selection."""
-    _setup_for_clustering(view_model)
-    view_model._clusteringResults = [_make_cluster()]
-    view_model._selectedClusterIndex = 0
+    _setup_for_clustering(rdvm)
+    cavm._clusteringResults = [_make_cluster()]
+    cavm._selectedClusterIndex = 0
 
-    view_model.triggerClustering()
-    assert view_model._clusteringResults == []
-    assert view_model._selectedClusterIndex == -1
+    cavm.triggerClustering()
+    assert cavm._clusteringResults == []
+    assert cavm._selectedClusterIndex == -1
 
-    # Clean up: cancel so the background thread doesn't fire
-    view_model.cancelClustering()
+    cavm.cancelClustering()
 
 
 # --- Placeholder methods ---
 
 
-def test_classify_selected_cluster_no_error(view_model):
+def test_classify_selected_cluster_no_error(cavm):
     """classifySelectedCluster runs without error when cluster selected."""
-    view_model._clusteringResults = [_make_cluster()]
-    view_model.selectCluster(0)
-    view_model.classifySelectedCluster()
+    cavm._clusteringResults = [_make_cluster()]
+    cavm.selectCluster(0)
+    cavm.classifySelectedCluster()
 
 
-def test_classify_no_selection_no_error(view_model):
+def test_classify_no_selection_no_error(cavm):
     """classifySelectedCluster is safe when nothing selected."""
-    view_model.classifySelectedCluster()
+    cavm.classifySelectedCluster()
 
 
-def test_export_selected_cluster_no_error(view_model):
+def test_export_selected_cluster_no_error(cavm):
     """exportSelectedCluster runs without error when cluster selected."""
-    view_model._clusteringResults = [_make_cluster()]
-    view_model.selectCluster(0)
-    view_model.exportSelectedCluster()
+    cavm._clusteringResults = [_make_cluster()]
+    cavm.selectCluster(0)
+    cavm.exportSelectedCluster()
 
 
-def test_export_no_selection_no_error(view_model):
+def test_export_no_selection_no_error(cavm):
     """exportSelectedCluster is safe when nothing selected."""
-    view_model.exportSelectedCluster()
+    cavm.exportSelectedCluster()
 
 
 # --- Cluster display properties ---
 
 
-def test_cluster_thumbnail_colormap_enabled_by_default(view_model):
-    """clusterThumbnailColormap returns active colormap with default config."""
-    assert view_model.clusterThumbnailColormap is not None
+def test_cluster_thumbnail_colormap_enabled_by_default(cavm):
+    """clusterThumbnailColormap returns colormap with default config."""
+    assert cavm.clusterThumbnailColormap is not None
 
 
-def test_cluster_thumbnail_colormap_enabled(view_model):
+def test_cluster_thumbnail_colormap_enabled(rdvm, cavm):
     """clusterThumbnailColormap returns active colormap when enabled."""
-    view_model._config.set("gui:raw_analysis:cluster_thumbnail_use_colormap", True)
-    result = view_model.clusterThumbnailColormap
+    rdvm._config.set(
+        "gui:raw_analysis:cluster_thumbnail_use_colormap", True
+    )
+    result = cavm.clusterThumbnailColormap
     assert result is not None
     assert result.value == "viridis"
 
 
-def test_display_energy_in_kev_default_true(view_model):
+def test_display_energy_in_kev_default_true(cavm):
     """displayEnergyInKev defaults to True."""
-    assert view_model.displayEnergyInKev is True
+    assert cavm.displayEnergyInKev is True
 
 
-def test_display_energy_in_kev_disabled(view_model):
+def test_display_energy_in_kev_disabled(rdvm, cavm):
     """displayEnergyInKev returns False when config is set."""
-    view_model._config.set("gui:raw_analysis:display_energy_in_kev", False)
-    assert view_model.displayEnergyInKev is False
+    rdvm._config.set("gui:raw_analysis:display_energy_in_kev", False)
+    assert cavm.displayEnergyInKev is False
 
 
-def test_kev_conversion_from_config(view_model):
-    """kevConversion reads from config."""
-    assert view_model.kevConversion == pytest.approx(1.02857e-5)
+def test_kev_conversion_from_config(cavm):
+    """kevConversion reads from physics manager."""
+    assert cavm.kevConversion == pytest.approx(1.02857e-5)
