@@ -11,6 +11,7 @@ from .CCDCaptureModel import CCDCaptureModel
 from .RegionOfInterest import RegionOfInterest
 from .RoiRect import RoiRect
 from .BoundingBox import BoundingBox
+from .AnnotationOverlay import AnnotationOverlay
 from .Colormap import Colormap
 from .ColormapLUT import colormap_lut, resolve_colormap
 from .ClusterExtractor import ClusterExtractor, ClusteredEventInfo

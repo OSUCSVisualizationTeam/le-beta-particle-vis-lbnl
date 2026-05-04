@@ -90,6 +90,12 @@ class ExportOptionsDialogColors:
     CANCEL_BUTTON_HOVER = "#505050"
 
 
+class HUDAnnotationOverlayColors:
+    """Colors for AnnotationOverlay rectangles on HDUVisualizationHUDWidget."""
+
+    BORDER = "#FFFF00"
+
+
 class RawDataManipulationToolbarColors:
     """Colors for RawDataManipulationToolbar."""
 

@@ -441,7 +441,7 @@ class RawDataView(QWidget):
         """
         self._rightSidebarTabs.setCurrentIndex(self._roiInfoTabIndex)
         self.viewModel.resetZoom()
-        self.viewModel.clearRois()
+        self._cavm.clearRois()
         self._pendingClusterFocus = (hdu_id, roi)
         self._pendingClusterRoiAdded = False
         self.viewModel.loadFile(fitsPath)
@@ -460,7 +460,7 @@ class RawDataView(QWidget):
         _hdu_id, (top, left, bottom, right) = self._pendingClusterFocus
 
         if not self._pendingClusterRoiAdded:
-            self.viewModel.addRoi(top, left, bottom, right)
+            self._cavm.addRoi(top, left, bottom, right)
             self._pendingClusterRoiAdded = True
 
         cx = (left + right) / 2.0

@@ -1,10 +1,12 @@
-from typing import Optional
+from typing import List, Optional
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QPainter, QShowEvent
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsView, QWidget
 
+from le_beta_vis.common import AnnotationOverlay
 from .CaptureGraphicsView import CaptureGraphicsView
+from ._HUDAnnotationOverlaysItem import _HUDAnnotationOverlaysItem
 from ._HUDBoxSelectionItem import _HUDBoxSelectionItem
 from ._HUDMagnifierBorderItem import _HUDMagnifierBorderItem
 from .MagnifierGraphicsItem import MagnifierGraphicsItem
@@ -46,6 +48,10 @@ class HDUVisualizationHUDWidget(QGraphicsView):
         self._magnifierItem: Optional[MagnifierGraphicsItem] = None
         self._magnifierVisible: bool = False
 
+        self._annotationOverlaysItem = _HUDAnnotationOverlaysItem()
+        self._hudScene.addItem(self._annotationOverlaysItem)
+        self._annotationOverlays: List[AnnotationOverlay] = []
+
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setStyleSheet("background: transparent; border: 0px;")
@@ -83,6 +89,15 @@ class HDUVisualizationHUDWidget(QGraphicsView):
         """
         self._boxSelectionSceneRect = QRectF(rect) if rect is not None else None
         self._reprojectBoxSelection()
+
+    def setAnnotationOverlays(self, overlays: List[AnnotationOverlay]) -> None:
+        """Replace the set of annotation overlays drawn on the HUD.
+
+        Each overlay's bounding_box is in source-scene (FITS pixel) coordinates.
+        Pass an empty list to hide all overlays.
+        """
+        self._annotationOverlays = list(overlays)
+        self._reprojectAnnotationOverlays()
 
     def setBoxSelectionColor(self, color: str) -> None:
         self._boxSelectionItem.setColor(color)
@@ -136,6 +151,20 @@ class HDUVisualizationHUDWidget(QGraphicsView):
             item.hintLines,
         )
 
+    def _reprojectAnnotationOverlays(self) -> None:
+        widgetRects = [
+            self.mapSceneRectToWidget(
+                QRectF(
+                    o.bounding_box.left,
+                    o.bounding_box.top,
+                    o.bounding_box.right - o.bounding_box.left,
+                    o.bounding_box.bottom - o.bounding_box.top,
+                )
+            )
+            for o in self._annotationOverlays
+        ]
+        self._annotationOverlaysItem.setWidgetRects(widgetRects)
+
     def _reprojectBoxSelection(self) -> None:
         if self._boxSelectionSceneRect is None:
             self._boxSelectionItem.setWidgetRect(None)
@@ -149,6 +178,7 @@ class HDUVisualizationHUDWidget(QGraphicsView):
         self._syncSceneRect()
         self._reprojectBoxSelection()
         self._reprojectMagnifier()
+        self._reprojectAnnotationOverlays()
         self.viewportChanged.emit()
 
     def _syncSceneRect(self) -> None:
