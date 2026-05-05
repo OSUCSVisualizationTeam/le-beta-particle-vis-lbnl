@@ -637,15 +637,17 @@ class RawDataView(QWidget):
 
     @Slot()
     def _updateClusterAnnotationOverlay(self):
-        """Draws or clears the annotation overlay for the selected cluster."""
+        """Draws or clears annotation overlays for all selected clusters."""
         hud = self._centerContainer.hudWidget
         if hud is None:
             return
-        cluster = self._cavm.selectedCluster
-        if cluster is None:
+        clusters = self._cavm.selectedClusters
+        if not clusters:
             hud.setAnnotationOverlays([])
             return
-        hud.setAnnotationOverlays([AnnotationOverlay(cluster.boundingBox)])
+        hud.setAnnotationOverlays(
+            [AnnotationOverlay(c.boundingBox) for c in clusters]
+        )
 
     @Slot()
     def _clearClusterAnnotationOverlay(self):
