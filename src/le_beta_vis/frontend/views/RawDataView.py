@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from le_beta_vis.common import AnnotationOverlay
 from ..fitsconverters import Colormap, ScalingFunction
 from ..viewmodels.ClusterAnalysisViewModel import ClusteringState
 from ..viewmodels.RawDataViewModel import RawDataViewModel
@@ -247,6 +248,7 @@ class RawDataView(QWidget):
         self._bindGraphicsViewSignals()
         self._bindRoiCallbacks()
         self._bindClusteringOverlayCallbacks()
+        self._bindClusterSelectionCallbacks()
 
     def _bindImageCallbacks(self):
         """Wire image rendering, scale, mosaic, and range control."""
@@ -355,6 +357,29 @@ class RawDataView(QWidget):
             )
 
         self._cavm.add_clustering_error_callback(on_clustering_error)
+
+    def _bindClusterSelectionCallbacks(self):
+        """Wire cluster selection to the annotation overlay on the HUD.
+
+        AutoConnection is required: selectCluster fires on the main thread
+        (user click), while clearClusteringResults can fire from a background
+        thread (new extraction result). File-load and HDU-change come from
+        background threads, so they use QueuedConnection.
+        """
+
+        def on_selection_changed():
+            QMetaObject.invokeMethod(
+                self, "_updateClusterAnnotationOverlay", Qt.AutoConnection
+            )
+
+        def on_context_changed():
+            QMetaObject.invokeMethod(
+                self, "_clearClusterAnnotationOverlay", Qt.QueuedConnection
+            )
+
+        self._cavm.add_selected_cluster_changed_callback(on_selection_changed)
+        self.viewModel.add_file_loaded_callback(on_context_changed)
+        self.viewModel.add_active_hdu_changed_callback(on_context_changed)
 
     def updateMosaicVisibility(self):
         count = len(self.viewModel.mosaicViewModel.thumbnails)
@@ -609,6 +634,26 @@ class RawDataView(QWidget):
             hud.setBoxSelectionSceneRect(sceneRect)
         else:
             hud.setBoxSelectionSceneRect(None)
+
+    @Slot()
+    def _updateClusterAnnotationOverlay(self):
+        """Draws or clears the annotation overlay for the selected cluster."""
+        hud = self._centerContainer.hudWidget
+        if hud is None:
+            return
+        cluster = self._cavm.selectedCluster
+        if cluster is None:
+            hud.setAnnotationOverlays([])
+            return
+        hud.setAnnotationOverlays([AnnotationOverlay(cluster.boundingBox)])
+
+    @Slot()
+    def _clearClusterAnnotationOverlay(self):
+        """Clears all annotation overlays (file load, HDU change)."""
+        hud = self._centerContainer.hudWidget
+        if hud is None:
+            return
+        hud.setAnnotationOverlays([])
 
     @Slot()
     def _updateClusteringState(self):
