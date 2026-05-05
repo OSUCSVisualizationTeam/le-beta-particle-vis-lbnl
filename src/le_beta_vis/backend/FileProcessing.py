@@ -25,7 +25,7 @@ def process_file(config_service: ConfigurationService, file: Path):
         ped_width = config.get(key = "global:physics:ped_width")
         fits_name = file
         capture = CCDCaptureModel.load(file)
-        fits_id = None 
+        fits_id = None
         process_context = zmq.Context()
         try:
             fits_id = store_fits(process_context, config, fits_name, capture, fits_id, kev, ped_width)
@@ -42,15 +42,15 @@ def store_fits(process_context: zmq.Context, config: ConfigurationService, fits_
     try:
         socket.connect(config.get("eps:fits_ipc"))
         # Form JSON request with fits data, send to endpoint and grab response
-        request = {
-        "Action": "Storage",
-        "filename": fits_name,
-        "date": str(capture[0].info().captureDate()),
-        "min": float(min(capture[0].info().min, capture[1].info().min, capture[2].info().min, capture[3].info().min)),
-        "max": float(max(capture[0].info().max, capture[1].info().max, capture[2].info().max, capture[3].info().max)),
-        "exposure_time": str(capture[0].info().exposureDuration())
-        }
-        socket.send_json(request)
+        request = FitsStoreRequest(
+                filename = fits_name,
+                date= str(capture[0].info().captureDate()),
+                min= float(min(capture[0].info().min, capture[1].info().min, capture[2].info().min, capture[3].info().min)),
+                max= float(max(capture[0].info().max, capture[1].info().max, capture[2].info().max, capture[3].info().max)),
+                exposure_time= str(capture[0].info().exposureDuration())
+        )
+        request_dict = request.to_eps_dict()
+        socket.send_json(request_dict)
         logger.info("New store FITS request sent to EPS.")
         response = socket.recv_json()
         if response["result"] == "success":
@@ -139,24 +139,24 @@ def store_cluster(config: ConfigurationService, process_context: zmq.Context, cl
     try:
         socket.connect(config.get("eps:cluster_ipc"))
         # Form JSON request with cluster data, send to endpoint and grab response
-        request = {
-                "Action": "Storage",
-                "data": None,
-                "hdu_id": cluster.hdu_id,
-                "bounding_box": {
+        request = ClusterStoreRequest(
+                data = None,
+                hdu_id= cluster.hdu_id,
+                bounding_box= {
                     "top": int(cluster.boundingBox.top),
                     "left":int(cluster.boundingBox.left),
                     "bottom": int(cluster.boundingBox.bottom),
                     "right": int(cluster.boundingBox.right)
                 },
-                "sigmaX": float(cluster.sigmaX),
-                "sigmaY": float(cluster.sigmaY),
-                "total_energy": float(cluster.energy),
-                "total_pixels": int(cluster.pixelCount),
-                "fits_id": cluster.fitsId,
-                "classification": cluster.classification
-            }
-        socket.send_json(request)
+                sigma_x= float(cluster.sigmaX),
+                sigma_y= float(cluster.sigmaY),
+                total_energy= float(cluster.energy),
+                total_pixels= int(cluster.pixelCount),
+                fits_id= cluster.fitsId,
+                classification= cluster.classification
+        )
+        request_dict = request.to_eps_dict()
+        socket.send_json(request_dict)
         response = socket.recv_json()
         if response["result"] == "success":
             cluster.clusterId = response["cluster_id"]

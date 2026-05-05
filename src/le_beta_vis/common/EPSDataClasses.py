@@ -247,6 +247,7 @@ class FitsStoreRequest:
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS Fits socket"""
         return {
+            "Action": "Storage",
             "filename": self.filename,
             "date": self.date,
             "min": self.min,
