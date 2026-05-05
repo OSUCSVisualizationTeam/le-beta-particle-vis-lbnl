@@ -131,6 +131,11 @@ class CaptureGraphicsView(QGraphicsView):
                 left = int(min(start.x(), end.x()))
                 bottom = int(max(start.y(), end.y()))
                 right = int(max(start.x(), end.x()))
+                sr = self.sceneRect()
+                top = max(0, min(top, int(sr.height())))
+                left = max(0, min(left, int(sr.width())))
+                bottom = max(0, min(bottom, int(sr.height())))
+                right = max(0, min(right, int(sr.width())))
                 self._boxSelectStart = None
                 self._boxSelectCurrent = None
                 self.viewport().update()
