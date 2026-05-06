@@ -54,6 +54,7 @@ class ClusterQueryFilter:
 
     cluster_id: Optional[int] = None
     fits_id: Optional[int] = None
+    fits_list: Optional[List] = None
     hdu_id: Optional[int] = None
     bounding_box: Optional[dict] = None
     date_start: Optional[datetime] = None
@@ -74,6 +75,8 @@ class ClusterQueryFilter:
             d["cluster_id"] = self.cluster_id
         if self.fits_id is not None:
             d["fits_id"] = self.fits_id
+        if self.fits_list is not None:
+            d["fits_list"] = self.fits_list
         if self.hdu_id is not None:
             d["hdu_id"] = self.hdu_id
         if self.date_start is not None and self.date_end is not None:
@@ -95,6 +98,24 @@ class ClusterQueryFilter:
             d["classification"] = self.classification
         return d
 
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "ClusterQueryFilter":
+        """Parses one ClusterQueryFilter request."""
+        date = d.get("date", None)
+        return ClusterQueryFilter(
+            cluster_id = d.get("cluster_id", None),
+            fits_id = d.get("fits_id", None),
+            fits_list = d.get("fits_list", None),
+            hdu_id = d.get("hdu_id", None),
+            bounding_box = d.get("bounding_box", None),
+            date_start = datetime.strptime(date.get("start", None), _DATE_FILTER_FORMAT) if date else None,
+            date_end = datetime.strptime(date.get("end", None), _DATE_FILTER_FORMAT) if date else None,
+            min_sigma_x = d.get("sigmaX", None),
+            min_sigma_y = d.get("sigmaY", None),
+            min_total_energy = d.get("total_energy", None),
+            min_total_pixels = d.get("total_pixels", None),
+            classification = d.get("classification", None),
+        )
 
 @dataclass(frozen=True)
 class ClusterRecentQueryFilter:
@@ -122,6 +143,13 @@ class ClusterRecentQueryFilter:
             "offset": self.offset,
         }
 
+    @staticmethod
+    def from_eps_dict(d: dict[str, any]) -> "ClusterRecentQueryFilter":
+        """Parses one ClusterRecentQuery request."""
+        return ClusterRecentQueryFilter(
+            limit=(d.get("limit")),
+            offset=(d.get("offset", 0))
+        )
 
 @dataclass(frozen=True)
 class FitsQueryFilter:
@@ -158,6 +186,20 @@ class FitsQueryFilter:
             d["exposure_time"] = self.exposure_time
         return d
 
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "FitsQueryFilter":
+        """Parses one FitsQueryFilter request"""
+        date = d.get("date", None)
+        return FitsQueryFilter(
+            fits_id = d.get("fits_id", None),
+            filename = d.get("filename", None),
+            date_start = datetime.strptime(date.get("start", None), _DATE_FILTER_FORMAT) if date else None,
+            date_end = datetime.strptime(date.get("end", None), _DATE_FILTER_FORMAT) if date else None,
+            minimum = d.get("minimum", None),
+            maximum = d.get("maximum", None),
+            exposure_time = d.get("exposure_time", None),
+        )
+
 @dataclass(frozen=True)
 class FitsClusterQueryFilter:
     """Filter criteria for an EPS FITS Clusters Retrieval request."""
@@ -193,6 +235,38 @@ class FitsClusterQueryFilter:
             d["exposure_time"] = self.exposure_time
         return d
 
+@dataclass(frozen=True)
+class FitsStoreRequest:
+    """Payload for an EPS Fits Storage request"""
+    filename: str
+    date: str
+    min: float
+    max: float
+    exposure_time: float
+
+    def to_eps_dict(self) -> Dict[str, Any]:
+        """Builds the JSON dict expected by the EPS Fits socket"""
+        return {
+            "Action": "Storage",
+            "filename": self.filename,
+            "date": self.date,
+            "min": self.min,
+            "max": self.max,
+            "exposure_time": self.exposure_time,
+        }
+
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "FitsStoreRequest":
+        """Parses one Fits storage request."""
+        return FitsStoreRequest(
+            filename=d.get("filename", ""),
+            date=str(d.get("date", "")),
+            min=d.get("min", 0.0),
+            max=d.get("max", 0.0),
+            exposure_time=d.get("exposure_time", 0.0),
+        )
+
+
 
 @dataclass(frozen=True)
 class ClusterStoreRequest:
@@ -223,6 +297,21 @@ class ClusterStoreRequest:
             "classification": self.classification,
         }
 
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "ClusterStoreRequest":
+        """Parses one ``clusters`` storage request."""
+        return ClusterStoreRequest(
+            data=d.get("data", []),
+            hdu_id=d.get("hdu_id", 0),
+            bounding_box=d.get("bounding_box"),
+            sigma_x=float(d.get("sigmaX", 0.0)),
+            sigma_y=float(d.get("sigmaY", 0.0)),
+            total_energy=float(d.get("total_energy", 0.0)),
+            total_pixels=int(d.get("total_pixels", 0)),
+            fits_id=d.get("fits_id", 0),
+            classification=str(d.get("classification", "")),
+        )
+
 
 @dataclass(frozen=True)
 class ClassificationUpdateRequest:
@@ -239,6 +328,13 @@ class ClassificationUpdateRequest:
             "classification": self.classification,
         }
 
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "ClassificationUpdateRequest":
+        """Parses one ClassificationUpdateRequest"""
+        return ClassificationUpdateRequest(
+            cluster_id=(d.get("cluster_id", 0)),
+            classification=(d.get("classification", ""))
+         )
 
 # ---------------------------------------------------------------------------
 # Response DTOs
@@ -250,6 +346,7 @@ class EPSClusterRecord:
     """A single cluster record from an EPS Cluster Retrieval response."""
 
     fits_id: int
+    fits_list: Optional[List[int]]
     hdu_id: int
     cluster_id: int
     bounding_box: dict
@@ -258,7 +355,7 @@ class EPSClusterRecord:
     sigma_x: float
     sigma_y: float
     classification: str
-    total_pixels: int 
+    total_pixels: int
     filename: str
     date: str
 
@@ -267,6 +364,7 @@ class EPSClusterRecord:
         """Parses one element of the ``clusters`` response array."""
         return EPSClusterRecord(
             fits_id=d.get("fits_id", 0),
+            fits_list=d.get("fits_list", []),
             hdu_id=d.get("hdu_id", 0),
             cluster_id=d.get("cluster_id", 0),
             bounding_box=d.get("bounding_box"),

@@ -134,8 +134,8 @@ class TestStoreFits:
         sent_payload = socket.send_json.call_args.args[0]
         assert sent_payload["Action"] == "Storage"
         assert sent_payload["filename"] == "capture.fits"
-        assert sent_payload["minimum"] == 10.0
-        assert sent_payload["maximum"] == 40.0
+        assert sent_payload["min"] == 10.0
+        assert sent_payload["max"] == 40.0
         socket.close.assert_called_once()
 
     def test_store_fits_failure_returns_none(self):

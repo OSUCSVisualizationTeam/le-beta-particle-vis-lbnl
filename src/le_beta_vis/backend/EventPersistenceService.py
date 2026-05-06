@@ -3,6 +3,17 @@ import mysql.connector
 from le_beta_vis.common.YAMLBackedConfigurationService import (
     YAMLBackedConfigurationService,
 )
+from le_beta_vis.common.EPSDataClasses import (
+    ClusterQueryFilter,
+    ClusterRecentQueryFilter,
+    FitsQueryFilter,
+    FitsClusterQueryFilter,
+    FitsStoreRequest,
+    ClusterStoreRequest,
+    ClassificationUpdateRequest,
+    EPSClusterRecord,
+    EPSFitsRecord
+)
 import os
 import zmq
 import numpy as np
@@ -74,51 +85,6 @@ class EventPersistence:
         self.db_password = self.config.get("global:db:password")
         self.database = self.config.get("global:db:database")
         self.conn = None
-
-        # Initialize storage and retrieval dictionaries to avoid unbound local errors
-        self.fits_to_store = {
-            "filename": None,
-            "date": None,
-            "minimum": None,
-            "maximum": None,
-            "exposure_time": None,
-        }
-        self.retrieval_fits = {
-            "filename": None,
-            "fits_id": None,
-            "date": None,
-            "minimum": None,
-            "maximum": None,
-            "exposure_time": None,
-        }
-        self.cluster_to_store = {
-            "data": None,
-            "bounding_box": None,
-            "hdu_id": None,
-            "sigmaX": None,
-            "sigmaY": None,
-            "total_energy": None,
-            "total_pixels": None,
-            "fits_id": None,
-            "classification": None,
-        }
-        self.retrieval_clusters = {
-            "data": None,
-            "cluster_id": None,
-            "bounding_box": None,
-            "date": None,
-            "hdu_id": None,
-            "sigmaX": None,
-            "sigmaY": None,
-            "total_energy": None,
-            "total_pixels": None,
-            "fits_id": None,
-            "classification": None,
-        }
-        self.retrieval_recent_clusters = {
-            "limit": 0,
-            "offset": 0,
-        }
 
         self.conn = self.db_connect()  # connect to DB before listening loop
         self.initialize_server()
@@ -209,18 +175,8 @@ class EventPersistence:
         if request.get("Action") == "Storage":
             # Reassemble JSON as dict for storage in object
             try:
-                self.cluster_to_store = {
-                    "data": request.get("data"),
-                    "bounding_box": request.get("bounding_box"),
-                    "hdu_id": request.get("hdu_id"),
-                    "sigmaX": request.get("sigmaX"),
-                    "sigmaY": request.get("sigmaY"),
-                    "total_energy": request.get("total_energy"),
-                    "total_pixels": request.get("total_pixels"),
-                    "fits_id": request.get("fits_id"),
-                    "classification": request.get("classification"),
-                }
-                response = self.store_cluster()
+                cluster_to_store = ClusterStoreRequest.from_eps_dict(request)
+                response = self.store_cluster(cluster_to_store)
                 if response:
                     socket.send_json({"result": "success", "cluster_id": response})
                 else:
@@ -232,20 +188,8 @@ class EventPersistence:
 
         elif request.get("Action") == "Retrieval":
             try:
-                self.retrieval_clusters = {
-                    "data": request.get("data"),
-                    "cluster_id": request.get("cluster_id"),
-                    "bounding_box": request.get("bounding_box"),
-                    "date": request.get("date"),
-                    "hdu_id": request.get("hdu_id"),
-                    "sigmaX": request.get("sigmaX"),
-                    "sigmaY": request.get("sigmaY"),
-                    "total_energy": request.get("total_energy"),
-                    "total_pixels": request.get("total_pixels"),
-                    "fits_id": request.get("fits_id"),
-                    "classification": request.get("classification"),
-                }
-                response = self.retrieve_clusters()
+                retrieval_clusters = ClusterQueryFilter.from_eps_dict(request)
+                response = self.retrieve_clusters(retrieval_clusters)
                 socket.send_json(response)
             except Exception as err:
                 socket.send_json(
@@ -254,15 +198,22 @@ class EventPersistence:
 
         elif request.get("Action") == "RecentRetrieval":
             try:
-                self.retrieval_recent_clusters = {
-                    "limit": request.get("limit"),
-                    "offset": request.get("offset", 0),
-                }
-                response = self.retrieve_recent_clusters()
+                recent_clusters = ClusterRecentQueryFilter.from_eps_dict(request)
+                response = self.retrieve_recent_clusters(recent_clusters)
                 socket.send_json(response)
             except Exception as err:
                 socket.send_json(
                     {"result": "failure", "clusters": None, "error": str(err)}
+                )
+
+        elif request.get("Action") == "UpdateClassification":
+            try:
+                cluster_to_classify = ClassificationUpdateRequest.from_eps_dict(request)
+                response = self.classify_cluster(cluster_to_classify)
+                socket.send_json(response)
+            except Exception as err:
+                socket.send_json(
+                    {"result": "failure", "error": str(err)}
                 )
 
     def fits_event(self, request: dict, socket: zmq.Socket):
@@ -271,14 +222,8 @@ class EventPersistence:
         if request.get("Action") == "Storage":
             # Reassemble JSON as dict for storage in object
             try:
-                self.fits_to_store = {
-                    "filename": request.get("filename"),
-                    "date": request.get("date"),
-                    "minimum": request.get("minimum"),
-                    "maximum": request.get("maximum"),
-                    "exposure_time": request.get("exposure_time"),
-                }
-                response = self.store_fits()
+                fits = FitsStoreRequest.from_eps_dict(request)
+                response = self.store_fits(fits)
                 if response:
                     socket.send_json({"result": "success", "fits_id": response})
                 else:
@@ -290,67 +235,45 @@ class EventPersistence:
 
         elif request.get("Action") == "Retrieval":
             try:
-                self.retrieval_fits = {
-                    "filename": request.get("filename"),
-                    "fits_id": request.get("fits_id"),
-                    "date": request.get("date"),
-                    "minimum": request.get("minimum"),
-                    "maximum": request.get("maximum"),
-                    "exposure_time": request.get("exposure_time"),
-                }
-                response = self.retrieve_fits()
+                retrieval_fits = FitsQueryFilter.from_eps_dict(request)
+                response = self.retrieve_fits(retrieval_fits)
                 socket.send_json(response)
             except Exception as err:
                 socket.send_json({"result": "failure", "fits": None, "error": str(err)})
 
         elif request.get("Action") == "Clusters":
             try:
-                self.retrieval_fits = {
-                    "filename": request.get("filename"),
-                    "fits_id": request.get("fits_id"),
-                    "date": request.get("date"),
-                    "minimum": request.get("minimum"),
-                    "maximum": request.get("maximum"),
-                    "exposure_time": request.get("exposure_time"),
-                }
-                fits_ids = self.retrieve_fits()
+                retrieval_fits = FitsQueryFilter.from_eps_dict(request)
+                fits_ids = self.retrieve_fits(retrieval_fits)
                 cluster_retrieval_ids = []
                 for key in fits_ids["fits"]:
                     cluster_retrieval_ids.append(key["fits_id"])
 
                 # Format cluster retrieval request to only contain fits_ids that we want to view
-                self.retrieval_clusters = {
-                    "data": None,
-                    "cluster_id": None,
-                    "bounding_box": None,
-                    "hdu_id": None,
-                    "sigmaX": None,
-                    "sigmaY": None,
-                    "total_energy": None,
-                    "total_pixels": None,
-                    "fits_id": cluster_retrieval_ids,
-                    "classification": None,
+                retrieval_cluster_dict = {
+                    "fits_list": cluster_retrieval_ids,
                 }
 
-                response = self.retrieve_clusters()
+                retrieval_clusters = ClusterQueryFilter.from_eps_dict(retrieval_cluster_dict)
+                response = self.retrieve_clusters(retrieval_clusters)
                 socket.send_json(response)
             except Exception as err:
                 socket.send_json(
                     {"result": "failure", "clusters": None, "error": str(err)}
                 )
 
-    def store_fits(self) -> int:
+    def store_fits(self, fits: FitsStoreRequest) -> int:
         """Uses the persistent EPS DB connection to call the stored procedure insert_fits on the database with the values from
         the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
             cursor = self.conn.cursor()
-            filename = self.fits_to_store["filename"]
-            date = self.fits_to_store["date"]
-            minimum = self.fits_to_store["minimum"]
-            maximum = self.fits_to_store["maximum"]
-            exposure_time = self.fits_to_store["exposure_time"]
+            filename = fits.filename
+            date = fits.date
+            minimum = fits.min
+            maximum = fits.max
+            exposure_time = fits.exposure_time
             proc_args = (filename, date, minimum, maximum, exposure_time, None)
 
             fits_id = cursor.callproc("insert_fits", proc_args)[-1]
@@ -367,32 +290,32 @@ class EventPersistence:
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
 
-    def store_cluster(self) -> int:
+    def store_cluster(self, cluster: ClusterStoreRequest) -> int:
         """Uses the persistent EPS DB connection to call the stored procedure insert_cluster on the database with the values
         from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
             cursor = self.conn.cursor()
-            bounding_box = self.cluster_to_store.get("bounding_box") or {}
+            bounding_box = cluster.bounding_box or {}
             box_top = bounding_box.get("top")
             box_left = bounding_box.get("left")
             box_bottom = bounding_box.get("bottom")
             box_right = bounding_box.get("right")
 
             proc_args = (
-                self.cluster_to_store["fits_id"],
-                self.cluster_to_store["hdu_id"],
+                cluster.fits_id,
+                cluster.hdu_id,
                 box_top,
                 box_left,
                 box_bottom,
                 box_right,
-                self.cluster_to_store["data"],
-                self.cluster_to_store["total_energy"],
-                self.cluster_to_store["sigmaX"],
-                self.cluster_to_store["sigmaY"],
-                self.cluster_to_store["classification"],
-                self.cluster_to_store["total_pixels"],
+                cluster.data,
+                cluster.total_energy,
+                cluster.sigma_x,
+                cluster.sigma_y,
+                cluster.classification,
+                cluster.total_pixels,
                 None,
             )
 
@@ -409,24 +332,26 @@ class EventPersistence:
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
 
-    def retrieve_fits(self) -> dict:
+    def retrieve_fits(self, fits: FitsQueryFilter) -> dict:
         """Selects from the database all values from the fits table that match any and all values from the request."""
         try:
-            if not self.conn:
+            if not self.conn: 
                 self.conn = self.db_connect()
-            cursor = self.conn.cursor()
+            cursor = self.conn.cursor(dictionary=True)
 
-            filename = self.retrieval_fits["filename"]
-            fits_id = self.retrieval_fits["fits_id"]
-            date_range = _parse_date_filter(self.retrieval_fits["date"])
-            minimum = self.retrieval_fits["minimum"]
-            maximum = self.retrieval_fits["maximum"]
-            exposure_time = self.retrieval_fits["exposure_time"]
+            filename = fits.filename
+            fits_id = fits.fits_id
+            date_start = str(fits.date_start) if fits.date_start else None
+            date_end = str(fits.date_end) if fits.date_start else None
+            date_range = _parse_date_filter({"start": date_start, "end": date_end})
+            minimum = fits.minimum
+            maximum = fits.maximum
+            exposure_time = fits.exposure_time
             select_query = "SELECT * FROM fits_files"
             select_args = []
             select_argv = []
             if filename:
-                select_args.append("filename = %s")
+                select_args.append("fileName = %s")
                 select_argv.append(filename)
             if fits_id:
                 select_args.append("fitsID = %s")
@@ -435,13 +360,13 @@ class EventPersistence:
                 select_args.append("date BETWEEN %s AND %s")
                 select_argv.extend(date_range)
             if minimum:
-                select_args.append("minimum = %s")
+                select_args.append("min = %s")
                 select_argv.append(minimum)
             if maximum:
-                select_args.append("maximum = %s")
+                select_args.append("max = %s")
                 select_argv.append(maximum)
             if exposure_time:
-                select_args.append("exposure_time = %s")
+                select_args.append("exposureTime = %s")
                 select_argv.append(exposure_time)
 
             if len(select_args) > 0:
@@ -457,37 +382,35 @@ class EventPersistence:
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
 
-    def retrieve_clusters(self) -> dict:
+    def retrieve_clusters(self, clusters: ClusterQueryFilter) -> dict:
         """Selects from the database all values from the clusters table that match any and all values from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
             cursor = self.conn.cursor(dictionary=True)
-
-            data = self.retrieval_clusters["data"]
-            hdu = self.retrieval_clusters["hdu_id"]
-            cluster_id = self.retrieval_clusters["cluster_id"]
-            date_range = _parse_date_filter(self.retrieval_clusters["date"])
-            bounding_box = self.retrieval_clusters["bounding_box"]
-            fits_id = self.retrieval_clusters["fits_id"]
-            sigmaX = self.retrieval_clusters["sigmaX"]
-            sigmaY = self.retrieval_clusters["sigmaY"]
-            total_energy = self.retrieval_clusters["total_energy"]
-            total_pixels = self.retrieval_clusters["total_pixels"]
-            classification = self.retrieval_clusters["classification"]
+            hdu = clusters.hdu_id
+            cluster_id = clusters.cluster_id
+            date_start = str(clusters.date_start) if clusters.date_start else None
+            date_end = str(clusters.date_end) if clusters.date_end else None
+            date_range = _parse_date_filter({"start": date_start, "end": date_end})
+            bounding_box = clusters.bounding_box
+            fits_id = clusters.fits_id
+            fits_list = clusters.fits_list
+            sigmaX = clusters.min_sigma_x
+            sigmaY = clusters.min_sigma_y
+            total_energy = clusters.min_total_energy
+            total_pixels = clusters.min_total_pixels
+            classification = clusters.classification
 
             select_query = "SELECT clusters.*, fits_files.filename, fits_files.date FROM clusters INNER JOIN fits_files ON clusters.fitsFile = fits_files.fitsID"
             select_args = []
             select_argv = []
-            if data:
-                select_args.append("data = %s")
-                select_argv.append(data)
             if hdu:
                 select_args.append("hdu_id = %s")
                 select_argv.append(hdu)
             if bounding_box:
                 select_args.extend(
-                    ["top = %s", "left = %s", "bottom = %s", "right = %s"]
+                    ["box_top = %s", "box_left = %s", "box_bottom = %s", "box_right = %s"]
                 )
                 select_argv.extend(
                     [
@@ -501,14 +424,12 @@ class EventPersistence:
                 select_args.append("fits_files.date BETWEEN %s AND %s")
                 select_argv.extend(date_range)
             if fits_id:
-                if isinstance(fits_id, list):
-                    # If searching multiple fits files, set up parameters and append tuples to arg values
-                    placeholder = ", ".join(["%s"] * len(fits_id))
-                    select_args.append(f"fitsFile in {placeholder}")
-                    select_argv.append(tuple(fits_id))
-                else:
-                    select_args.append("fitsFile = %s")
-                    select_argv.append(fits_id)
+                select_args.append("fitsFile = %s")
+                select_argv.append(fits_id)
+            if fits_list:
+                placeholder = ", ".join(["%s"] * len(fits_list))
+                select_args.append(f"fitsFile in ({placeholder})")
+                select_argv.extend(fits_list)
             if cluster_id:
                 select_args.append("clusterId = %s")
                 select_argv.append(cluster_id)
@@ -540,8 +461,37 @@ class EventPersistence:
 
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
+        
+    def classify_cluster(self, cluster: ClassificationUpdateRequest) -> dict:
+        """Executes the insert_classifications stored procedure in the database based on the EPS
+            UpdateClassification request. 
+        """
+        try:
+            if not self.conn:
+                    self.conn = self.db_connect()
+            cursor = self.conn.cursor()
+            cluster_id = cluster.cluster_id
+            classification = cluster.classification
+            proc_args = (classification, cluster_id, None)
+            rows_updated = cursor.callproc("insert_classifications", proc_args)[-1]
 
-    def retrieve_recent_clusters(self) -> dict:
+            if rows_updated is not None and rows_updated > 0:
+                self.conn.commit()
+                cursor.close()
+                return {"result": "success", "updated": rows_updated}
+            elif rows_updated == 0:
+                self.conn.commit()
+                cursor.close()
+                return {"result": "failure", "error": "No clusters were updated, incorrect ID or classification."}
+            else:    
+                self.conn.close()
+                self.conn = None
+                raise FailedProcException
+
+        except mysql.connector.Error as err:
+            logger.warning(f"Could not connect: {str(err)}")
+        
+    def retrieve_recent_clusters(self, recent_clusters: ClusterRecentQueryFilter) -> dict:
         """Selects the newest clusters ordered by FITS date, paginated.
 
         Uses the ``limit`` and ``offset`` stored in
@@ -553,8 +503,8 @@ class EventPersistence:
                 self.conn = self.db_connect()
             cursor = self.conn.cursor(dictionary=True)
 
-            limit = int(self.retrieval_recent_clusters.get("limit") or 0)
-            offset = int(self.retrieval_recent_clusters.get("offset") or 0)
+            limit = int(recent_clusters.limit or 0)
+            offset = int(recent_clusters.offset or 0)
 
             select_query = (
                 "SELECT clusters.*, fits_files.filename, fits_files.date "
@@ -584,16 +534,16 @@ class EventPersistence:
             return response
         fits_list = []
         for result in results:
-            # Tuple return from a select statement will be in the order:
+            # Dictionary return from a select statement will be in the format:
             # `fitsID`, `fileName`, `date` , `min`, `max`, `exposureTime`,
             fits_list.append(
                 {
-                    "fits_id": result[0],
-                    "filename": result[1],
-                    "date": str(result[2]),
-                    "min": result[3],
-                    "max": result[4],
-                    "exposure_time": result[5],
+                    "fits_id": result["fitsID"],
+                    "filename": result["fileName"],
+                    "date": str(result["date"]),
+                    "min": result["min"],
+                    "max": result["max"],
+                    "exposure_time": result["exposureTime"],
                 }
             )
         response = {"result": "success", "fits": fits_list}

@@ -106,17 +106,20 @@ DELIMITER //
 
 CREATE PROCEDURE insert_classifications(
     IN in_classification VARCHAR(255),
-    IN in_clusterID INT
+    IN in_clusterID INT,
+    OUT out_rows_updated INT
 )
 BEGIN
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         ROLLBACK;
+        SET out_rows_updated = -1;
     END;
     START TRANSACTION;
     UPDATE clusters
     SET classification = in_classification
     WHERE clusterID = in_clusterID;
+    SET out_rows_updated = ROW_COUNT();
     COMMIT;
 END //
 

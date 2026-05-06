@@ -471,6 +471,7 @@ class TestMapToCluster:
         """_map_to_cluster never populates data or center — deferred to thumbnail loader."""
         record = EPSClusterRecord(
             fits_id=1, hdu_id=0, cluster_id=1,
+            fits_list=None,
             bounding_box={"top": 1, "left": 2, "bottom": 4, "right": 5},
             data=[0, 0, 0, 0, 0, 99, 0, 0, 0],
             total_energy=99.0, sigma_x=1.5, sigma_y=2.0,
@@ -495,6 +496,7 @@ class TestMapToCluster:
         data = list(range(16))  # 4x4
         record = EPSClusterRecord(
             fits_id=1,
+            fits_list=None,
             hdu_id=0,
             cluster_id=1,
             bounding_box={"top": 0, "left": 0, "bottom": 4, "right": 4},
@@ -518,6 +520,7 @@ class TestMapToCluster:
     def test_classification_scores_default_to_zero(self):
         record = EPSClusterRecord(
             fits_id=1,
+            fits_list=None,
             hdu_id=0,
             cluster_id=1,
             bounding_box={"top": 0, "left": 0, "bottom": 2, "right": 2},
@@ -540,6 +543,7 @@ class TestMapToCluster:
         """Zero-area bounding box still produces a valid cluster."""
         record = EPSClusterRecord(
             fits_id=1, hdu_id=0, cluster_id=1,
+            fits_list=None,
             bounding_box={"top": 0, "left": 0, "bottom": 0, "right": 0},
             data=[], total_energy=0.0, sigma_x=0.0, sigma_y=0.0,
             classification="", total_pixels=0,
@@ -556,6 +560,7 @@ class TestMapToCluster:
         arr = np.array([1.0, 4.0, 9.0, 16.0], dtype=np.float64)
         record = EPSClusterRecord(
             fits_id=1, hdu_id=0, cluster_id=1,
+            fits_list=None,
             bounding_box={"top": 0, "left": 0, "bottom": 2, "right": 2},
             data=arr.tobytes(), total_energy=30.0,
             sigma_x=1.0, sigma_y=1.0,

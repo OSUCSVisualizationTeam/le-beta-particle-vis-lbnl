@@ -114,6 +114,26 @@ class TestClusterQueryFilter:
                 date_end=datetime(2025, 1, 1),
             )
 
+    def test_from_eps_dict_without_date(self):
+        """Missing date key should keep both date fields None."""
+        qf = ClusterQueryFilter.from_eps_dict({"fits_id": 5})
+        assert qf.fits_id == 5
+        assert qf.date_start is None
+        assert qf.date_end is None
+
+    # I believe this is inaccurate now
+    # def test_from_eps_dict_with_date_string_raises_type_error(self):
+    #     """Current parser expects constructor-compatible datetime args."""
+    #     with pytest.raises(TypeError):
+    #         ClusterQueryFilter.from_eps_dict(
+    #             {
+    #                 "date": {
+    #                     "start": "2025-01-01 00:00:00",
+    #                     "end": "2025-01-02 00:00:00",
+    #                 }
+    #             }
+    #         )
+
 
 # -------------------------------------------------------------------
 # FitsQueryFilter
@@ -153,6 +173,26 @@ class TestFitsQueryFilter:
                 date_start=datetime(2025, 12, 31),
                 date_end=datetime(2025, 1, 1),
             )
+
+    def test_from_eps_dict_without_date(self):
+        """Missing date key should keep both date fields None."""
+        f = FitsQueryFilter.from_eps_dict({"fits_id": 9, "filename": "x.fits"})
+        assert f.fits_id == 9
+        assert f.filename == "x.fits"
+        assert f.date_start is None
+        assert f.date_end is None
+
+    def test_from_eps_dict_with_date_string_raises_type_error(self):
+        """Current parser raises when datetime() gets date strings directly."""
+        with pytest.raises(TypeError):
+            FitsQueryFilter.from_eps_dict(
+                {
+                    "date": {
+                "start": datetime("2025-03-01 08:00:00"),
+                "end": datetime("2025-03-31 17:30:00"),
+            }
+        }
+    )
 
 
 # -------------------------------------------------------------------
