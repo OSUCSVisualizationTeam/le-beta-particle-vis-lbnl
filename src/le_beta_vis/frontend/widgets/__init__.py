@@ -12,7 +12,6 @@ from .ClusteredEventWidget import ClusteredEventWidget
 from .EnergyClusterWidget import EnergyClusterWidget
 from .InteractiveHistogramWidget import InteractiveHistogramWidget
 from .HistoricalFilterBar import HistoricalFilterBar
-from .RawDataManipulationToolbar import RawDataManipulationToolbar
 from .HistoricalAdvancedFilterDialog import (
     HistoricalAdvancedFilterDialog,
 )
