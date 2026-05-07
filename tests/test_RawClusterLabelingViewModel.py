@@ -132,6 +132,7 @@ def test_submit_stores_correct_request_fields():
     _submit_and_wait(vm)
 
     req: ClusterStoreRequest = vm._repository.store_cluster.call_args[0][0]
+    assert req.data is None
     assert req.classification == "TRITIUM"
     assert req.sigma_x == pytest.approx(1.8)
     assert req.sigma_y == pytest.approx(1.4)
@@ -198,11 +199,53 @@ def test_submit_all_unclassified_stores_nothing():
 
 
 def test_store_cluster_none_return_not_counted():
-    """store_cluster returning None (EPS failure) is not counted as stored."""
+    """store_cluster returning None for all labeled clusters triggers Phase.ERROR."""
     vm = _make_vm(store_return=None)
     vm.set_label(0, ParticleType.TRITIUM)
 
     _submit_and_wait(vm)
 
     assert vm.stored_count == 0
+    assert vm.phase == Phase.ERROR
+    assert vm.error_message is not None
+
+
+def test_partial_store_failure_is_done_not_error():
+    """Partial success (some stored, some not) ends as DONE."""
+    clusters = [_make_cluster(top=i * 10) for i in range(3)]
+    vm = _make_vm(clusters=clusters)
+    vm._repository.store_cluster.side_effect = [1, None, 3]
+    for i in range(3):
+        vm.set_label(i, ParticleType.TRITIUM)
+
+    _submit_and_wait(vm)
+
     assert vm.phase == Phase.DONE
+    assert vm.stored_count == 2
+
+
+def test_build_request_data_field_is_none():
+    """Pixel data is never sent to EPS — data is always None."""
+    cluster = _make_cluster()
+    req = RawClusterLabelingViewModel._build_request(
+        cluster, hdu_id=0, fits_id=1, label=ParticleType.TRITIUM
+    )
+    assert req.data is None
+
+
+def test_has_any_label_false_when_all_unclassified():
+    vm = _make_vm()
+    assert vm.has_any_label is False
+
+
+def test_has_any_label_true_after_setting_one_label():
+    vm = _make_vm()
+    vm.set_label(0, ParticleType.TRITIUM)
+    assert vm.has_any_label is True
+
+
+def test_has_any_label_false_after_resetting_to_unclassified():
+    vm = _make_vm()
+    vm.set_label(0, ParticleType.TRITIUM)
+    vm.set_label(0, ParticleType.UNCLASSIFIED)
+    assert vm.has_any_label is False

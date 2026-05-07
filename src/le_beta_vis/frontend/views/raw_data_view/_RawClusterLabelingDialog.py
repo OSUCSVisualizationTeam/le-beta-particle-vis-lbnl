@@ -36,17 +36,17 @@ _PARTICLE_TYPES = list(ParticleType)
 class _RawClusterLabelingDialog(QDialog):
     """Shows selected clusters with per-row particle type selectors.
 
-    Three-page flow managed by a QStackedWidget:
+    Two-page flow managed by a QStackedWidget:
       0 — FORM: callout + label-all + scroll area of cluster rows
       1 — SPINNER: ArcSpinner while submission is in flight
-      2 — RESULT: summary label + OK button
 
+    Outcomes (success / error) are surfaced via QMessageBox; the dialog
+    closes immediately after the user dismisses the message box.
     Never exceeds the size of the parent window.
     """
 
     _PAGE_FORM = 0
     _PAGE_SPINNER = 1
-    _PAGE_RESULT = 2
 
     def __init__(
         self,
@@ -69,13 +69,12 @@ class _RawClusterLabelingDialog(QDialog):
 
     def _initUI(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 16)
+        root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._buildFormPage())
         self._stack.addWidget(self._buildSpinnerPage())
-        self._stack.addWidget(self._buildResultPage())
         root.addWidget(self._stack, 1)
 
         root.addLayout(self._buildButtonRow())
@@ -208,24 +207,9 @@ class _RawClusterLabelingDialog(QDialog):
         layout.addWidget(self._spinnerLabel)
         return page
 
-    def _buildResultPage(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setAlignment(Qt.AlignCenter)
-        layout.setSpacing(12)
-
-        self._resultLabel = QLabel()
-        self._resultLabel.setAlignment(Qt.AlignCenter)
-        self._resultLabel.setWordWrap(True)
-        self._resultLabel.setStyleSheet(
-            f"color: {_C.RESULT_TEXT}; font-size: 14px;"
-        )
-        layout.addWidget(self._resultLabel)
-        return page
-
     def _buildButtonRow(self) -> QHBoxLayout:
         row = QHBoxLayout()
-        row.setContentsMargins(16, 0, 0, 0)
+        row.setContentsMargins(16, 12, 16, 12)
         row.addStretch()
 
         self._cancelBtn = QPushButton(self.tr("Cancel"))
@@ -240,8 +224,9 @@ class _RawClusterLabelingDialog(QDialog):
         )
         self._cancelBtn.clicked.connect(self.reject)
         row.addWidget(self._cancelBtn)
+        row.addSpacing(8)
 
-        self._submitBtn = QPushButton(self.tr("Submit"))
+        self._submitBtn = QPushButton(self.tr("Add to Training Set"))
         self._submitBtn.setStyleSheet(
             "QPushButton {"
             f"  background-color: {_C.SUBMIT_BUTTON_BACKGROUND};"
@@ -256,14 +241,9 @@ class _RawClusterLabelingDialog(QDialog):
             "}"
             "QPushButton:disabled { background-color: #555555; color: #888888; }"
         )
+        self._submitBtn.setEnabled(False)
         self._submitBtn.clicked.connect(self._vm.submit)
         row.addWidget(self._submitBtn)
-
-        self._okBtn = QPushButton(self.tr("OK"))
-        self._okBtn.setStyleSheet(self._submitBtn.styleSheet())
-        self._okBtn.clicked.connect(self.accept)
-        self._okBtn.setVisible(False)
-        row.addWidget(self._okBtn)
 
         return row
 
@@ -290,30 +270,33 @@ class _RawClusterLabelingDialog(QDialog):
             self._spinner.stop()
             total = len(self._vm.clusters)
             stored = self._vm.stored_count
-            self._resultLabel.setText(
+            QMessageBox.information(
+                self,
+                self.tr("Training Set Updated"),
                 self.tr(
-                    "✓ {stored} of {total} cluster(s) submitted\n"
-                    "for model retraining."
-                ).format(stored=stored, total=total)
+                    "{stored} of {total} cluster(s) added to the training set."
+                ).format(stored=stored, total=total),
             )
-            self._stack.setCurrentIndex(self._PAGE_RESULT)
-            self._cancelBtn.setVisible(False)
-            self._submitBtn.setVisible(False)
-            self._okBtn.setVisible(True)
+            self.accept()
         elif phase == Phase.ERROR:
             self._spinner.stop()
             msg = self._vm.error_message or self.tr("Unknown error")
             QMessageBox.critical(self, self.tr("Submission Failed"), msg)
             self.reject()
 
+    def _refreshSubmitButton(self) -> None:
+        self._submitBtn.setEnabled(self._vm.has_any_label)
+
     def _onLabelAllChanged(self, combo_index: int) -> None:
         pt = _PARTICLE_TYPES[combo_index]
         self._vm.set_all_labels(pt)
         self._refreshAllRowCombos()
+        self._refreshSubmitButton()
 
     def _onRowLabelChanged(self, cluster_index: int, combo: QComboBox) -> None:
         pt = combo.currentData()
         self._vm.set_label(cluster_index, pt)
+        self._refreshSubmitButton()
 
     def _refreshAllRowCombos(self) -> None:
         for i, combo in enumerate(self._row_combos):

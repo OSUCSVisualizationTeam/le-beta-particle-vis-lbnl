@@ -83,6 +83,14 @@ class RawClusterLabelingViewModel:
         """Returns cluster energy converted to keV."""
         return float(self._physics.adu_to_kev(self._clusters[index].energy))
 
+    @property
+    def has_any_label(self) -> bool:
+        """True if at least one cluster has a non-UNCLASSIFIED label."""
+        return any(
+            self._labels.get(i, ParticleType.UNCLASSIFIED) != ParticleType.UNCLASSIFIED
+            for i in range(len(self._clusters))
+        )
+
     def set_label(self, index: int, particle_type: ParticleType) -> None:
         """Sets the particle type label for a single cluster row."""
         self._labels[index] = particle_type
@@ -143,6 +151,21 @@ class RawClusterLabelingViewModel:
                 if result is not None:
                     count += 1
             self._stored_count = count
+            labeled_count = sum(
+                1 for i in range(len(self._clusters))
+                if self.label_for(i) != ParticleType.UNCLASSIFIED
+            )
+            if count == 0 and labeled_count > 0:
+                logger.error(
+                    "0/%d labeled cluster(s) were stored — EPS rejected all submissions",
+                    labeled_count,
+                )
+                self._error_message = (
+                    f"No clusters were stored. "
+                    f"EPS rejected all {labeled_count} submission(s)."
+                )
+                self._phase = Phase.ERROR
+                return
             logger.info(
                 "Successfully stored %d/%d cluster(s)", count, len(self._clusters)
             )
@@ -163,7 +186,7 @@ class RawClusterLabelingViewModel:
     ) -> ClusterStoreRequest:
         bb: BoundingBox = cluster.boundingBox
         return ClusterStoreRequest(
-            data=cluster.data.tolist(),
+            data=None,  # type: ignore[arg-type]
             hdu_id=hdu_id,
             bounding_box={
                 "top": int(bb.top),
