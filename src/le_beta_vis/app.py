@@ -93,6 +93,11 @@ def _install_linux_desktop_integration() -> None:
 
 def main() -> None:
     """Launch the LE Beta Particle Visualization application."""
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+        datefmt="%H:%M:%S",
+    )
     current_platform = platform.system()
 
     if current_platform == "Windows":
