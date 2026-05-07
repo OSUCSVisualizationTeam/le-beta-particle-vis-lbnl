@@ -113,8 +113,8 @@ class ClusterAnalysisView(QWidget):
         self._vm.add_clustering_state_changed_callback(refresh)
 
     def _bindWidgetSignals(self) -> None:
-        self._clusteredEventWidget.clusterSelected.connect(
-            self._vm.selectCluster,
+        self._clusteredEventWidget.clustersSelected.connect(
+            self._vm.selectClusters,
         )
         self._clusteredEventWidget.classifyRequested.connect(
             self._vm.classifySelectedCluster,
@@ -143,9 +143,9 @@ class ClusterAnalysisView(QWidget):
 
     @Slot()
     def _updateSelectedCluster(self) -> None:
-        """Syncs the widget's selection with ViewModel state."""
-        self._clusteredEventWidget.setSelectedIndex(
-            self._vm.selectedClusterIndex,
+        """Syncs the widget's multi-selection with ViewModel state."""
+        self._clusteredEventWidget.setSelectedIndices(
+            self._vm.selectedClusterIndices,
         )
 
     @Slot()

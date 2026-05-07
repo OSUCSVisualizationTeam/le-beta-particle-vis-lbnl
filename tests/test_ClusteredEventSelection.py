@@ -199,11 +199,11 @@ def test_trigger_clustering_clears_previous_results(rdvm, cavm):
     """New triggerClustering clears old results and selection."""
     _setup_for_clustering(rdvm)
     cavm._clusteringResults = [_make_cluster()]
-    cavm._selectedClusterIndex = 0
+    cavm._selectedClusterIndices = frozenset([0])
 
     cavm.triggerClustering()
     assert cavm._clusteringResults == []
-    assert cavm._selectedClusterIndex == -1
+    assert cavm.selectedClusterIndices == []
 
     cavm.cancelClustering()
 

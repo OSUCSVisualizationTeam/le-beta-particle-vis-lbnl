@@ -19,7 +19,7 @@ from .viewmodels.MainWindowStatusViewModel import (
     MainWindowStatusViewModel,
     Severity,
 )
-from .views.RawDataView import RawDataView
+from .views.raw_data_view import RawDataView
 from .views.HistoricalView import HistoricalView
 from .viewmodels.RawDataViewModel import RawDataViewModel
 from .viewmodels.HistoricalViewModel import HistoricalViewModel

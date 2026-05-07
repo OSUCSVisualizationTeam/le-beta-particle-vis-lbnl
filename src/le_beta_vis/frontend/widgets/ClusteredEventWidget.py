@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -32,12 +33,13 @@ class ClusteredEventWidget(QWidget):
     Receives data via setResults() and emits signals for user actions.
 
     Signals:
-        clusterSelected(int): Emitted when user clicks a cluster entry.
+        clustersSelected(list): Emitted when the selection changes;
+            carries a sorted list of selected row indices.
         classifyRequested(): Emitted when the Classify button is clicked.
         exportRequested(): Emitted when the Export button is clicked.
     """
 
-    clusterSelected = Signal(int)
+    clustersSelected = Signal(list)
     classifyRequested = Signal()
     exportRequested = Signal()
 
@@ -62,7 +64,10 @@ class ClusteredEventWidget(QWidget):
 
         self._listWidget = QListWidget()
         self._listWidget.setAlternatingRowColors(True)
-        self._listWidget.currentRowChanged.connect(self._onSelectionChanged)
+        self._listWidget.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection
+        )
+        self._listWidget.itemSelectionChanged.connect(self._onSelectionChanged)
         layout.addWidget(self._listWidget)
 
         btnLayout = QHBoxLayout()
@@ -130,17 +135,37 @@ class ClusteredEventWidget(QWidget):
         """Clears the list and resets to empty state."""
         self.setResults([])
 
-    def setSelectedIndex(self, index: int) -> None:
-        """Programmatically selects a cluster entry by index.
+    def setSelectedIndices(self, indices: List[int]) -> None:
+        """Programmatically sets the multi-selection from a list of indices.
+
+        Uses blockSignals to suppress itemSelectionChanged during the update,
+        preventing a re-notification loop back to the ViewModel.
 
         Args:
-            index: Index to select, or -1 to deselect all.
+            indices: Zero-based row indices to select.
+                Pass an empty list to deselect all.
         """
-        if index < 0:
+        self._listWidget.blockSignals(True)
+        try:
             self._listWidget.clearSelection()
-            self._listWidget.setCurrentRow(-1)
-        elif index < self._listWidget.count():
-            self._listWidget.setCurrentRow(index)
+            for index in indices:
+                if 0 <= index < self._listWidget.count():
+                    item = self._listWidget.item(index)
+                    if item is not None:
+                        item.setSelected(True)
+        finally:
+            self._listWidget.blockSignals(False)
+        count = len(indices)
+        self._btnClassify.setEnabled(count > 0)
+        self._btnExport.setEnabled(count > 0)
+
+    def setSelectedIndex(self, index: int) -> None:
+        """Backward-compat shim — delegates to setSelectedIndices.
+
+        Args:
+            index: Index to select, or any negative value to deselect all.
+        """
+        self.setSelectedIndices([] if index < 0 else [index])
 
     def _createEntryWidget(
         self, index: int, event: ClusteredEventInfo
@@ -230,11 +255,15 @@ class ClusteredEventWidget(QWidget):
                 self.tr("{count} clusters found").format(count=count)
             )
 
-    @Slot(int)
-    def _onSelectionChanged(self, row: int) -> None:
-        """Slot for QListWidget.currentRowChanged signal."""
-        has_selection = row >= 0
-        self._btnClassify.setEnabled(has_selection)
-        self._btnExport.setEnabled(has_selection)
-        if has_selection:
-            self.clusterSelected.emit(row)
+    @Slot()
+    def _onSelectionChanged(self) -> None:
+        """Slot for QListWidget.itemSelectionChanged signal."""
+        selected_rows = sorted(
+            self._listWidget.row(item)
+            for item in self._listWidget.selectedItems()
+        )
+        count = len(selected_rows)
+        self._btnClassify.setEnabled(count > 0)
+        self._btnExport.setEnabled(count > 0)
+        if count > 0:
+            self.clustersSelected.emit(selected_rows)

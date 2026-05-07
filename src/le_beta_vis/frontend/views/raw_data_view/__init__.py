@@ -1,5 +1,4 @@
 # flake8: noqa
 # pylint: disable=unused-import
 # pyright: reportUnusedImport=false
-from .raw_data_view import RawDataView
-from .HistoricalView import HistoricalView
+from .RawDataView import RawDataView

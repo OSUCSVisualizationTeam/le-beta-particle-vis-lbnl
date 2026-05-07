@@ -16,8 +16,8 @@ from PySide6.QtWidgets import (
     QToolButton,
 )
 
-from ..theme import RawDataManipulationToolbarColors, TooltipStyle
-from ..viewmodels.RawDataViewModel import ActiveTool, RawDataViewModel
+from ...theme import RawDataManipulationToolbarColors, TooltipStyle
+from ...viewmodels.RawDataViewModel import ActiveTool, RawDataViewModel
 
 
 class _Style:
@@ -38,7 +38,7 @@ class _Style:
     )
 
 
-class RawDataManipulationToolbar(QFrame):
+class _RawDataManipulationToolbar(QFrame):
     """Horizontal toolbar strip for the Raw Data Analysis view."""
 
     def __init__(self, viewModel: RawDataViewModel) -> None:

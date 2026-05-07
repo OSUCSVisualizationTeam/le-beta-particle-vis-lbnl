@@ -45,7 +45,7 @@ class _Style:
     STAT_VALUE = "font-size: 11px; color: #222222; border: none;"
 
 
-class ROIInfoWidget(QWidget):
+class _ROIInfoWidget(QWidget):
     """Interactive ROI info display with statistics and histogram."""
 
     def __init__(
@@ -91,7 +91,7 @@ class ROIInfoWidget(QWidget):
         for row_idx, (key, label_text) in enumerate(rows):
             label = QLabel(label_text)
             label.setStyleSheet(_Style.STAT_LABEL)
-            value = QLabel("\u2014")
+            value = QLabel("—")
             value.setStyleSheet(_Style.STAT_VALUE)
             grid.addWidget(label, row_idx, 0, Qt.AlignTop)
             grid.addWidget(value, row_idx, 1, Qt.AlignTop)
@@ -113,7 +113,7 @@ class ROIInfoWidget(QWidget):
             ("max_energy", self.tr("Max Energy:")),
             ("min_energy", self.tr("Min Energy:")),
             ("mean_energy", self.tr("Mean Energy:")),
-            ("sigma", self.tr("\u03c3:")),
+            ("sigma", self.tr("σ:")),
             ("pixel_count", self.tr("Pixel Count:")),
         ]
         for row_idx, (key, label_text) in enumerate(rows):
@@ -190,7 +190,7 @@ class ROIInfoWidget(QWidget):
             f"({bbox.top}, {bbox.left})"
         )
         self._roi_coord_labels["roi_dimensions"].setText(
-            f"{width} \u00d7 {height}"
+            f"{width} × {height}"
         )
 
     def _updateStatistics(self, data: np.ndarray) -> None:
@@ -231,9 +231,9 @@ class ROIInfoWidget(QWidget):
         """Resets all sections when no ROI is selected."""
         self._histogram.setData(None)
         for label in self._stat_labels.values():
-            label.setText("\u2014")
+            label.setText("—")
         for label in self._roi_coord_labels.values():
-            label.setText("\u2014")
+            label.setText("—")
 
     def _populateStatLabels(self, stats: ROIStatistics) -> None:
         """Formats ROIStatistics values into the stat labels."""

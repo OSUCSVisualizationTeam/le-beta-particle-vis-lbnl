@@ -6,7 +6,7 @@ Pure Python — no Qt dependencies.
 import logging
 import threading
 from enum import Enum
-from typing import Callable, List, Optional
+from typing import Callable, FrozenSet, List, Optional
 
 import numpy as np
 
@@ -66,8 +66,10 @@ class ClusterAnalysisViewModel:
         self._clusteringError: Optional[str] = None
         self._clusteringProgress: float = 0.0
         self._clustering_timeout_timer: Optional[threading.Timer] = None
-        self._selectedClusterIndex: int = -1
-        self._single_cluster_export_handler: Optional[Callable] = None
+        self._selectedClusterIndices: FrozenSet[int] = frozenset()
+        self._export_handler: Optional[
+            Callable[[List[ClusteredEventInfo]], None]
+        ] = None
 
     def _init_callbacks(self) -> None:
         """Initializes all observer callback registries to empty lists."""
@@ -227,85 +229,112 @@ class ClusterAnalysisViewModel:
         return self._clusteringProgress
 
     @property
+    def selectedClusterIndices(self) -> List[int]:
+        """Returns a sorted list of selected cluster indices. Empty = none selected."""
+        return sorted(self._selectedClusterIndices)
+
+    @property
+    def selectedClusters(self) -> List[ClusteredEventInfo]:
+        """Returns the list of currently selected ClusteredEventInfo objects."""
+        n = len(self._clusteringResults)
+        return [
+            self._clusteringResults[i]
+            for i in sorted(self._selectedClusterIndices)
+            if 0 <= i < n
+        ]
+
+    @property
     def selectedClusterIndex(self) -> int:
-        """Returns the index of the currently selected cluster, or -1."""
-        return self._selectedClusterIndex
+        """Backward-compat: returns the single selected index, or -1."""
+        if len(self._selectedClusterIndices) == 1:
+            return next(iter(self._selectedClusterIndices))
+        return -1
 
     @property
     def selectedCluster(self) -> Optional[ClusteredEventInfo]:
-        """Returns the currently selected cluster, or None."""
-        if 0 <= self._selectedClusterIndex < len(self._clusteringResults):
-            return self._clusteringResults[self._selectedClusterIndex]
+        """Backward-compat: returns the single selected cluster, or None."""
+        idx = self.selectedClusterIndex
+        if 0 <= idx < len(self._clusteringResults):
+            return self._clusteringResults[idx]
         return None
 
-    def selectCluster(self, index: int) -> None:
-        """Selects a cluster by index. Pass -1 to deselect.
+    def selectClusters(self, indices: List[int]) -> None:
+        """Sets the multi-selection. Pass an empty list to deselect all.
 
-        Notifies listeners only if the selection changed.
+        Validates each index, silently ignores out-of-range values.
+        No-op if the resulting set equals the current selection.
+        Notifies listeners only on change.
+
+        Args:
+            indices: List of zero-based cluster indices to select.
         """
-        if index == self._selectedClusterIndex:
+        n = len(self._clusteringResults)
+        valid = frozenset(i for i in indices if 0 <= i < n)
+        if valid == self._selectedClusterIndices:
             return
-        if index < -1 or index >= len(self._clusteringResults):
-            return
-        self._selectedClusterIndex = index
+        self._selectedClusterIndices = valid
         self._notify_selected_cluster_changed()
+
+    def selectCluster(self, index: int) -> None:
+        """Backward-compat: delegates to selectClusters."""
+        self.selectClusters([] if index < 0 else [index])
 
     def clearClusteringResults(self) -> None:
         """Clears results and resets selection. Notifies listeners."""
-        if self._clusteringResults or self._selectedClusterIndex != -1:
+        if self._clusteringResults or self._selectedClusterIndices:
             self._clusteringResults = []
-            self._selectedClusterIndex = -1
+            self._selectedClusterIndices = frozenset()
             self._notify_clustering_completed()
             self._notify_selected_cluster_changed()
 
-    def setSingleClusterExportHandler(
+    def setExportHandler(
         self,
-        handler: Optional[Callable[["ClusteredEventInfo"], None]],
+        handler: Optional[Callable[[List[ClusteredEventInfo]], None]],
     ) -> None:
-        """Injects the per-cluster export callback.
+        """Injects the export callback for selected clusters.
 
+        The handler receives the full list of selected clusters so it can
+        present a single-file dialog for one cluster or a batch UI for many.
         Kept as an injection seam so this pure-Python VM stays free of
-        direct knowledge of the storage/PNG services and of the Qt
-        file-dialog used to pick the destination path.
+        direct knowledge of the storage/PNG services and Qt file-dialogs.
         """
-        self._single_cluster_export_handler = handler
+        self._export_handler = handler
 
     def classifySelectedCluster(self) -> None:
         """Placeholder for cluster classification (issue #54).
 
-        Logs the request; no-op until classification pipeline is wired.
+        Logs the request for all selected clusters; no-op until the
+        classification pipeline is wired.
         """
-        cluster = self.selectedCluster
-        if cluster is None:
+        clusters = self.selectedClusters
+        if not clusters:
             logger.info("classifySelectedCluster: no cluster selected")
             return
-        logger.info(
-            "classifySelectedCluster: placeholder for cluster at "
-            "(%d, %d) with energy %.2f ADU",
-            cluster.centerX,
-            cluster.centerY,
-            cluster.energy,
-        )
-
-    def exportSelectedCluster(self) -> None:
-        """Requests a single-cluster export for the currently selected cluster.
-
-        No-op when no handler is wired or no cluster is selected.
-        """
-        cluster = self.selectedCluster
-        if cluster is None:
-            logger.info("exportSelectedCluster: no cluster selected")
-            return
-        if self._single_cluster_export_handler is None:
+        for cluster in clusters:
             logger.info(
-                "exportSelectedCluster: no handler wired for cluster at "
-                "(%d, %d) with %d pixels",
+                "classifySelectedCluster: placeholder for cluster at "
+                "(%d, %d) with energy %.2f ADU",
                 cluster.centerX,
                 cluster.centerY,
-                cluster.pixelCount,
+                cluster.energy,
+            )
+
+    def exportSelectedCluster(self) -> None:
+        """Requests an export for all currently selected clusters.
+
+        No-op when no handler is wired or no clusters are selected.
+        """
+        clusters = self.selectedClusters
+        if not clusters:
+            logger.info("exportSelectedCluster: no cluster selected")
+            return
+        if self._export_handler is None:
+            logger.info(
+                "exportSelectedCluster: no handler wired (%d cluster(s) selected)",
+                len(clusters),
             )
             return
-        self._single_cluster_export_handler(cluster)
+        self._export_handler(clusters)
 
     def triggerClustering(self) -> None:
         """Starts cluster extraction on the current ROI.
@@ -324,7 +353,7 @@ class ClusterAnalysisViewModel:
             return
 
         self._clusteringResults = []
-        self._selectedClusterIndex = -1
+        self._selectedClusterIndices = frozenset()
         self._clusteringError = None
         self._clusteringProgress = 0.0
         self._clusteringState = ClusteringState.RUNNING
