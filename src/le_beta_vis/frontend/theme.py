@@ -110,6 +110,21 @@ class MosaicThumbnailColors:
     LABEL_BACKGROUND_RGBA = (0, 0, 0, 140)
 
 
+class RawClusterLabelingDialogColors:
+    """Colors for the raw-data cluster labeling / training export dialog."""
+
+    CALLOUT_BACKGROUND = "#1a3a1a"
+    CALLOUT_BORDER = "#2e7d32"
+    CALLOUT_TEXT = "#c8e6c9"
+    SUBMIT_BUTTON_BACKGROUND = "#0078d7"
+    SUBMIT_BUTTON_FOREGROUND = "#ffffff"
+    SUBMIT_BUTTON_HOVER = "#005fa3"
+    CANCEL_BUTTON_BACKGROUND = "#3d3d3d"
+    CANCEL_BUTTON_FOREGROUND = "#cccccc"
+    CANCEL_BUTTON_BORDER = "#555555"
+    RESULT_TEXT = "#c8e6c9"
+
+
 class TooltipStyle:
     """Shared QToolTip stylesheet snippets.
 

@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from PySide6.QtCore import (
     QMetaObject,
@@ -6,11 +6,14 @@ from PySide6.QtCore import (
     Slot,
 )
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QVBoxLayout,
     QWidget,
 )
 
+from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
+from le_beta_vis.common.EventRepository import EventRepository
 from ...viewmodels.ClusterAnalysisViewModel import ClusteringState
 from ...viewmodels.RawDataViewModel import RawDataViewModel
 from ..MosaicView import MosaicView
@@ -20,9 +23,14 @@ from ._RightSidebarView import _RightSidebarView
 
 
 class RawDataView(QWidget):
-    def __init__(self, viewModel: RawDataViewModel):
+    def __init__(
+        self,
+        viewModel: RawDataViewModel,
+        repository: Optional[EventRepository] = None,
+    ):
         super().__init__()
         self.viewModel = viewModel
+        self._repository = repository
         self._pendingClusterFocus: Optional[
             Tuple[Optional[int], Tuple[int, int, int, int]]
         ] = None
@@ -75,6 +83,8 @@ class RawDataView(QWidget):
         self._bindRangeAndFocusCallbacks()
         self._bindClusteringStateCallback()
         self._rightSidebar.syncSelectors()
+        if self._repository is not None:
+            self._cavm.setExportHandler(self._onExportRequested)
 
     def _bindMosaicCallbacks(self) -> None:
         self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
@@ -129,6 +139,30 @@ class RawDataView(QWidget):
         running = self._cavm.clusteringState == ClusteringState.RUNNING
         self._leftToolbar.setEnabled(not running)
         self._rightSidebar.setEnabled(not running)
+
+    def _onExportRequested(self, clusters: List[ClusteredEventInfo]) -> None:
+        indices_to_remove = list(self._cavm.selectedClusterIndices)
+
+        def fits_info() -> Tuple[int, int]:
+            # fits_id: int — the EPS database ID for the loaded FITS file.
+            # Not yet available on RawDataViewModel; returns 0 as a placeholder
+            # until FITS ingestion lookup is implemented (issue #195).
+            return 0, self.viewModel.activeIndex
+
+        from ...viewmodels.RawClusterLabelingViewModel import (
+            RawClusterLabelingViewModel,
+        )
+        from ._RawClusterLabelingDialog import _RawClusterLabelingDialog
+
+        vm = RawClusterLabelingViewModel(
+            clusters=clusters,
+            repository=self._repository,
+            physics=self.viewModel.physics_manager,
+            fits_info_provider=fits_info,
+        )
+        dialog = _RawClusterLabelingDialog(vm, parent=self.window())
+        if dialog.exec() == QDialog.Accepted:
+            self._cavm.removeClustersByIndices(indices_to_remove)
 
     def openClusterForAnalysis(
         self,

@@ -216,7 +216,10 @@ class MainWindow(QMainWindow):
         return row
 
     def _setupViews(self) -> None:
-        self.rawDataView = RawDataView(self.rawDataViewModel)
+        self.rawDataView = RawDataView(
+            self.rawDataViewModel,
+            repository=self.viewModel.eventRepository,
+        )
         self.historicalView = HistoricalView(
             self.historicalViewModel,
             statusViewModel=self.statusViewModel,

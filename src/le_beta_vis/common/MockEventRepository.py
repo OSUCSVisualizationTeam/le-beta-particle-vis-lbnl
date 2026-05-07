@@ -1,11 +1,15 @@
-from typing import List, Optional, Callable
+from typing import List, Optional
 
 import numpy as np
 
 from .BoundingBox import BoundingBox
 from .Cluster import Cluster
-from .EPSDataClasses import ClusterQueryFilter
-from .EventRepository import EventRepository, onCluster, onError
+from .EPSDataClasses import (
+    ClassificationUpdateRequest,
+    ClusterQueryFilter,
+    ClusterStoreRequest,
+)
+from .EventRepository import EventRepository, onCluster, onError, onUpdate
 
 
 def _gaussian_blob(
@@ -152,3 +156,16 @@ class MockEventRepository(EventRepository):
         if qf.classification is not None:
             return False
         return True
+
+    def store_cluster(self, request: ClusterStoreRequest) -> Optional[int]:
+        """Returns a deterministic fake cluster_id derived from the bounding box."""
+        return abs(hash(frozenset(request.bounding_box.items()))) % 100_000
+
+    def update_classification(
+        self,
+        request: ClassificationUpdateRequest,
+        callback: onUpdate,
+        on_error: onError,
+    ) -> None:
+        """No-op success — no ZMQ in mock mode."""
+        callback(True)

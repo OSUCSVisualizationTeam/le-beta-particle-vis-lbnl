@@ -336,6 +336,25 @@ class ClusterAnalysisViewModel:
             return
         self._export_handler(clusters)
 
+    def removeClustersByIndices(self, indices: List[int]) -> None:
+        """Removes clusters at the given indices and resets selection.
+
+        Triggers clustering-completed and selection-changed callbacks so
+        ClusterAnalysisView refreshes ClusteredEventWidget automatically.
+        """
+        index_set = frozenset(
+            i for i in indices if 0 <= i < len(self._clusteringResults)
+        )
+        if not index_set:
+            return
+        self._clusteringResults = [
+            c for i, c in enumerate(self._clusteringResults)
+            if i not in index_set
+        ]
+        self._selectedClusterIndices = frozenset()
+        self._notify_clustering_completed()
+        self._notify_selected_cluster_changed()
+
     def triggerClustering(self) -> None:
         """Starts cluster extraction on the current ROI.
 
