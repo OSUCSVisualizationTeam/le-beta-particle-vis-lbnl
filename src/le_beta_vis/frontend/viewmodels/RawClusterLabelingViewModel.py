@@ -5,16 +5,18 @@ particle type label to each one, and submit them to EPS via store_cluster.
 The stored records are later harvested for CNN/NRG/BDT retraining.
 """
 
+from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
+from le_beta_vis.common.ParticleType import ParticleType
+from le_beta_vis.common.EventRepository import EventRepository
+from le_beta_vis.common.EPSDataClasses import ClusterStoreRequest
+from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
+from le_beta_vis.common.BoundingBox import BoundingBox
+import logging
 import threading
 from enum import Enum, auto
 from typing import Callable, Dict, List, Optional, Tuple
 
-from le_beta_vis.common.BoundingBox import BoundingBox
-from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
-from le_beta_vis.common.EPSDataClasses import ClusterStoreRequest
-from le_beta_vis.common.EventRepository import EventRepository
-from le_beta_vis.common.ParticleType import ParticleType
-from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
+logger = logging.getLogger(__name__)
 
 
 class Phase(Enum):
@@ -122,6 +124,7 @@ class RawClusterLabelingViewModel:
         threading.Thread(target=self._run_submission, daemon=True).start()
 
     def _run_submission(self) -> None:
+        logger.info("Starting submission of %d cluster(s)", len(self._clusters))
         try:
             fits_id, hdu_id = self._fits_info_provider()
             count = 0
@@ -140,8 +143,12 @@ class RawClusterLabelingViewModel:
                 if result is not None:
                     count += 1
             self._stored_count = count
+            logger.info(
+                "Successfully stored %d/%d cluster(s)", count, len(self._clusters)
+            )
             self._phase = Phase.DONE
         except Exception as exc:
+            logger.exception("store_cluster submission failed: %s", exc)
             self._error_message = str(exc)
             self._phase = Phase.ERROR
         finally:
@@ -159,15 +166,15 @@ class RawClusterLabelingViewModel:
             data=cluster.data.tolist(),
             hdu_id=hdu_id,
             bounding_box={
-                "top": bb.top,
-                "left": bb.left,
-                "bottom": bb.bottom,
-                "right": bb.right,
+                "top": int(bb.top),
+                "left": int(bb.left),
+                "bottom": int(bb.bottom),
+                "right": int(bb.right),
             },
-            sigma_x=cluster.sigmaX,
-            sigma_y=cluster.sigmaY,
-            total_energy=cluster.energy,
-            total_pixels=cluster.pixelCount,
+            sigma_x=float(cluster.sigmaX),
+            sigma_y=float(cluster.sigmaY),
+            total_energy=float(cluster.energy),
+            total_pixels=int(cluster.pixelCount),
             fits_id=fits_id,
             classification=label.name,
         )

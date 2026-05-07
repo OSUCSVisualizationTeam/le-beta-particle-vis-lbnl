@@ -6,13 +6,14 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from PySide6.QtCore import QMetaObject, QSize, Qt, Slot
+from PySide6.QtCore import QMetaObject, Qt, Slot
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -58,8 +59,9 @@ class _RawClusterLabelingDialog(QDialog):
         self.setWindowTitle(self.tr("Export for Training"))
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self.setMinimumWidth(480)
+        self.setMaximumHeight(500)
         if parent is not None:
-            self.setMaximumSize(parent.size() - QSize(40, 40))
+            self.setMaximumWidth(parent.width() - 40)
         self._initUI()
         self._bindViewModel()
 
@@ -301,16 +303,8 @@ class _RawClusterLabelingDialog(QDialog):
         elif phase == Phase.ERROR:
             self._spinner.stop()
             msg = self._vm.error_message or self.tr("Unknown error")
-            self._resultLabel.setText(
-                self.tr("Submission failed:\n{msg}").format(msg=msg)
-            )
-            self._resultLabel.setStyleSheet(
-                "color: #ff5a5a; font-size: 14px;"
-            )
-            self._stack.setCurrentIndex(self._PAGE_RESULT)
-            self._cancelBtn.setVisible(False)
-            self._submitBtn.setVisible(False)
-            self._okBtn.setVisible(True)
+            QMessageBox.critical(self, self.tr("Submission Failed"), msg)
+            self.reject()
 
     def _onLabelAllChanged(self, combo_index: int) -> None:
         pt = _PARTICLE_TYPES[combo_index]
