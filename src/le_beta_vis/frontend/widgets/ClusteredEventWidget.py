@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
+from le_beta_vis.frontend.theme import ClusteredEventWidgetColors as _CEC
 from le_beta_vis.frontend.widgets.EnergyClusterWidget import (
     EnergyClusterWidget,
 )
@@ -71,13 +72,19 @@ class ClusteredEventWidget(QWidget):
         layout.addWidget(self._listWidget)
 
         btnLayout = QHBoxLayout()
+        _disabled_style = (
+            "QPushButton:disabled {" f" color: {_CEC.BUTTON_DISABLED_TEXT};" "}"
+        )
+
         self._btnClassify = QPushButton(self.tr("Classify"))
         self._btnClassify.setEnabled(False)
+        self._btnClassify.setStyleSheet(_disabled_style)
         self._btnClassify.clicked.connect(self.classifyRequested)
         btnLayout.addWidget(self._btnClassify)
 
         self._btnExport = QPushButton(self.tr("Export for Training"))
         self._btnExport.setEnabled(False)
+        self._btnExport.setStyleSheet(_disabled_style)
         self._btnExport.clicked.connect(self.exportRequested)
         btnLayout.addWidget(self._btnExport)
 
@@ -167,9 +174,7 @@ class ClusteredEventWidget(QWidget):
         """
         self.setSelectedIndices([] if index < 0 else [index])
 
-    def _createEntryWidget(
-        self, index: int, event: ClusteredEventInfo
-    ) -> QWidget:
+    def _createEntryWidget(self, index: int, event: ClusteredEventInfo) -> QWidget:
         """Creates a single list entry with thumbnail and metadata."""
         entry = QWidget()
         entry.setStyleSheet(_Style.ENTRY_WIDGET)
@@ -205,8 +210,7 @@ class ClusteredEventWidget(QWidget):
 
         sigma_label = QLabel(
             self.tr(
-                "\u03c3<sub>x</sub> = {sx:.2f},"
-                " \u03c3<sub>y</sub> = {sy:.2f}"
+                "\u03c3<sub>x</sub> = {sx:.2f}," " \u03c3<sub>y</sub> = {sy:.2f}"
             ).format(sx=event.sigmaX, sy=event.sigmaY)
         )
         metaLayout.addWidget(sigma_label)
@@ -233,13 +237,9 @@ class ClusteredEventWidget(QWidget):
             )
         )
 
-    def _createThumbnailLabel(
-        self, event: ClusteredEventInfo
-    ) -> EnergyClusterWidget:
+    def _createThumbnailLabel(self, event: ClusteredEventInfo) -> EnergyClusterWidget:
         """Generates a thumbnail widget from cluster data."""
-        widget = EnergyClusterWidget(
-            size=THUMBNAIL_SIZE, parent=self
-        )
+        widget = EnergyClusterWidget(size=THUMBNAIL_SIZE, parent=self)
         widget.setCluster(event.data, self._colormap)
         return widget
 
@@ -259,8 +259,7 @@ class ClusteredEventWidget(QWidget):
     def _onSelectionChanged(self) -> None:
         """Slot for QListWidget.itemSelectionChanged signal."""
         selected_rows = sorted(
-            self._listWidget.row(item)
-            for item in self._listWidget.selectedItems()
+            self._listWidget.row(item) for item in self._listWidget.selectedItems()
         )
         count = len(selected_rows)
         self._btnClassify.setEnabled(count > 0)

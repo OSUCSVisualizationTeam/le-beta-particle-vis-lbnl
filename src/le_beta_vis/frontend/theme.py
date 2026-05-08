@@ -125,6 +125,10 @@ class RawClusterLabelingDialogColors:
     RESULT_TEXT = "#c8e6c9"
 
 
+class ClusteredEventWidgetColors:
+    BUTTON_DISABLED_TEXT = "#a0a0a0"
+
+
 class TooltipStyle:
     """Shared QToolTip stylesheet snippets.
 
