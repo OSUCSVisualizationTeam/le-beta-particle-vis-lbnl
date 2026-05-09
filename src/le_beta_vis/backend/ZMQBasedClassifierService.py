@@ -135,9 +135,9 @@ class ZMQBasedClassifierService():
             "result": "success",
             "classifications": {
                 "results": [ZMQBasedClassifierService._result_to_dict(r) for r in batch.results],
-                "total": batch.total,
-                "failed": batch.failed,
             },
+            "total": batch.total,
+            "failed": batch.failed,
         }
 
     @staticmethod
