@@ -125,5 +125,5 @@ def test_classify_event_routes_and_converts_clusters():
     response = socket.sent[0]
     assert response["total"] == 1
     assert response["failed"] == 0
-    assert response["results"][0]["cluster_id"] == 5
-    assert response["results"][0]["score"]["particle_type"] == "TRITIUM"
+    assert response["classifications"]["results"][0]["cluster_id"] == 5
+    assert response["classifications"]["results"][0]["score"]["particle_type"] == "TRITIUM"
