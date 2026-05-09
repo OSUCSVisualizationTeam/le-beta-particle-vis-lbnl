@@ -2,7 +2,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Callable
 
-from le_beta_vis.common import Cluster
+from le_beta_vis.common.ClassifierDataClasses import (
+    ClassificationRequestCluster,
+)
 from le_beta_vis.common.ParticleType import ParticleType
 
 @dataclass
@@ -28,14 +30,14 @@ CompletionCallback = Callable[[ClassificationBatchResult], None]
 class ClassifierService(ABC):
     """
     All classify_* methods are asynchronous. Callbacks fire from a background
-    thread. Cluster.data must be hydrated by the caller before passing
-    clusters to any classify_* method.
+    thread. ``ClassificationRequestCluster.data`` must be hydrated by the
+    caller before passing clusters to any classify_* method.
     """
 
     @abstractmethod
     def classify_cnn(
         self,
-        clusters: list[Cluster],
+        clusters: list[ClassificationRequestCluster],
         on_complete: CompletionCallback,
         on_error: Optional[ErrorCallback] = None,
     ) -> None: ...
@@ -43,7 +45,7 @@ class ClassifierService(ABC):
     @abstractmethod
     def classify_nrg(
         self,
-        clusters: list[Cluster],
+        clusters: list[ClassificationRequestCluster],
         on_complete: CompletionCallback,
         on_error: Optional[ErrorCallback] = None,
     ) -> None: ...
@@ -51,7 +53,7 @@ class ClassifierService(ABC):
     @abstractmethod
     def classify_bdt(
         self,
-        clusters: list[Cluster],
+        clusters: list[ClassificationRequestCluster],
         on_complete: CompletionCallback,
         on_error: Optional[ErrorCallback] = None,
     ) -> None: ...
