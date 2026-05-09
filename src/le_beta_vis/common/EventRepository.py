@@ -8,6 +8,8 @@ from .EPSDataClasses import (
     ClusterStoreRequest,
     EPSFitsRecord,
     FitsClusterQueryFilter,
+    FitsQueryFilter,
+    FitsStoreRequest,
 )
 
 onCluster = Callable[[List[Cluster]], None]
@@ -142,4 +144,19 @@ class EventRepository(ABC):
             Matching ``Cluster`` objects, enriched with FITS
             filename and date from the backend response.
         """
+        raise NotImplementedError
+
+    def query_fits_sync(
+        self,
+        query_filter: Optional[FitsQueryFilter] = None,
+    ) -> List[EPSFitsRecord]:
+        """Returns FITS records matching *query_filter*, or all records if None.
+
+        Callers already on a background thread may call this directly to
+        avoid an async callback round-trip.
+        """
+        raise NotImplementedError
+
+    def store_fits_sync(self, request: FitsStoreRequest) -> Optional[int]:
+        """Registers a FITS file in EPS; returns its database ID or None on failure."""
         raise NotImplementedError

@@ -1,4 +1,6 @@
-from typing import Optional, Tuple
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 from PySide6.QtCore import (
     QMetaObject,
@@ -6,11 +8,15 @@ from PySide6.QtCore import (
     Slot,
 )
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QVBoxLayout,
     QWidget,
 )
 
+from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
+from le_beta_vis.common.EPSDataClasses import FitsQueryFilter, FitsStoreRequest
+from le_beta_vis.common.EventRepository import EventRepository
 from ...viewmodels.ClusterAnalysisViewModel import ClusteringState
 from ...viewmodels.RawDataViewModel import RawDataViewModel
 from ..MosaicView import MosaicView
@@ -20,9 +26,14 @@ from ._RightSidebarView import _RightSidebarView
 
 
 class RawDataView(QWidget):
-    def __init__(self, viewModel: RawDataViewModel):
+    def __init__(
+        self,
+        viewModel: RawDataViewModel,
+        repository: Optional[EventRepository] = None,
+    ):
         super().__init__()
         self.viewModel = viewModel
+        self._repository = repository
         self._pendingClusterFocus: Optional[
             Tuple[Optional[int], Tuple[int, int, int, int]]
         ] = None
@@ -75,6 +86,8 @@ class RawDataView(QWidget):
         self._bindRangeAndFocusCallbacks()
         self._bindClusteringStateCallback()
         self._rightSidebar.syncSelectors()
+        if self._repository is not None:
+            self._cavm.setExportHandler(self._onExportRequested)
 
     def _bindMosaicCallbacks(self) -> None:
         self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
@@ -129,6 +142,56 @@ class RawDataView(QWidget):
         running = self._cavm.clusteringState == ClusteringState.RUNNING
         self._leftToolbar.setEnabled(not running)
         self._rightSidebar.setEnabled(not running)
+
+    def _onExportRequested(self, clusters: List[ClusteredEventInfo]) -> None:
+        indices_to_remove = list(self._cavm.selectedClusterIndices)
+
+        def fits_info() -> Tuple[int, int]:
+            fits_path = self.viewModel.fits_path
+            if not fits_path:
+                raise RuntimeError("No FITS file is currently loaded.")
+            filename = Path(fits_path).name
+            records = self._repository.query_fits_sync(
+                FitsQueryFilter(filename=filename)
+            )
+            if records:
+                return records[0].fits_id, self.viewModel.activeIndex
+            info = self.viewModel.active_capture_info()
+            capture_date = info.captureDate() if info else None
+            date_str = (
+                capture_date.to_datetime().strftime("%Y-%m-%d %H:%M:%S")
+                if capture_date is not None
+                else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
+            exposure = info.exposureDuration() if info else None
+            new_fits_id = self._repository.store_fits_sync(FitsStoreRequest(
+                filename=filename,
+                date=date_str,
+                min=float(info.min) if info else 0.0,
+                max=float(info.max) if info else 0.0,
+                exposure_time=float(exposure.sec) if exposure is not None else 0.0,
+            ))
+            if new_fits_id is None:
+                raise RuntimeError(
+                    f"Failed to register '{filename}' in EPS. "
+                    "Check EPS connectivity."
+                )
+            return new_fits_id, self.viewModel.activeIndex
+
+        from ...viewmodels.RawClusterLabelingViewModel import (
+            RawClusterLabelingViewModel,
+        )
+        from ._RawClusterLabelingDialog import _RawClusterLabelingDialog
+
+        vm = RawClusterLabelingViewModel(
+            clusters=clusters,
+            repository=self._repository,
+            physics=self.viewModel.physics_manager,
+            fits_info_provider=fits_info,
+        )
+        dialog = _RawClusterLabelingDialog(vm, parent=self.window())
+        if dialog.exec() == QDialog.Accepted:
+            self._cavm.removeClustersByIndices(indices_to_remove)
 
     def openClusterForAnalysis(
         self,

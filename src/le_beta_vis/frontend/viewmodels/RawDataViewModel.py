@@ -48,6 +48,7 @@ class RawDataViewModel:
         self._converter = OpenCVBasedConverter()
         self._captures: List[CCDCaptureModel] = []
         self._activeIndex: int = -1
+        self._fits_path: Optional[str] = None
         self._init_callbacks()
         self._init_sub_viewmodels()
         self._init_visualization_state()
@@ -126,6 +127,7 @@ class RawDataViewModel:
 
         self._captures = CCDCaptureModel.load(path)
         self._activeIndex = -1
+        self._fits_path = filePath
         self.mosaicViewModel.setCaptures(self._captures)
 
         if self._captures:
@@ -362,6 +364,17 @@ class RawDataViewModel:
     @property
     def activeIndex(self) -> int:
         return self._activeIndex
+
+    @property
+    def fits_path(self) -> Optional[str]:
+        """Path of the currently loaded FITS file; None if no file is loaded."""
+        return self._fits_path
+
+    def active_capture_info(self) -> Optional[CCDCaptureModel.Info]:
+        """Metadata for the currently active HDU; None if nothing is loaded."""
+        if self._activeIndex == -1 or not self._captures:
+            return None
+        return self._captures[self._activeIndex].info()
 
     @property
     def activeHDULabel(self) -> Optional[str]:

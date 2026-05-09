@@ -26,8 +26,9 @@ from .EPSDataClasses import (
     ClusterStoreRequest,
     EPSClusterRecord,
     EPSFitsRecord,
-    FitsQueryFilter,
     FitsClusterQueryFilter,
+    FitsQueryFilter,
+    FitsStoreRequest,
 )
 from .EventRepository import EventRepository, onCluster, onError, onFits, onUpdate
 
@@ -218,6 +219,19 @@ class ZMQBasedEventRepository(EventRepository):
             )
             return None
         return response.get("cluster_id")
+
+    def store_fits_sync(self, request: FitsStoreRequest) -> Optional[int]:
+        """Registers a FITS file in EPS; returns its database ID or None on failure."""
+        response = self._send_fits(request.to_eps_dict())
+        if response is None:
+            return None
+        if response.get("result") != "success":
+            logger.warning(
+                "EPS store_fits returned failure: %s",
+                response.get("result"),
+            )
+            return None
+        return response.get("fits_id")
 
     def update_classification(
             self,

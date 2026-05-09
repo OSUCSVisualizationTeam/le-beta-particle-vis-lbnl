@@ -2,8 +2,10 @@
 
 Pure data-mapping tests — no ZMQ dependency.
 """
+import json
 from datetime import datetime
 
+import numpy as np
 import pytest
 
 from le_beta_vis.common.EPSDataClasses import (
@@ -188,11 +190,11 @@ class TestFitsQueryFilter:
             FitsQueryFilter.from_eps_dict(
                 {
                     "date": {
-                "start": datetime("2025-03-01 08:00:00"),
-                "end": datetime("2025-03-31 17:30:00"),
-            }
-        }
-    )
+                        "start": datetime("2025-03-01 08:00:00"),
+                        "end": datetime("2025-03-31 17:30:00"),
+                    }
+                }
+            )
 
 
 # -------------------------------------------------------------------
@@ -223,6 +225,66 @@ class TestClusterStoreRequest:
             total_energy=0.0, total_pixels=0, fits_id=0,
         )
         assert req.classification == ""
+
+    # -- serialization contract tests (issue #196) -------------------------
+
+    _NATIVE_KWARGS = dict(
+        data=[[1, 2], [3, 4]],
+        hdu_id=0,
+        bounding_box={"top": 0, "left": 0, "bottom": 5, "right": 5},
+        sigma_x=1.5,
+        sigma_y=2.0,
+        total_energy=100.0,
+        total_pixels=25,
+        fits_id=1,
+        classification="TRITIUM",
+    )
+
+    def test_json_serializable_with_python_natives(self):
+        req = ClusterStoreRequest(**self._NATIVE_KWARGS)
+        json.dumps(req.to_eps_dict())
+
+    def test_numpy_int64_bounding_box_not_json_serializable(self):
+        kwargs = {**self._NATIVE_KWARGS, "bounding_box": {
+            "top": np.int64(0), "left": np.int64(0),
+            "bottom": np.int64(5), "right": np.int64(5),
+        }}
+        req = ClusterStoreRequest(**kwargs)
+        with pytest.raises(TypeError):
+            json.dumps(req.to_eps_dict())
+
+    def test_numpy_int64_total_pixels_not_json_serializable(self):
+        req = ClusterStoreRequest(**{**self._NATIVE_KWARGS, "total_pixels": np.int64(25)})
+        with pytest.raises(TypeError):
+            json.dumps(req.to_eps_dict())
+
+    def test_numpy_float64_fields_are_json_serializable(self):
+        req = ClusterStoreRequest(**{
+            **self._NATIVE_KWARGS,
+            "sigma_x": np.float64(1.5),
+            "sigma_y": np.float64(2.0),
+            "total_energy": np.float64(100.0),
+        })
+        json.dumps(req.to_eps_dict())
+
+    def test_ndarray_data_not_json_serializable_but_tolist_is(self):
+        array = np.array([[1, 2], [3, 4]])
+        req_raw = ClusterStoreRequest(**{**self._NATIVE_KWARGS, "data": array})
+        with pytest.raises(TypeError):
+            json.dumps(req_raw.to_eps_dict())
+        req_converted = ClusterStoreRequest(**{**self._NATIVE_KWARGS, "data": array.tolist()})
+        json.dumps(req_converted.to_eps_dict())
+
+    def test_output_dict_field_types_are_python_natives(self):
+        d = ClusterStoreRequest(**self._NATIVE_KWARGS).to_eps_dict()
+        assert isinstance(d["hdu_id"], int) and not isinstance(d["hdu_id"], np.integer)
+        assert isinstance(d["fits_id"], int) and not isinstance(d["fits_id"], np.integer)
+        assert isinstance(d["total_pixels"], int) and not isinstance(d["total_pixels"], np.integer)
+        assert isinstance(d["sigmaX"], float) and not isinstance(d["sigmaX"], np.floating)
+        assert isinstance(d["sigmaY"], float) and not isinstance(d["sigmaY"], np.floating)
+        assert isinstance(d["total_energy"], float) and not isinstance(d["total_energy"], np.floating)
+        for val in d["bounding_box"].values():
+            assert isinstance(val, int) and not isinstance(val, np.integer)
 
 
 # -------------------------------------------------------------------
