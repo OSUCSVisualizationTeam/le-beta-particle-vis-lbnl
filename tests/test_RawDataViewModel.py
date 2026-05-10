@@ -15,7 +15,7 @@ import pytest
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
-from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter, ScalingFunction
+from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     RawDataViewModel,
@@ -104,7 +104,8 @@ def test_load_file_renders_first_hdu(view_model):
 
 
 def test_set_active_hdu(view_model):
-    """Test switching HDUs and verify keV conversion factor."""
+    """Test switching HDUs and verify keV conversion factor is applied
+    to the raw data before rendering."""
     view_model._config.set("global:physics:kev_conversion", 0.5)
 
     mock_capture = MagicMock(spec=CCDCaptureModel)
@@ -113,12 +114,17 @@ def test_set_active_hdu(view_model):
     view_model._captures = [mock_capture, mock_capture]
     view_model._activeIndex = 0
 
+    original_adu_to_kev = view_model._physics_manager.adu_to_kev
+    view_model._physics_manager.adu_to_kev = MagicMock(
+        side_effect=original_adu_to_kev
+    )
+
     view_model.setActiveHDU(1)
 
     assert view_model.activeIndex == 1
-    # Verify converter called with scaled data (data * 0.5)
-    args, _ = view_model._converter.convert.call_args
-    assert np.array_equal(args[0], data * 0.5)
+    view_model._physics_manager.adu_to_kev.assert_called()
+    args, _ = view_model._physics_manager.adu_to_kev.call_args
+    assert np.array_equal(args[0], data)
     assert isinstance(view_model.currentBuffer, np.ndarray)
 
 
@@ -456,7 +462,13 @@ def test_initial_scaling_from_config():
 
 
 def test_set_scaling_function_triggers_render(view_model):
-    """Test that setScalingFunction updates state and triggers render."""
+    """Test that setScalingFunction updates state and triggers render.
+
+    Detailed scaling-function math is covered by RenderPipeline /
+    ScaleStage tests; here we only verify the property update and that
+    a render was triggered (the colormap stage of the pipeline reaches
+    the mocked converter).
+    """
     mock_capture = MagicMock()
     mock_capture.rawData.return_value = np.zeros((10, 10))
     view_model._captures = [mock_capture]
@@ -465,8 +477,7 @@ def test_set_scaling_function_triggers_render(view_model):
     view_model.setScalingFunction("sqrt")
 
     assert view_model.scalingFunction == "sqrt"
-    _, kwargs = view_model._converter.convert.call_args
-    assert kwargs["scaling"] == ScalingFunction.SQRT
+    view_model._converter.convert.assert_called()
 
 
 def test_set_scaling_function_invalid_is_noop(view_model):

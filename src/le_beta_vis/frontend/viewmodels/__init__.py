@@ -3,6 +3,7 @@
 # pyright: reportUnusedImport=false
 from .RawDataViewModel import ActiveTool, RawDataViewModel
 from .ClusterAnalysisViewModel import ClusterAnalysisViewModel, ClusteringState
+from .FilterStackViewModel import FilterStackEntry, FilterStackViewModel
 from .HistoricalViewModel import HistoricalViewModel
 from .HistoricalEventInspectorViewModel import (
     HistoricalEventInspectorViewModel,

@@ -17,7 +17,9 @@ from le_beta_vis.frontend.fitsconverters import (
     OpenCVBasedConverter,
     ScalingFunction,
 )
+from le_beta_vis.frontend.fitsconverters.RenderPipeline import RenderPipeline
 from .ClusterAnalysisViewModel import ClusterAnalysisViewModel
+from .FilterStackViewModel import FilterStackViewModel
 from .MosaicViewModel import MosaicViewModel
 
 logger = logging.getLogger(__name__)
@@ -69,6 +71,11 @@ class RawDataViewModel:
         )
         self.add_active_tool_changed_callback(
             self.clusterAnalysisViewModel._notify_active_tool_changed
+        )
+
+        self.filterStackViewModel = FilterStackViewModel()
+        self.filterStackViewModel.add_stack_changed_callback(
+            self._request_render
         )
 
     def _init_visualization_state(self) -> None:
@@ -316,12 +323,15 @@ class RawDataViewModel:
                 self._image_bounds = raw_data.shape[:2]
                 viz_data = self._physics_manager.adu_to_kev(raw_data)
 
-                buffer = self._converter.convert(
-                    viz_data,
-                    self._colormap,
-                    self._vrange,
+                pipeline = RenderPipeline(
                     scaling=self._scalingFunction,
+                    vrange=self._vrange,
+                    filters=self.filterStackViewModel.active_filters,
+                    colormap=self._colormap,
+                    colormap_enabled=True,
+                    converter=self._converter,
                 )
+                buffer = pipeline.render(viz_data)
                 with self._buffer_lock:
                     self._current_buffer = buffer
             except Exception:

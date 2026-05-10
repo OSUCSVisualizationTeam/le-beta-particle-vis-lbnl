@@ -5,13 +5,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import (
-    QImage,
-    QPixmap,
-    QTransform,
-)
 from PySide6.QtWidgets import (
-    QApplication,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -22,22 +16,24 @@ from PySide6.QtWidgets import (
 from le_beta_vis.common import AnnotationOverlay
 from ...viewmodels.ClusterAnalysisViewModel import ClusteringState
 from ...viewmodels.RawDataViewModel import RawDataViewModel
-from ...widgets.CaptureGraphicsView import CaptureGraphicsView
 from ...widgets.ClusteringProgressOverlay import ClusteringProgressOverlay
-from ...widgets.HDUVisualizationWidget import HDUVisualizationWidget
-from ...widgets.MagnifierGraphicsItem import MagnifierGraphicsItem
+from ...widgets.HDUVisualizationView import HDUVisualizationView
 from ._RawDataManipulationToolbar import _RawDataManipulationToolbar
 from ._RawDataViewStyle import _Style
 
-from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene
-
 
 class _CenterImageAreaView(QWidget):
-    """Center panel: toolbar, graphics scene, overlays, and status bar.
+    """Control surface for the center panel.
+
+    Owns the toolbar, status bar (pixel hover readout + tool hints),
+    clustering progress overlay, and ROI / cluster annotation routing.
+    The actual visualization (pixmap, scene, magnifier, zoom transform)
+    lives in :class:`HDUVisualizationView`, hosted in the middle of the
+    vertical stack.
 
     Emits ``roiSelected(top, left, bottom, right)`` when a box selection
-    completes so the parent can instruct the right sidebar to focus the ROI
-    tab.
+    completes so the parent can instruct the right sidebar to focus the
+    ROI tab.
     """
 
     roiSelected = Signal(int, int, int, int)
@@ -47,6 +43,7 @@ class _CenterImageAreaView(QWidget):
         self._vm = viewModel
         self._initUI()
         self._bindViewModel()
+        self._applyInitialToolHint()
 
     @property
     def _cavm(self):
@@ -55,56 +52,30 @@ class _CenterImageAreaView(QWidget):
     # --- Setup ---
 
     def _initUI(self) -> None:
-        self._centerContainer = HDUVisualizationWidget()
-        centerLayout = self._centerContainer.contentLayout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         self._toolbar = _RawDataManipulationToolbar(self._vm)
-        centerLayout.addWidget(self._toolbar)
+        layout.addWidget(self._toolbar)
 
-        self._setupGraphicsScene(centerLayout)
-        self._setupSceneOverlays()
-        centerLayout.addWidget(self._createStatusBar())
-        self._activateDefaultTool()
+        self._visualizationView = HDUVisualizationView(self._vm)
+        layout.addWidget(self._visualizationView, 1)
 
-        self._clusteringOverlay = ClusteringProgressOverlay(self._centerContainer)
+        layout.addWidget(self._createStatusBar())
 
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-        outer.addWidget(self._centerContainer)
+        self._configureHudOverlays()
+        self._clusteringOverlay = ClusteringProgressOverlay(self)
 
-    def _setupGraphicsScene(self, centerLayout: QVBoxLayout) -> None:
-        self.scene = QGraphicsScene()
-        self.graphicsView = CaptureGraphicsView()
-        self.graphicsView.setScene(self.scene)
-        self.graphicsView.setStyleSheet(_Style.GRAPHICS_VIEW)
-        self.graphicsView.setAlignment(Qt.AlignCenter)
-
-        self.pixmapItem = QGraphicsPixmapItem()
-        self.scene.addItem(self.pixmapItem)
-        self._centerContainer.addSourceView(self.graphicsView)
-
-    def _setupSceneOverlays(self) -> None:
-        self._magnifierItem = MagnifierGraphicsItem(
-            fixedDisplaySize=127,
-            initialMagnificationFactor=3.0,
-        )
-        self._magnifierItem.setUnitLabel(self.tr("keV"))
-        self._magnifierItem.setVisible(False)
-        if self._vm.showToolHints:
-            self._magnifierItem.setHintLines(
-                [
-                    self.tr("Arrow keys: fine movement"),
-                    self.tr("Scroll wheel: zoom in/out"),
-                ]
-            )
-        self.scene.addItem(self._magnifierItem)
-
-        hud = self._centerContainer.hudWidget
-        if hud is not None:
-            hud.setBoxSelectionColor(self._cavm.boxSelectColor)
-            hud.setBoxSelectionBorderWidth(self._cavm.boxSelectBorderWidth)
-            hud.bindMagnifier(self._magnifierItem)
+    def _configureHudOverlays(self) -> None:
+        """Sets ROI-overlay style on the HUD owned by the visualization
+        view. ROI styling is a control-surface concern, so it is wired
+        from here rather than from inside the visualization view."""
+        hud = self._visualizationView.hudWidget
+        if hud is None:
+            return
+        hud.setBoxSelectionColor(self._cavm.boxSelectColor)
+        hud.setBoxSelectionBorderWidth(self._cavm.boxSelectBorderWidth)
 
     def _createStatusBar(self) -> QWidget:
         statusBar = QWidget()
@@ -126,61 +97,42 @@ class _CenterImageAreaView(QWidget):
 
         return statusBar
 
-    def _activateDefaultTool(self) -> None:
-        self.graphicsView.setBoxSelectActive(True)
-        if self._vm.showToolHints:
+    def _applyInitialToolHint(self) -> None:
+        if self._vm.isBoxSelectActive and self._vm.showToolHints:
             self._hintLabel.setText(self.tr("⇧ Shift + drag to select ROI"))
             self._hintLabel.setVisible(True)
 
     # --- ViewModel binding ---
 
     def _bindViewModel(self) -> None:
-        self._bindImageCallbacks()
-        self._bindToolCallbacks()
-        self._bindGraphicsViewSignals()
+        self._bindToolHintCallbacks()
+        self._bindPointerStatusCallback()
+        self._bindVisualizationSignals()
         self._bindRoiCallbacks()
         self._bindClusteringOverlayCallbacks()
         self._bindClusterSelectionCallbacks()
 
-    def _bindImageCallbacks(self) -> None:
-        def on_image_changed():
-            QMetaObject.invokeMethod(self, "updateImage", Qt.QueuedConnection)
-
-        def on_scale_changed():
-            QMetaObject.invokeMethod(self, "updateZoom", Qt.QueuedConnection)
-
-        self._vm.add_image_changed_callback(on_image_changed)
-        self._vm.add_scale_changed_callback(on_scale_changed)
-
-    def _bindToolCallbacks(self) -> None:
+    def _bindToolHintCallbacks(self) -> None:
         def on_active_tool_changed():
-            QMetaObject.invokeMethod(self, "_updateActiveTool", Qt.QueuedConnection)
-
-        def on_magnifier_state_changed():
-            QMetaObject.invokeMethod(self, "_updateMagnifierState", Qt.QueuedConnection)
-
-        def on_magnifier_position_changed():
             QMetaObject.invokeMethod(
-                self, "_updateMagnifierPosition", Qt.QueuedConnection
+                self, "_updateActiveToolHint", Qt.QueuedConnection
             )
 
-        def on_pointer_hover_changed():
-            QMetaObject.invokeMethod(self, "_updatePointerStatus", Qt.QueuedConnection)
-
         self._vm.add_active_tool_changed_callback(on_active_tool_changed)
-        self._vm.add_magnifier_state_changed_callback(on_magnifier_state_changed)
-        self._vm.add_magnifier_position_changed_callback(on_magnifier_position_changed)
+
+    def _bindPointerStatusCallback(self) -> None:
+        def on_pointer_hover_changed():
+            QMetaObject.invokeMethod(
+                self, "_updatePointerStatus", Qt.QueuedConnection
+            )
+
         self._vm.add_pointer_hover_changed_callback(on_pointer_hover_changed)
 
-    def _bindGraphicsViewSignals(self) -> None:
-        self.graphicsView.pixelHovered.connect(self._onPixelHovered)
-        self.graphicsView.pixelNudgeRequested.connect(self._onPixelNudged)
-        self.graphicsView.magnificationDeltaRequested.connect(
-            self._vm.adjustMagnification
+    def _bindVisualizationSignals(self) -> None:
+        self._visualizationView.boxSelectionCompleted.connect(
+            self._onBoxSelectionCompleted
         )
-        self.graphicsView.mouseLeft.connect(self._vm.clearPointerHover)
-        self.graphicsView.boxSelectionCompleted.connect(self._onBoxSelectionCompleted)
-        self.graphicsView.boxSelectClicked.connect(self._onBoxSelectClicked)
+        self._visualizationView.boxSelectClicked.connect(self._onBoxSelectClicked)
 
     def _bindRoiCallbacks(self) -> None:
         def on_roi_changed():
@@ -241,79 +193,11 @@ class _CenterImageAreaView(QWidget):
         self._vm.add_file_loaded_callback(on_context_changed)
         self._vm.add_active_hdu_changed_callback(on_context_changed)
 
-    # --- Public API ---
-
-    def setZoomControlsEnabled(self, enabled: bool) -> None:
-        """Proxy used by parent when disabling controls during clustering."""
-        self._toolbar.setZoomControlsEnabled(enabled)
-
-    def setToolbarEnabled(self, enabled: bool) -> None:
-        """Enables or disables the manipulation toolbar."""
-        self._toolbar.setEnabled(enabled)
-
-    # --- Image / zoom ---
+    # --- Tool hint / pointer status ---
 
     @Slot()
-    def updateImage(self) -> None:
-        """Thread-safe update of the displayed pixmap."""
-        buffer = self._vm.currentBuffer
-
-        if buffer is not None:
-            height, width, channels = buffer.shape
-            bytes_per_line = channels * width
-            q_img = QImage(
-                buffer.data,
-                width,
-                height,
-                bytes_per_line,
-                QImage.Format_RGB888,
-            )
-            pixmap = QPixmap.fromImage(q_img.copy())
-            self.pixmapItem.setPixmap(pixmap)
-            self.scene.setSceneRect(0, 0, width, height)
-            self.updateZoom()
-            self._updateMagnifierSourceData(pixmap)
-        else:
-            self.pixmapItem.setPixmap(QPixmap())
-
-    def _updateMagnifierSourceData(self, pixmap: QPixmap) -> None:
-        rawData = self._vm.activeRawData
-        if rawData is not None:
-            kevFactor = self._vm.kevConversionFactor
-            self._magnifierItem.setSourceData(
-                pixmap, rawData, lambda val: val * kevFactor
-            )
-            hud = self._centerContainer.hudWidget
-            if hud is not None:
-                hud.refreshMagnifier()
-
-    @Slot()
-    def updateZoom(self) -> None:
-        """Updates the graphics view transform based on scale."""
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        self._toolbar.setZoomControlsEnabled(False)
-        try:
-            scale = self._vm.scale
-            transform = QTransform()
-            transform.scale(scale, scale)
-            self.graphicsView.setTransform(transform)
-        finally:
-            self._toolbar.setZoomControlsEnabled(True)
-            QApplication.restoreOverrideCursor()
-
-    # --- Tool state ---
-
-    @Slot()
-    def _updateActiveTool(self) -> None:
-        magnifierActive = self._vm.isMagnifierActive
+    def _updateActiveToolHint(self) -> None:
         boxSelectActive = self._vm.isBoxSelectActive
-
-        self.graphicsView.setMagnifierActive(magnifierActive)
-        self.graphicsView.setBoxSelectActive(boxSelectActive)
-        self._magnifierItem.setVisible(magnifierActive)
-        hud = self._centerContainer.hudWidget
-        if hud is not None:
-            hud.setMagnifierVisible(magnifierActive)
 
         if not boxSelectActive:
             self._vm.clearPointerHover()
@@ -323,36 +207,6 @@ class _CenterImageAreaView(QWidget):
             self._hintLabel.setVisible(True)
         else:
             self._hintLabel.setVisible(False)
-
-        if magnifierActive:
-            self.graphicsView.setFocus()
-
-    @Slot()
-    def _updateMagnifierState(self) -> None:
-        self._magnifierItem.setMagnificationFactor(self._vm.magnificationFactor)
-        hud = self._centerContainer.hudWidget
-        if hud is not None:
-            hud.refreshMagnifier()
-
-    @Slot(int, int)
-    def _onPixelHovered(self, row: int, col: int) -> None:
-        if self._vm.isMagnifierActive:
-            self._vm.setMagnifierPosition(row, col)
-        else:
-            self._vm.setPointerHoverPosition(row, col)
-
-    @Slot(int, int)
-    def _onPixelNudged(self, drow: int, dcol: int) -> None:
-        self._vm.moveMagnifier(drow, dcol)
-
-    @Slot()
-    def _updateMagnifierPosition(self) -> None:
-        row, col = self._vm.magnifierPosition
-        self._magnifierItem.setPixelPos(row, col)
-        self._positionMagnifierItem(row, col)
-        hud = self._centerContainer.hudWidget
-        if hud is not None:
-            hud.refreshMagnifier()
 
     @Slot()
     def _updatePointerStatus(self) -> None:
@@ -367,26 +221,7 @@ class _CenterImageAreaView(QWidget):
                 )
             )
 
-    def _positionMagnifierItem(self, row: int, col: int) -> None:
-        imageRect = self.pixmapItem.boundingRect()
-        magRect = self._magnifierItem.boundingRect()
-        magWidth = magRect.width()
-        magHeight = magRect.height()
-
-        desiredX = col - (self._magnifierItem.displaySize / 2)
-        desiredY = row - (magHeight / 2)
-
-        clampedX = max(imageRect.left(), min(desiredX, imageRect.right() - magWidth))
-        clampedY = max(imageRect.top(), min(desiredY, imageRect.bottom() - magHeight))
-
-        if magWidth > imageRect.width():
-            clampedX = imageRect.left()
-        if magHeight > imageRect.height():
-            clampedY = imageRect.top()
-
-        self._magnifierItem.setPos(clampedX, clampedY)
-
-    # --- Box selection ---
+    # --- Box selection routing ---
 
     @Slot(int, int, int, int)
     def _onBoxSelectionCompleted(
@@ -407,7 +242,7 @@ class _CenterImageAreaView(QWidget):
 
     @Slot()
     def _updateBoxSelection(self) -> None:
-        hud = self._centerContainer.hudWidget
+        hud = self._visualizationView.hudWidget
         if hud is None:
             return
         rois = self._cavm.rois
@@ -427,7 +262,7 @@ class _CenterImageAreaView(QWidget):
 
     @Slot()
     def _updateClusterAnnotationOverlay(self) -> None:
-        hud = self._centerContainer.hudWidget
+        hud = self._visualizationView.hudWidget
         if hud is None:
             return
         clusters = self._cavm.selectedClusters
@@ -440,7 +275,7 @@ class _CenterImageAreaView(QWidget):
 
     @Slot()
     def _clearClusterAnnotationOverlay(self) -> None:
-        hud = self._centerContainer.hudWidget
+        hud = self._visualizationView.hudWidget
         if hud is None:
             return
         hud.setAnnotationOverlays([])
@@ -470,6 +305,8 @@ class _CenterImageAreaView(QWidget):
             message,
         )
 
+    # --- Public API ---
+
     def centerOn(self, x: float, y: float) -> None:
-        """Delegates pan to the underlying CaptureGraphicsView."""
-        self.graphicsView.centerOn(x, y)
+        """Delegates pan to the underlying visualization view."""
+        self._visualizationView.centerOn(x, y)

@@ -1,51 +1,5 @@
 class _Style:
     LEFT_TOOLBAR = "background-color: #2d2d2d; border-right: 1px solid #3d3d3d;"
-    GRAPHICS_VIEW = """
-        QGraphicsView {
-            background-color: #000;
-            border: none;
-        }
-        QScrollBar:vertical {
-            width: 12px;
-            background: transparent;
-            margin: 0px;
-        }
-        QScrollBar::handle:vertical {
-            background: rgba(100, 100, 100, 165);
-            min-height: 30px;
-            border-radius: 6px;
-            margin: 2px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background: rgba(150, 150, 150, 200);
-        }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-            height: 0px;
-        }
-        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-            background: transparent;
-        }
-        QScrollBar:horizontal {
-            height: 12px;
-            background: transparent;
-            margin: 0px;
-        }
-        QScrollBar::handle:horizontal {
-            background: rgba(100, 100, 100, 165);
-            min-width: 30px;
-            border-radius: 6px;
-            margin: 2px;
-        }
-        QScrollBar::handle:horizontal:hover {
-            background: rgba(150, 150, 150, 200);
-        }
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-            width: 0px;
-        }
-        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-            background: transparent;
-        }
-    """
     STATUS_BAR = (
         "background-color: #1e1e1e; color: #cccccc;"
         " font-size: 12px; padding-left: 8px;"
