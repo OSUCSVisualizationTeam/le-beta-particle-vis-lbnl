@@ -331,7 +331,6 @@ class _DragHandle(QLabel):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.LeftButton:
             self._press_pos = event.pos()
-            self.setCursor(Qt.ClosedHandCursor)
             event.accept()
             return
         super().mousePressEvent(event)
@@ -367,8 +366,10 @@ class _DragHandle(QLabel):
             preview = card.grab()
             drag.setPixmap(preview)
             drag.setHotSpot(self.mapTo(card, self.rect().center()))
+        QApplication.setOverrideCursor(Qt.ClosedHandCursor)
         # Qt.MoveAction explicitly — no green-plus copy badge on macOS.
         drag.exec(Qt.MoveAction)
+        QApplication.restoreOverrideCursor()
         # The reorder drop handler may have deleted this widget's C++ object
         # before exec() returns — guard before touching self.
         if not isValid(self):
