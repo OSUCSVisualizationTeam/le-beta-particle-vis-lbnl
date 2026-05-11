@@ -65,6 +65,9 @@ class _FilterStackEntryView(QWidget):
         return self._entry.id
 
     def _initUI(self) -> None:
+        self.setStyleSheet(
+            f"_FilterStackEntryView {{ background-color: {_Colors.SCROLL_AREA_BACKGROUND}; }}"
+        )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -77,6 +80,7 @@ class _FilterStackEntryView(QWidget):
         caption = QWidget()
         caption.setStyleSheet(
             f"background-color: {_Colors.CARD_HEADER_BACKGROUND};"
+            " border-top-left-radius: 6px; border-top-right-radius: 6px;"
         )
         row = QHBoxLayout(caption)
         row.setContentsMargins(8, 6, 8, 6)
@@ -134,8 +138,9 @@ class _FilterStackEntryView(QWidget):
         body = QWidget()
         body.setStyleSheet(
             f"background-color: {_Colors.CARD_BODY_BACKGROUND};"
+            " border-bottom-left-radius: 6px; border-bottom-right-radius: 6px;"
         )
-        flow = _FlowLayout(body, margin=8, spacing=6)
+        flow = _FlowLayout(body, margin=10, spacing=8)
         spec = getattr(self._entry.filter, "SPEC", None)
         text_color = (
             _Colors.PARAMETER_PILL_TEXT_ENABLED
@@ -156,12 +161,14 @@ class _FilterStackEntryView(QWidget):
             "QLabel {"
             f" background-color: {_Colors.PARAMETER_PILL_BACKGROUND};"
             f" color: {text_color};"
+            " margin: 4px;"
             " padding: 3px 8px;"
+            f" border: 1px solid {_Colors.PARAMETER_PILL_BORDER};"
             " border-radius: 4px;"
             " font-size: 11px;"
             "}"
             "QLabel:hover {"
-            " background-color: #c8c8c8;"
+            f" background-color: {_Colors.PARAMETER_PILL_HOVER_BACKGROUND};"
             "}"
         )
         pill.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)

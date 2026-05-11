@@ -23,6 +23,7 @@ from le_beta_vis.common.FilterSpec import (
     ParameterType,
     UIHint,
 )
+from le_beta_vis.frontend.theme import FilterPipelinePanelColors as _Colors
 
 
 _DEFAULT_SLIDER_STEPS = 1000
@@ -53,10 +54,33 @@ class _FilterParameterPopover(QFrame):
         self.setAutoFillBackground(True)
         self.setStyleSheet(
             "#filterParameterPopover {"
-            "  background-color: #ffffff;"
-            "  border: 1px solid #888888;"
+            f"  background-color: {_Colors.POPOVER_BACKGROUND};"
+            f"  border: 1px solid {_Colors.POPOVER_BORDER};"
             "  border-radius: 6px;"
             "}"
+            f"QSlider::groove:horizontal {{"
+            f"  background: {_Colors.POPOVER_CONTROL_BACKGROUND};"
+            "  height: 4px; border-radius: 2px;"
+            "}}"
+            f"QSlider::handle:horizontal {{"
+            f"  background: {_Colors.POPOVER_CONTROL_FOREGROUND};"
+            "  width: 14px; height: 14px; margin: -5px 0; border-radius: 7px;"
+            "}}"
+            f"QDoubleSpinBox, QSpinBox, QLineEdit {{"
+            f"  background-color: {_Colors.POPOVER_CONTROL_BACKGROUND};"
+            f"  color: {_Colors.POPOVER_CONTROL_FOREGROUND};"
+            f"  border: 1px solid {_Colors.POPOVER_BORDER};"
+            "  border-radius: 3px; padding: 2px;"
+            "}}"
+            f"QComboBox {{"
+            f"  background-color: {_Colors.POPOVER_CONTROL_BACKGROUND};"
+            f"  color: {_Colors.POPOVER_CONTROL_FOREGROUND};"
+            f"  border: 1px solid {_Colors.POPOVER_BORDER}; border-radius: 3px;"
+            "}}"
+            f"QComboBox QAbstractItemView {{"
+            f"  background-color: {_Colors.ADD_FILTER_MENU_BACKGROUND};"
+            f"  color: {_Colors.POPOVER_CONTROL_FOREGROUND};"
+            "}}"
         )
         self._spec: Optional[ParameterSpec] = None
         self._editor_widget: Optional[QWidget] = None
@@ -102,7 +126,9 @@ class _FilterParameterPopover(QFrame):
     ) -> None:
         self._clearLayout()
         header = QLabel(f"<b>{spec.label}</b>")
-        header.setStyleSheet("color: #000000; font-size: 13px;")
+        header.setStyleSheet(
+            f"color: {_Colors.POPOVER_HEADER_TEXT}; font-size: 13px;"
+        )
         self._outer.addWidget(header)
 
         editor = self._pickEditor(spec, current_value)

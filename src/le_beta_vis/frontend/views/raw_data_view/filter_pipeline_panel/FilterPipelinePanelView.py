@@ -73,6 +73,12 @@ class FilterPipelinePanelView(QFrame):
             f" background-color: {_Colors.PANEL_BACKGROUND};"
             f" border: 1px solid {_Colors.PANEL_BORDER};"
             f"}}"
+            f"QToolTip {{"
+            f" background-color: {_Colors.PILL_TOOLTIP_BACKGROUND};"
+            f" color: {_Colors.PILL_TOOLTIP_TEXT};"
+            f" border: 1px solid {_Colors.PILL_TOOLTIP_BORDER};"
+            f" padding: 2px 4px;"
+            f"}}"
         )
 
         layout = QVBoxLayout(self)
@@ -98,7 +104,7 @@ class FilterPipelinePanelView(QFrame):
         self._scroll_area.setFrameShape(QFrame.NoFrame)
         self._scroll_area.setStyleSheet(
             f"QScrollArea {{ background-color: {_Colors.SCROLL_AREA_BACKGROUND};"
-            f" border-radius: 4px; }}"
+            f" border: none; border-radius: 4px; }}"
             f"QWidget#filterPipelineScrollInner {{"
             f" background-color: {_Colors.SCROLL_AREA_BACKGROUND}; }}"
         )
@@ -164,6 +170,13 @@ class FilterPipelinePanelView(QFrame):
 
     def _buildAddFilterMenu(self) -> QMenu:
         menu = QMenu(self._add_button)
+        menu.setStyleSheet(
+            f"QMenu {{ background-color: {_Colors.ADD_FILTER_MENU_BACKGROUND};"
+            f" color: {_Colors.ADD_FILTER_MENU_TEXT};"
+            f" border: 1px solid {_Colors.ADD_FILTER_MENU_BORDER}; }}"
+            f"QMenu::item:selected {{ background-color: {_Colors.ADD_FILTER_MENU_HOVER}; }}"
+            f"QMenu::item:disabled {{ color: {_Colors.ADD_FILTER_MENU_DISABLED_TEXT}; }}"
+        )
         for spec in BUILTIN_FILTERS:
             self._addSpecAction(menu, spec)
         menu.addSeparator()

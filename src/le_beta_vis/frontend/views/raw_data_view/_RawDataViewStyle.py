@@ -26,7 +26,7 @@ class _Style:
         }
         QGroupBox { color: #000000; background-color: #f0f0f0; }
         QGroupBox::title { color: #000000; }
-        QLabel { color: #000000; background: transparent; }
+        QLabel { color: #000000; background: transparent; border: none; }
         QPushButton { color: #000000; }
         QComboBox { color: #000000; background-color: #ffffff; }
         QComboBox QAbstractItemView {
