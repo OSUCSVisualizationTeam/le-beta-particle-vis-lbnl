@@ -1,5 +1,6 @@
 from typing import Optional
 
+from shiboken6 import isValid
 from PySide6.QtCore import QMimeData, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QDrag, QMouseEvent
 from PySide6.QtWidgets import (
@@ -368,6 +369,10 @@ class _DragHandle(QLabel):
             drag.setHotSpot(self.mapTo(card, self.rect().center()))
         # Qt.MoveAction explicitly — no green-plus copy badge on macOS.
         drag.exec(Qt.MoveAction)
+        # The reorder drop handler may have deleted this widget's C++ object
+        # before exec() returns — guard before touching self.
+        if not isValid(self):
+            return
         self._press_pos = None
         self.setCursor(Qt.OpenHandCursor)
 
