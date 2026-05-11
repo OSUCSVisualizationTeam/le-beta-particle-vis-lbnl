@@ -21,5 +21,9 @@ from .VizFilter import UniformFilter
 
 
 BUILTIN_FILTERS: List[FilterSpec] = [
-    UniformFilter.Gaussian.SPEC,
+    UniformFilter.SubstituteOutOfRange.SPEC,  # Clip to Range
+    UniformFilter.Gaussian.SPEC,              # Gaussian Blur
+    UniformFilter.Add.SPEC,                   # Offset
+    UniformFilter.SubstituteInRange.SPEC,     # Replace In Range
+    UniformFilter.ScalarMultiply.SPEC,        # Scale
 ]
