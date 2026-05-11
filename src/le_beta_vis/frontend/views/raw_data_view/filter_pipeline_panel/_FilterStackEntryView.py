@@ -1,7 +1,9 @@
 from typing import Optional
 
-from PySide6.QtCore import QPoint, QRect, QSize, Qt
+from PySide6.QtCore import QMimeData, QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QDrag, QMouseEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QLayout,
@@ -12,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from le_beta_vis.common.FilterSpec import ParameterSpec
 from le_beta_vis.frontend.icons import load_icon
 from le_beta_vis.frontend.theme import FilterPipelinePanelColors as _Colors
 from le_beta_vis.frontend.viewmodels.FilterStackViewModel import (
@@ -19,6 +22,9 @@ from le_beta_vis.frontend.viewmodels.FilterStackViewModel import (
     FilterStackViewModel,
 )
 from le_beta_vis.frontend.widgets._IconToggle import _IconToggle
+
+
+MIME_ENTRY_ID = "application/x-lbnlvis-filter-entry-id"
 
 
 class _FilterStackEntryView(QWidget):
@@ -32,7 +38,13 @@ class _FilterStackEntryView(QWidget):
     panel rebuilds entry views on every stack-shape change so the
     index stays fresh between mutations. Drag-reorder (Phase H)
     will use ``entry.id`` instead.
+
+    Emits :attr:`parameterClicked(entry_id, param_name, anchor)` when
+    the user clicks a parameter pill. The panel routes this to the
+    shared :class:`_FilterParameterPopover` for live editing.
     """
+
+    parameterClicked = Signal(str, str, QWidget)
 
     def __init__(
         self,
@@ -74,11 +86,10 @@ class _FilterStackEntryView(QWidget):
             if self._entry.enabled
             else _Colors.GRABBER_DISABLED
         )
-        self._grabber = QLabel()
+        self._grabber = _DragHandle(self._entry.id)
         self._grabber.setPixmap(
             load_icon("grabber", grabber_color).pixmap(QSize(16, 16))
         )
-        self._grabber.setCursor(Qt.OpenHandCursor)
         row.addWidget(self._grabber)
 
         name_color = (
@@ -132,20 +143,35 @@ class _FilterStackEntryView(QWidget):
         )
         if spec is not None:
             for param in spec.parameters:
-                pill_text = self._pillText(param)
-                pill = QLabel(pill_text)
-                pill.setStyleSheet(
-                    "QLabel {"
-                    f" background-color: {_Colors.PARAMETER_PILL_BACKGROUND};"
-                    f" color: {text_color};"
-                    " padding: 3px 8px;"
-                    " border-radius: 4px;"
-                    " font-size: 11px;"
-                    "}"
-                )
-                pill.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                pill = self._buildParameterPill(param, text_color)
                 flow.addWidget(pill)
         return body
+
+    def _buildParameterPill(
+        self, param: ParameterSpec, text_color: str
+    ) -> QWidget:
+        pill = _ClickableLabel(self._pillText(param))
+        pill.setStyleSheet(
+            "QLabel {"
+            f" background-color: {_Colors.PARAMETER_PILL_BACKGROUND};"
+            f" color: {text_color};"
+            " padding: 3px 8px;"
+            " border-radius: 4px;"
+            " font-size: 11px;"
+            "}"
+            "QLabel:hover {"
+            " background-color: #c8c8c8;"
+            "}"
+        )
+        pill.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        pill.setCursor(Qt.PointingHandCursor)
+        pill.setToolTip(self.tr("Click to edit"))
+        pill.clicked.connect(
+            lambda p=pill, name=param.name: self.parameterClicked.emit(
+                self._entry.id, name, p
+            )
+        )
+        return pill
 
     def _pillText(self, param) -> str:
         value = getattr(self._entry.filter, param.name, None)
@@ -266,3 +292,90 @@ class _FlowLayout(QLayout):
             x = next_x
             line_height = max(line_height, hint.height())
         return y + line_height - rect.y()
+
+
+class _ClickableLabel(QLabel):
+    """A QLabel that emits ``clicked`` on a left mouse press.
+
+    Used for parameter pills — QLabel doesn't expose a click signal,
+    and a QPushButton brings unwanted chrome at the pill density we
+    want. A small subclass is cleaner than installing event filters.
+    """
+
+    clicked = Signal()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+
+class _DragHandle(QLabel):
+    """The grabber icon at the left of each filter card.
+
+    On a left-click-and-drag, starts a :class:`QDrag` carrying the
+    parent entry's ``id`` via the :data:`MIME_ENTRY_ID` mime type.
+    Uses :data:`Qt.MoveAction` explicitly so macOS doesn't render a
+    green ``+`` "copy" badge during the drag.
+    """
+
+    def __init__(self, entry_id: str, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._entry_id = entry_id
+        self._press_pos: Optional[QPoint] = None
+        self.setCursor(Qt.OpenHandCursor)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.LeftButton:
+            self._press_pos = event.pos()
+            self.setCursor(Qt.ClosedHandCursor)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._press_pos is None:
+            return
+        if (event.buttons() & Qt.LeftButton) == 0:
+            return
+        delta = (event.pos() - self._press_pos).manhattanLength()
+        if delta < QApplication.startDragDistance():
+            return
+        self._beginDrag()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        self._press_pos = None
+        self.setCursor(Qt.OpenHandCursor)
+        super().mouseReleaseEvent(event)
+
+    def _beginDrag(self) -> None:
+        mime = QMimeData()
+        mime.setData(MIME_ENTRY_ID, self._entry_id.encode())
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        # Render the parent card as the drag preview so the user sees
+        # what they're moving — falls back to a default cursor if the
+        # parent geometry isn't available yet.
+        parent = self.parent()
+        while parent is not None and not isinstance(parent, QWidget):
+            parent = parent.parent()
+        card = self._findCard(parent)
+        if card is not None:
+            preview = card.grab()
+            drag.setPixmap(preview)
+            drag.setHotSpot(self.mapTo(card, self.rect().center()))
+        # Qt.MoveAction explicitly — no green-plus copy badge on macOS.
+        drag.exec(Qt.MoveAction)
+        self._press_pos = None
+        self.setCursor(Qt.OpenHandCursor)
+
+    @staticmethod
+    def _findCard(widget: Optional[QWidget]) -> Optional[QWidget]:
+        node = widget
+        while node is not None:
+            if isinstance(node, _FilterStackEntryView):
+                return node
+            node = node.parent() if isinstance(node, QWidget) else None
+        return None
