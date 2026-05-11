@@ -14,6 +14,7 @@ from ...viewmodels.RawDataViewModel import RawDataViewModel
 from ..ClusterAnalysisView import ClusterAnalysisView
 from ._ROIInfoWidget import _ROIInfoWidget
 from ._RawDataViewStyle import _Style
+from .filter_pipeline_panel import FilterPipelinePanelView
 
 
 class _RightSidebarView(QFrame):
@@ -67,12 +68,11 @@ class _RightSidebarView(QFrame):
 
         layout.addWidget(vizGroup)
 
-        filterGroup = QGroupBox(self.tr("Filtering Pipeline"))
-        filterLayout = QVBoxLayout(filterGroup)
-        filterLayout.addWidget(QLabel(self.tr("(Not implemented yet)")))
-        layout.addWidget(filterGroup)
+        self._filterPipelinePanel = FilterPipelinePanelView(
+            self._vm.filterStackViewModel
+        )
+        layout.addWidget(self._filterPipelinePanel, 1)
 
-        layout.addStretch()
         return container
 
     def _buildClusteringTab(self) -> QWidget:

@@ -232,6 +232,114 @@ def test_active_filters_reflects_enabled_state(vm, filter_a, filter_b, filter_c)
 def test_filter_stack_entry_dataclass_defaults():
     entry = FilterStackEntry(filter=_IdentityFilter("X"))
     assert entry.enabled is True
+    assert isinstance(entry.id, str)
+    assert len(entry.id) > 0
+
+
+# ---------------------------------------------------------------------------
+# Stable entry IDs
+# ---------------------------------------------------------------------------
+
+
+def test_entry_ids_are_unique(vm, filter_a, filter_b, filter_c):
+    vm.add_filter(filter_a)
+    vm.add_filter(filter_b)
+    vm.add_filter(filter_c)
+    ids = [e.id for e in vm.entries]
+    assert len(set(ids)) == 3
+
+
+def test_entry_id_survives_reorder(vm, filter_a, filter_b, filter_c):
+    """The whole point of the id field — reorder must not change it."""
+    vm.add_filter(filter_a)
+    vm.add_filter(filter_b)
+    vm.add_filter(filter_c)
+    middle_id = vm.entries[1].id
+    vm.move_filter(1, 0)
+    # filter_b moved to position 0; its id must be unchanged
+    assert vm.entries[0].id == middle_id
+
+
+# ---------------------------------------------------------------------------
+# move_filter_by_id
+# ---------------------------------------------------------------------------
+
+
+def test_move_filter_by_id_resolves_position(vm, filter_a, filter_b, filter_c):
+    vm.add_filter(filter_a)
+    vm.add_filter(filter_b)
+    vm.add_filter(filter_c)
+    target_id = vm.entries[2].id  # filter_c
+    vm.move_filter_by_id(target_id, 0)
+    assert [e.filter for e in vm.entries] == [filter_c, filter_a, filter_b]
+
+
+def test_move_filter_by_id_unknown_id_is_noop(vm, filter_a):
+    vm.add_filter(filter_a)
+    cb = MagicMock()
+    vm.add_stack_changed_callback(cb)
+    vm.move_filter_by_id("does-not-exist", 0)
+    cb.assert_not_called()
+
+
+def test_move_filter_by_id_fires_callback(vm, filter_a, filter_b):
+    vm.add_filter(filter_a)
+    vm.add_filter(filter_b)
+    cb = MagicMock()
+    vm.add_stack_changed_callback(cb)
+    vm.move_filter_by_id(vm.entries[1].id, 0)
+    cb.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# set_filter_parameter
+# ---------------------------------------------------------------------------
+
+
+class _ConfigurableFilter(UniformVizFilter):
+    """Test fixture with a public ``sigma`` attribute (like Gaussian)."""
+
+    def __init__(self, sigma: float = 1.0) -> None:
+        self.sigma = sigma
+
+    def filter(self, matrix):
+        return matrix * self.sigma
+
+
+def test_set_filter_parameter_mutates_filter(vm):
+    f = _ConfigurableFilter(sigma=1.0)
+    vm.add_filter(f)
+    vm.set_filter_parameter(0, "sigma", 3.5)
+    assert f.sigma == 3.5
+
+
+def test_set_filter_parameter_fires_callback(vm):
+    f = _ConfigurableFilter(sigma=1.0)
+    vm.add_filter(f)
+    cb = MagicMock()
+    vm.add_stack_changed_callback(cb)
+    vm.set_filter_parameter(0, "sigma", 2.0)
+    cb.assert_called_once()
+
+
+def test_set_filter_parameter_out_of_range_index_is_noop(vm):
+    f = _ConfigurableFilter(sigma=1.0)
+    vm.add_filter(f)
+    cb = MagicMock()
+    vm.add_stack_changed_callback(cb)
+    vm.set_filter_parameter(99, "sigma", 2.0)
+    cb.assert_not_called()
+    assert f.sigma == 1.0
+
+
+def test_set_filter_parameter_unknown_attribute_is_noop(vm):
+    f = _ConfigurableFilter(sigma=1.0)
+    vm.add_filter(f)
+    cb = MagicMock()
+    vm.add_stack_changed_callback(cb)
+    vm.set_filter_parameter(0, "bogus_attr", 2.0)
+    cb.assert_not_called()
+    assert f.sigma == 1.0
 
 
 # ---------------------------------------------------------------------------

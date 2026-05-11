@@ -148,3 +148,26 @@ class TooltipStyle:
         " border: 1px solid #ccc; font-weight: normal;"
     )
     QSS = f"QToolTip {{ {BODY} }}"
+
+
+class FilterPipelinePanelColors:
+    """Colors for the Interactive Filter Stack UI in the right sidebar."""
+
+    PANEL_BACKGROUND = "#F9F9F9"
+    PANEL_BORDER = "#CCCCCC"
+    SCROLL_AREA_BACKGROUND = "#D9D9D9"
+    CARD_HEADER_BACKGROUND = "#2F2F2F"
+    CARD_BODY_BACKGROUND = "#EEEEEE"
+    PARAMETER_PILL_BACKGROUND = "#D9D9D9"
+    PARAMETER_PILL_TEXT_ENABLED = "#000000"
+    PARAMETER_PILL_TEXT_DISABLED = "#7F7F7F"
+    FILTER_NAME_ENABLED = "#555555"
+    FILTER_NAME_DISABLED = "#BBBBBB"
+    GRABBER_ENABLED = "#757575"
+    GRABBER_DISABLED = "#BBBBBB"
+    DELETE_ICON = "#900B09"
+    TOGGLE_ON = "#14AE5C"
+    TOGGLE_OFF = "#BBBBBB"
+    ADD_FILTER_BUTTON_BACKGROUND = "#99B1E9"
+    COUNTER_TEXT = "#757575"
+    TITLE_TEXT = "#000000"

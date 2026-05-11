@@ -1,5 +1,6 @@
-from dataclasses import dataclass
-from typing import Callable, List
+import uuid
+from dataclasses import dataclass, field
+from typing import Any, Callable, List, Optional
 
 from le_beta_vis.common.VizFilter import UniformVizFilter
 
@@ -9,12 +10,18 @@ class FilterStackEntry:
     """One slot in the Interactive Filter Stack.
 
     Pairs a :class:`UniformVizFilter` with a UI-toggleable ``enabled``
-    flag. When disabled the filter is skipped at render time without
-    leaving the stack — so toggling preserves position.
+    flag and a stable ``id``. When disabled the filter is skipped at
+    render time without leaving the stack — so toggling preserves
+    position.
+
+    The ``id`` is a UUID hex string that survives reordering and is
+    used by drag-and-drop to identify which entry is being moved
+    (index-based identity breaks mid-drag when other rows shift).
     """
 
     filter: UniformVizFilter
     enabled: bool = True
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
 
 
 class FilterStackViewModel:
@@ -98,6 +105,48 @@ class FilterStackViewModel:
             return
         entry.enabled = enabled
         self._notify_stack_changed()
+
+    def set_filter_parameter(
+        self, index: int, name: str, value: Any
+    ) -> None:
+        """Mutate parameter *name* on the filter at *index*.
+
+        The IFS parameter popover drives this on every value change
+        for live preview. Mutation goes through :func:`setattr`, so
+        filter classes must expose their parameters as public
+        attributes (e.g. ``Gaussian.sigma`` rather than a
+        name-mangled private). Out-of-range indices and missing
+        attributes are no-ops to keep UI flows simple.
+
+        Fires the stack-changed callbacks so observers (typically
+        :class:`RawDataViewModel._request_render`) re-render.
+        """
+        if not (0 <= index < len(self._entries)):
+            return
+        entry = self._entries[index]
+        if not hasattr(entry.filter, name):
+            return
+        setattr(entry.filter, name, value)
+        self._notify_stack_changed()
+
+    def move_filter_by_id(self, entry_id: str, to_index: int) -> None:
+        """Move the entry with matching ``id`` to *to_index*.
+
+        Used by drag-and-drop reorder so a moving filter doesn't lose
+        track if other rows shift mid-drag. Falls through to
+        :meth:`move_filter` once the index is resolved. Unknown ids
+        are silently ignored.
+        """
+        index = self._index_of(entry_id)
+        if index is None:
+            return
+        self.move_filter(index, to_index)
+
+    def _index_of(self, entry_id: str) -> Optional[int]:
+        for i, entry in enumerate(self._entries):
+            if entry.id == entry_id:
+                return i
+        return None
 
     def clear(self) -> None:
         """Remove every filter from the stack. No-op when empty."""
