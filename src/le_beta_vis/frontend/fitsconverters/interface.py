@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from typing import Tuple, Any
 
-from le_beta_vis.common.VizFilter import ScalingFunction
+from le_beta_vis.common.filter_pipeline import ScalingFunction
 from .colormaps import Colormap
 
 __all__ = [

@@ -12,7 +12,7 @@ from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,
 )
-from le_beta_vis.common.VizFilter import ScalingFunction
+from le_beta_vis.common.filter_pipeline import ScalingFunction
 from le_beta_vis.frontend.fitsconverters import (
     Colormap,
     OpenCVBasedConverter,

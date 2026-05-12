@@ -2,7 +2,7 @@ from typing import List, Optional, Sequence
 
 import numpy as np
 
-from le_beta_vis.common.VizFilter import ScalingFunction, UniformVizFilter
+from le_beta_vis.common.filter_pipeline import ScalingFunction, UniformVizFilter
 
 from .interface import Colormap, Fits2QPixmapConverter
 from .opencv import OpenCVBasedConverter

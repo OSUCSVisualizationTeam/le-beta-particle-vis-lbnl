@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from le_beta_vis.common.FilterSpec import (
+from le_beta_vis.common.filter_pipeline import (
     ParameterSpec,
     ParameterType,
     UIHint,

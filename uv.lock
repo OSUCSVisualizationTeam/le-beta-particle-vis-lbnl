@@ -623,6 +623,7 @@ dependencies = [
     { name = "scikit-image" },
     { name = "scipy" },
     { name = "superqt" },
+    { name = "tomli" },
     { name = "watchdog" },
 ]
 
@@ -636,7 +637,6 @@ packaging = [
     { name = "dmgbuild", marker = "sys_platform == 'darwin'" },
     { name = "pillow" },
     { name = "pyinstaller" },
-    { name = "tomli" },
 ]
 
 [package.metadata]
@@ -663,7 +663,7 @@ requires-dist = [
     { name = "scikit-image" },
     { name = "scipy" },
     { name = "superqt" },
-    { name = "tomli", marker = "extra == 'packaging'" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "watchdog" },
 ]
 provides-extras = ["dev", "packaging"]

@@ -1,6 +1,6 @@
 import numpy as np
 
-from le_beta_vis.common.VizFilter import (
+from le_beta_vis.common.filter_pipeline import (
     ScalingFunction,
     UniformFilter,
     UniformVizFilter,

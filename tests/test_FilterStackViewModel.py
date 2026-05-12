@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from le_beta_vis.common.VizFilter import (
+from le_beta_vis.common.filter_pipeline import (
     ScalingFunction,
     UniformFilter,
     UniformVizFilter,

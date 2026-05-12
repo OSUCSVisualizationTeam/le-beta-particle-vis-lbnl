@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from le_beta_vis.common.FilterSpec import ParameterSpec
+from le_beta_vis.common.filter_pipeline import ParameterSpec
 from le_beta_vis.frontend.icons import load_icon
 from le_beta_vis.frontend.theme import FilterPipelinePanelColors as _Colors
 from le_beta_vis.frontend.viewmodels.FilterStackViewModel import (

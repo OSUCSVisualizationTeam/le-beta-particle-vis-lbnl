@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional
 
-from le_beta_vis.common.VizFilter import UniformFilter, UniformVizFilter
+from le_beta_vis.common.filter_pipeline import UniformFilter, UniformVizFilter
 
 
 @dataclass

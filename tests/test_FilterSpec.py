@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from le_beta_vis.common.FilterSpec import (
+from le_beta_vis.common.filter_pipeline import (
     FilterSpec,
     ParameterSpec,
     ParameterType,
     UIHint,
+    UniformFilter,
 )
-from le_beta_vis.common.VizFilter import UniformFilter
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@ from astropy.time import Time, TimeDelta
 from copy import deepcopy
 from pathlib import Path
 from typing import List, Optional
-from .VizFilter import UniformVizFilter
+from .filter_pipeline import UniformVizFilter
 import numpy as np
 from .BoundingBox import BoundingBox
 
@@ -165,21 +165,21 @@ class CCDCaptureModel:
         bbox.left = min(bbox.left, cols)
         bbox.bottom = min(bbox.bottom, rows)
         bbox.right = min(bbox.right, cols)
-    
+
         if bbox.top < bbox.bottom or bbox.left > bbox.right:
             raise ValueError("Invalid BoundingBox")
 
         return self.__data[bbox.bottom:bbox.top:, bbox.left:bbox.right]
-    
+
     @staticmethod
     def extractClusterFromFile(fits_filepath: Path, hdu: int, bounding_box: BoundingBox) -> np.ndarray:
-        """Loads a fits file from the filepath, and calls clusterFromBoundingBox on 
+        """Loads a fits file from the filepath, and calls clusterFromBoundingBox on
             the respective HDU.
-            
+
             Args:
                 fits_filepath: Filepath of fits file to cluster by bounding box
                 hdu: header data unit that cluster is in
-                bounding_box: bounding box object to slice HDU by    
+                bounding_box: bounding box object to slice HDU by
         """
         ccd_model = CCDCaptureModel.load(fits_filepath)
         result = ccd_model[hdu].clusterFromBoundingBox(bounding_box)

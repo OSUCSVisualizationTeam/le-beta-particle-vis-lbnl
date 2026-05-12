@@ -64,6 +64,9 @@ le_beta_vis = [
     "common/fonts/LICENSE_DEJAVU",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.flake8]
 max-line-length = 127
 max-complexity = 10
