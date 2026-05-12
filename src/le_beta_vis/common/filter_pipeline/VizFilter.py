@@ -285,7 +285,7 @@ UniformFilter.ScalePreset.SPEC = FilterSpec(
 
 UniformFilter.Window.SPEC = FilterSpec(
     type_id="window",
-    display_name="Window",
+    display_name="Display Range",
     parameters=[
         ParameterSpec(name="vmin", label="Min", type=ParameterType.FLOAT,
                       step=0.01, default=0.0),
