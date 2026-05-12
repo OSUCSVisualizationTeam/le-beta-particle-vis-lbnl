@@ -10,3 +10,11 @@ from .HistoricalEventInspectorViewModel import (
 )
 from .HistoricalFilterBarViewModel import HistoricalFilterBarViewModel
 from .SettingsViewModel import SettingsViewModel
+from .FilterPresetService import (
+    generate_schema,
+    serialize_stack,
+    deserialize_stack,
+    compose_annotation,
+    save_preset,
+    load_preset,
+)

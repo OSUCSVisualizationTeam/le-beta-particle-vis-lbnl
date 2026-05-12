@@ -25,6 +25,7 @@ dependencies = [
     "scikit-image",
     "scipy",
     "superqt",
+    "jsonschema",
     "tomli; python_version < '3.11'",
     "watchdog",
 ]

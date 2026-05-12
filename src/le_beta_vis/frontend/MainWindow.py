@@ -2,6 +2,7 @@ import sys
 
 from PySide6.QtCore import Qt, QMetaObject, Slot
 from PySide6.QtWidgets import (
+    QDialog,
     QMainWindow,
     QMessageBox,
     QTabWidget,
@@ -247,6 +248,20 @@ class MainWindow(QMainWindow):
 
         fileMenu.addSeparator()
 
+        importAction = QAction(self.tr("Import Filter Preset…"), self)
+        importAction.setShortcut(QKeySequence("Ctrl+Shift+I"))
+        importAction.setStatusTip(self.tr("Load filter settings from a .rcfilt file"))
+        importAction.triggered.connect(self._onImportFilterPreset)
+        fileMenu.addAction(importAction)
+
+        exportAction = QAction(self.tr("Export Filter Preset…"), self)
+        exportAction.setShortcut(QKeySequence("Ctrl+Shift+E"))
+        exportAction.setStatusTip(self.tr("Save current filter settings to a .rcfilt file"))
+        exportAction.triggered.connect(self._onExportFilterPreset)
+        fileMenu.addAction(exportAction)
+
+        fileMenu.addSeparator()
+
         if sys.platform == "darwin":
             settingsAction = QAction(self.tr("&Preferences"), self)
             settingsAction.setShortcut(QKeySequence("Ctrl+,"))
@@ -320,6 +335,47 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(vm, parent=self)
         dialog.exec()
 
+    def _onExportFilterPreset(self) -> None:
+        """Save the current filter stack to a .rcfilt file."""
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            self.tr("Save Filter Preset"),
+            "",
+            self.tr("RawCCD Filter Preset (*.rcfilt)"),
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".rcfilt"):
+            path += ".rcfilt"
+        from .viewmodels.FilterPresetService import compose_annotation, save_preset
+        from .views.raw_data_view.filter_pipeline_panel import _SaveFilterPresetDialog
+        entries = self.rawDataViewModel.filterStackViewModel.entries
+        dialog = _SaveFilterPresetDialog(compose_annotation(entries), parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            save_preset(path, entries, dialog.annotation)
+        except Exception as exc:
+            QMessageBox.critical(self, self.tr("Export Failed"), str(exc))
+
+    def _onImportFilterPreset(self) -> None:
+        """Load a .rcfilt file and apply the filter stack it describes."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            self.tr("Load Filter Preset"),
+            "",
+            self.tr("RawCCD Filter Preset (*.rcfilt);;All Files (*)"),
+        )
+        if not path:
+            return
+        from .viewmodels.FilterPresetService import load_preset
+        try:
+            entries, _ = load_preset(path)
+        except Exception as exc:
+            QMessageBox.critical(self, self.tr("Import Failed"), str(exc))
+            return
+        self.rawDataViewModel.filterStackViewModel.apply_preset(entries)
+
     def onOpenFile(self) -> None:
         """Open a file dialog and load it into the Raw Data view."""
         filePath, _ = QFileDialog.getOpenFileName(
@@ -328,9 +384,20 @@ class MainWindow(QMainWindow):
             "",
             self.tr("FITS Files (*.fits);;All Files (*)"),
         )
-        if filePath:
-            self.tabs.setCurrentWidget(self.rawDataView)
-            self.rawDataViewModel.loadFile(filePath)
+        if not filePath:
+            return
+        if filePath.lower().endswith(".rcfilt"):
+            QMessageBox.information(
+                self,
+                self.tr("Wrong Action"),
+                self.tr(
+                    "This is a filter preset file.\n"
+                    "Use File → Import Filter Preset… to load it."
+                ),
+            )
+            return
+        self.tabs.setCurrentWidget(self.rawDataView)
+        self.rawDataViewModel.loadFile(filePath)
 
     def _openClusterInRawData(self, cluster: Cluster) -> None:
         """Navigates from the Historical Inspector to Raw Data Analysis.

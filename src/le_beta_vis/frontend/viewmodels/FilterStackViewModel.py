@@ -295,6 +295,33 @@ class FilterStackViewModel:
         self._entries = new_entries
         self._notify_stack_changed()
 
+    def apply_preset(self, entries: List[FilterStackEntry]) -> None:
+        """Replace the stack contents with the filter configuration in *entries*.
+
+        Pinned entries in the preset update the parameter values of the
+        existing pinned filters; their positions and filter instances are
+        preserved. User entries (``pinned=False``) replace the current
+        user-filter region. Fires stack-changed callbacks once after all
+        mutations are applied.
+
+        Args:
+            entries: A list produced by
+                :func:`~le_beta_vis.frontend.viewmodels.FilterPresetService.deserialize_stack`.
+        """
+        for preset_entry in (e for e in entries if e.pinned):
+            idx = self.find_pinned_index(preset_entry.filter.SPEC.type_id)
+            if idx is None:
+                continue
+            live = self._entries[idx].filter
+            for ps in preset_entry.filter.SPEC.parameters:
+                setattr(live, ps.name, getattr(preset_entry.filter, ps.name))
+        user_entries = [e for e in entries if not e.pinned]
+        self._entries = [e for e in self._entries if e.pinned]
+        for entry in user_entries:
+            insert_at = self._first_trailing_pinned_index()
+            self._entries.insert(insert_at, entry)
+        self._notify_stack_changed()
+
     def add_stack_changed_callback(
         self, callback: Callable[[], None]
     ) -> None:
