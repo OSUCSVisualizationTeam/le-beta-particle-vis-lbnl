@@ -620,7 +620,7 @@ classifier:classifier_ipc:
   default: "ipc:///tmp/EPCClassifierRequest.ipc"
   description: >-
     ZMQ IPC address for the classifier service requests.
-s
+
 classifier:command_ipc:
   type: str
   default: "ipc:///tmp/EPCClassifierCommand.ipc"
