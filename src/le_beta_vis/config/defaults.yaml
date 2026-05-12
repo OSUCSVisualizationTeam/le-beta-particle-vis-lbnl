@@ -617,12 +617,12 @@ gui:livemode:histogram_min_height_pct:
 
 classifier:classifier_ipc:
   type: str
-  default: "ipc:///tmp/ClassifierRequest.ipc"
+  default: "ipc:///tmp/EPCClassifierRequest.ipc"
   description: >-
     ZMQ IPC address for the classifier service requests.
-
+s
 classifier:command_ipc:
   type: str
-  default: "ipc:///tmp/ClassifierCommand.ipc"
+  default: "ipc:///tmp/EPCClassifierCommand.ipc"
   description: >-
     ZMQ IPC address for the classifier service commands.

@@ -26,20 +26,23 @@ class MockClassifierService(ClassifierService):
         on_complete: CompletionCallback,
         on_error: Optional[ErrorCallback] = None,
     ) -> None:
-        def _run() -> None:
-            try:
-                self.random_classification(
-                    clusters=clusters,
-                    on_complete=on_complete,
-                    on_error=on_error,
-                    model=model,
-                )
-            except Exception as exc:
-                if on_error:
-                    on_error(exc)
+        self.random_classification(clusters, on_complete, model, on_error)
 
-        threading.Thread(target=_run, daemon=True).start()
-    
+        # For asynchronous use:
+        # def _run() -> None:
+        #     try:
+        #         self.random_classification(
+        #             clusters=clusters,
+        #             on_complete=on_complete,
+        #             on_error=on_error,
+        #             model=model,
+        #         )
+        #     except Exception as exc:
+        #         if on_error:
+        #             on_error(exc)
+
+        #threading.Thread(target=_run, daemon=True).start()
+
     def classify_cnn(
         self,
         clusters: list[ClassificationRequestCluster],
