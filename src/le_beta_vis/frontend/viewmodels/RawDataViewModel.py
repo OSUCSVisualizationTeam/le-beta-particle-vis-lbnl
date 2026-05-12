@@ -12,10 +12,10 @@ from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import (
     PhysicsConversionManager,
 )
+from le_beta_vis.common.VizFilter import ScalingFunction
 from le_beta_vis.frontend.fitsconverters import (
     Colormap,
     OpenCVBasedConverter,
-    ScalingFunction,
 )
 from le_beta_vis.frontend.fitsconverters.RenderPipeline import RenderPipeline
 from .ClusterAnalysisViewModel import ClusterAnalysisViewModel
@@ -53,8 +53,8 @@ class RawDataViewModel:
         self._fits_path: Optional[str] = None
         self._init_callbacks()
         self._init_sub_viewmodels()
-        self._init_visualization_state()
         self._init_render_pipeline()
+        self._init_visualization_state()
 
     def _init_sub_viewmodels(self) -> None:
         """Constructs sub-ViewModels and wires cross-VM notifications."""
@@ -74,28 +74,25 @@ class RawDataViewModel:
         )
 
         self.filterStackViewModel = FilterStackViewModel()
-        self.filterStackViewModel.add_stack_changed_callback(
-            self._request_render
-        )
+        # The render-on-mutation callback is registered after
+        # _seed_pinned_filter_state runs, so seeding the pinned filter
+        # parameters during init doesn't queue redundant renders.
 
     def _init_visualization_state(self) -> None:
-        """Initializes colormap, value range, scaling, zoom, tool,
-        magnifier, image bounds, and pointer hover state."""
+        """Initializes colormap, zoom, tool, magnifier, image bounds, and
+        pointer hover state.
+
+        vmin/vmax, scaling-function mode, and the ADU→keV conversion
+        factor are not stored here — they live on the pinned filter
+        entries seeded by :class:`FilterStackViewModel`. The values
+        configured under ``gui:raw_analysis:vis_range_*`` and
+        ``gui:raw_analysis:default_scaling_function`` are loaded into
+        those entries by :meth:`_seed_pinned_filter_state`.
+        """
         colormap_str = self._config.get(
             "gui:raw_analysis:default_colormap", Colormap.VIRIDIS
         )
         self._colormap = Colormap(colormap_str)
-        self._vrange = (
-            self._config.get("gui:raw_analysis:vis_range_min", 0.0),
-            self._config.get("gui:raw_analysis:vis_range_max", 20.0),
-        )
-        scaling_str = self._config.get(
-            "gui:raw_analysis:default_scaling_function", ScalingFunction.LINEAR
-        )
-        try:
-            self._scalingFunction = ScalingFunction(scaling_str)
-        except ValueError:
-            self._scalingFunction = ScalingFunction.LINEAR
         self._scale: float = 1.0
         self._activeTool: ActiveTool = ActiveTool.BOX_SELECT
         self._magnificationFactor: float = self._config.get(
@@ -104,6 +101,40 @@ class RawDataViewModel:
         self._magnifier_pos: Tuple[int, int] = (0, 0)
         self._image_bounds: Tuple[int, int] = (0, 0)
         self._pointer_hover_pos: Optional[Tuple[int, int]] = None
+        self._seed_pinned_filter_state()
+
+    def _seed_pinned_filter_state(self) -> None:
+        """Push initial config values into the pinned filter entries.
+
+        Runs once at construction. The ADU→keV factor comes from the
+        live PhysicsConversionManager (config-backed). Window vmin/vmax
+        and ScalePreset mode come from the same config keys that used
+        to drive ``_vrange`` and ``_scalingFunction``.
+        """
+        vm = self.filterStackViewModel
+        vm.set_pinned_parameter(
+            "adu_to_kev", "factor", self._physics_manager.kev_conversion_factor
+        )
+        vm.set_pinned_parameter(
+            "window", "vmin",
+            float(self._config.get("gui:raw_analysis:vis_range_min", 0.0)),
+        )
+        vm.set_pinned_parameter(
+            "window", "vmax",
+            float(self._config.get("gui:raw_analysis:vis_range_max", 20.0)),
+        )
+        scaling_str = self._config.get(
+            "gui:raw_analysis:default_scaling_function",
+            ScalingFunction.LINEAR.value,
+        )
+        try:
+            mode = ScalingFunction(scaling_str)
+        except ValueError:
+            mode = ScalingFunction.LINEAR
+        vm.set_pinned_parameter("scale_preset", "mode", mode)
+        # Late-bind through self so test monkey-patches of
+        # _request_render (synchronous render) are honored.
+        vm.add_stack_changed_callback(lambda: self._request_render())
 
     def _init_render_pipeline(self) -> None:
         """Creates the render queue and buffer lock, then starts the
@@ -157,16 +188,30 @@ class RawDataViewModel:
             pass
 
     def setScalingFunction(self, scaling: str) -> None:
-        """Sets the scaling transfer function and re-queues a render."""
+        """Sets the scaling transfer function and re-queues a render.
+
+        Routes to the pinned ScalePreset filter entry — the
+        FilterStackViewModel emits a stack-changed callback that
+        triggers the render.
+        """
         try:
-            self._scalingFunction = ScalingFunction(scaling)
-            self._request_render()
+            mode = ScalingFunction(scaling)
         except ValueError:
-            pass
+            return
+        self.filterStackViewModel.set_pinned_parameter(
+            "scale_preset", "mode", mode
+        )
 
     def setVisualizationRange(self, vmin: float, vmax: float):
-        self._vrange = (vmin, vmax)
-        self._request_render()
+        """Sets the visualization window and re-queues a render.
+
+        Routes to the pinned Window filter entry. Both vmin and vmax
+        are written before notifying, but the FilterStackViewModel
+        emits one callback per ``set_pinned_parameter`` call, so the
+        render queue may coalesce two requests into one.
+        """
+        self.filterStackViewModel.set_pinned_parameter("window", "vmin", vmin)
+        self.filterStackViewModel.set_pinned_parameter("window", "vmax", vmax)
 
     def zoomIn(self):
         """
@@ -321,17 +366,14 @@ class RawDataViewModel:
                 current_capture = self._captures[self._activeIndex]
                 raw_data = current_capture.rawData()
                 self._image_bounds = raw_data.shape[:2]
-                viz_data = self._physics_manager.adu_to_kev(raw_data)
 
                 pipeline = RenderPipeline(
-                    scaling=self._scalingFunction,
-                    vrange=self._vrange,
                     filters=self.filterStackViewModel.active_filters,
                     colormap=self._colormap,
                     colormap_enabled=True,
                     converter=self._converter,
                 )
-                buffer = pipeline.render(viz_data)
+                buffer = pipeline.render(raw_data)
                 with self._buffer_lock:
                     self._current_buffer = buffer
             except Exception:
@@ -360,7 +402,7 @@ class RawDataViewModel:
 
     @property
     def visualizationRange(self) -> Tuple[float, float]:
-        return self._vrange
+        return self._pinned_window_range()
 
     @property
     def colormap(self) -> str:
@@ -369,7 +411,22 @@ class RawDataViewModel:
     @property
     def scalingFunction(self) -> str:
         """Returns the current scaling function as a string."""
-        return self._scalingFunction.value
+        return self._pinned_scaling_function().value
+
+    def _pinned_window_range(self) -> Tuple[float, float]:
+        """Read (vmin, vmax) from the pinned Window filter entry."""
+        index = self.filterStackViewModel.find_pinned_index("window")
+        if index is None:
+            return (0.0, 1.0)
+        window = self.filterStackViewModel.entries[index].filter
+        return (float(window.vmin), float(window.vmax))
+
+    def _pinned_scaling_function(self) -> ScalingFunction:
+        """Read the mode from the pinned ScalePreset filter entry."""
+        index = self.filterStackViewModel.find_pinned_index("scale_preset")
+        if index is None:
+            return ScalingFunction.LINEAR
+        return self.filterStackViewModel.entries[index].filter.mode
 
     @property
     def activeIndex(self) -> int:

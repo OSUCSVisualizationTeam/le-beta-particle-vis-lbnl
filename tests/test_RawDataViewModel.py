@@ -103,10 +103,19 @@ def test_load_file_renders_first_hdu(view_model):
             view_model._converter.convert.assert_called()
 
 
-def test_set_active_hdu(view_model):
-    """Test switching HDUs and verify keV conversion factor is applied
-    to the raw data before rendering."""
-    view_model._config.set("global:physics:kev_conversion", 0.5)
+def test_set_active_hdu():
+    """Switching HDUs feeds raw ADU through the pipeline and produces a
+    rendered buffer; the pinned ADU→keV filter is seeded from the
+    configured conversion factor."""
+    config = MockConfigurationService()
+    config.set("global:physics:kev_conversion", 0.5)
+    physics_manager = PhysicsConversionManagerImpl(config)
+    view_model = RawDataViewModel(config, physics_manager)
+    view_model._converter = MagicMock()
+    view_model._converter.convert.return_value = np.zeros(
+        (10, 10, 3), dtype=np.uint8,
+    )
+    view_model._request_render = view_model._render_worker_logic
 
     mock_capture = MagicMock(spec=CCDCaptureModel)
     data = np.array([[10, 20], [30, 40]])
@@ -114,18 +123,13 @@ def test_set_active_hdu(view_model):
     view_model._captures = [mock_capture, mock_capture]
     view_model._activeIndex = 0
 
-    original_adu_to_kev = view_model._physics_manager.adu_to_kev
-    view_model._physics_manager.adu_to_kev = MagicMock(
-        side_effect=original_adu_to_kev
-    )
-
     view_model.setActiveHDU(1)
 
     assert view_model.activeIndex == 1
-    view_model._physics_manager.adu_to_kev.assert_called()
-    args, _ = view_model._physics_manager.adu_to_kev.call_args
-    assert np.array_equal(args[0], data)
     assert isinstance(view_model.currentBuffer, np.ndarray)
+    # ADU→keV factor was seeded from the configured value
+    adu_idx = view_model.filterStackViewModel.find_pinned_index("adu_to_kev")
+    assert view_model.filterStackViewModel.entries[adu_idx].filter.factor == 0.5
 
 
 def test_set_colormap(view_model):

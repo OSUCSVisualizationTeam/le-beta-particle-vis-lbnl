@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Optional
 
 from shiboken6 import isValid
 from PySide6.QtCore import QMimeData, QPoint, QRect, QSize, Qt, Signal
@@ -58,11 +58,34 @@ class _FilterStackEntryView(QWidget):
         self._vm = vm
         self._entry = entry
         self._index = index
+        self._pills: Dict[str, "_ClickableLabel"] = {}
         self._initUI()
 
     @property
     def entry_id(self) -> str:
         return self._entry.id
+
+    @property
+    def enabled(self) -> bool:
+        return self._entry.enabled
+
+    def refresh_pills(self, entry: FilterStackEntry) -> None:
+        """Update pill text in place against the latest entry state.
+
+        Called by :class:`FilterPipelinePanelView` when only parameter
+        values changed (no add / remove / move), so dragging the
+        VerticalRangeControl can update vmin/vmax labels at slider
+        cadence without tearing down and rebuilding the whole card
+        tree on every tick.
+        """
+        self._entry = entry
+        spec = getattr(self._entry.filter, "SPEC", None)
+        if spec is None:
+            return
+        for param in spec.parameters:
+            pill = self._pills.get(param.name)
+            if pill is not None:
+                pill.setText(self._pillText(param))
 
     def _initUI(self) -> None:
         self.setStyleSheet(
@@ -86,16 +109,7 @@ class _FilterStackEntryView(QWidget):
         row.setContentsMargins(8, 6, 8, 6)
         row.setSpacing(8)
 
-        grabber_color = (
-            _Colors.GRABBER_ENABLED
-            if self._entry.enabled
-            else _Colors.GRABBER_DISABLED
-        )
-        self._grabber = _DragHandle(self._entry.id)
-        self._grabber.setPixmap(
-            load_icon("grabber", grabber_color).pixmap(QSize(16, 16))
-        )
-        row.addWidget(self._grabber)
+        row.addWidget(self._buildHandle())
 
         name_color = (
             _Colors.FILTER_NAME_ENABLED
@@ -112,25 +126,55 @@ class _FilterStackEntryView(QWidget):
         )
         row.addWidget(name, 1)
 
-        self._toggle = _IconToggle(
-            off_icon=load_icon("toggle_off", _Colors.TOGGLE_OFF),
-            on_icon=load_icon("toggle_on", _Colors.TOGGLE_ON),
-            icon_size=QSize(40, 24),
-        )
-        self._toggle.setChecked(self._entry.enabled)
-        self._toggle.toggled.connect(self._onToggleChanged)
-        row.addWidget(self._toggle)
+        if not self._entry.pinned:
+            self._toggle = _IconToggle(
+                off_icon=load_icon("toggle_off", _Colors.TOGGLE_OFF),
+                on_icon=load_icon("toggle_on", _Colors.TOGGLE_ON),
+                icon_size=QSize(40, 24),
+            )
+            self._toggle.setChecked(self._entry.enabled)
+            self._toggle.toggled.connect(self._onToggleChanged)
+            row.addWidget(self._toggle)
 
-        self._delete_button = QToolButton()
-        self._delete_button.setIcon(load_icon("delete", _Colors.DELETE_ICON))
-        self._delete_button.setIconSize(QSize(18, 18))
-        self._delete_button.setAutoRaise(True)
-        self._delete_button.setCursor(Qt.PointingHandCursor)
-        self._delete_button.setToolTip(self.tr("Remove filter"))
-        self._delete_button.clicked.connect(self._onDeleteClicked)
-        row.addWidget(self._delete_button)
+            self._delete_button = QToolButton()
+            self._delete_button.setIcon(
+                load_icon("delete", _Colors.DELETE_ICON)
+            )
+            self._delete_button.setIconSize(QSize(18, 18))
+            self._delete_button.setAutoRaise(True)
+            self._delete_button.setCursor(Qt.PointingHandCursor)
+            self._delete_button.setToolTip(self.tr("Remove filter"))
+            self._delete_button.clicked.connect(self._onDeleteClicked)
+            row.addWidget(self._delete_button)
 
         return caption
+
+    def _buildHandle(self) -> QWidget:
+        """Drag grabber for user filters; static pin marker for pinned.
+
+        Pinned cards cannot be reordered or removed, so the handle is a
+        non-interactive label — no drag start, no pointer cursor — and
+        uses the disabled grabber color to read as "fixed in place".
+        """
+        if self._entry.pinned:
+            handle = QLabel()
+            handle.setPixmap(
+                load_icon("grabber", _Colors.GRABBER_DISABLED)
+                .pixmap(QSize(16, 16))
+            )
+            handle.setToolTip(self.tr("Pinned — required by the pipeline"))
+            return handle
+
+        grabber_color = (
+            _Colors.GRABBER_ENABLED
+            if self._entry.enabled
+            else _Colors.GRABBER_DISABLED
+        )
+        self._grabber = _DragHandle(self._entry.id)
+        self._grabber.setPixmap(
+            load_icon("grabber", grabber_color).pixmap(QSize(16, 16))
+        )
+        return self._grabber
 
     # --- Parameters body ---
 
@@ -150,6 +194,7 @@ class _FilterStackEntryView(QWidget):
         if spec is not None:
             for param in spec.parameters:
                 pill = self._buildParameterPill(param, text_color)
+                self._pills[param.name] = pill
                 flow.addWidget(pill)
         return body
 
@@ -166,6 +211,8 @@ class _FilterStackEntryView(QWidget):
             f" border: 1px solid {_Colors.PARAMETER_PILL_BORDER};"
             " border-radius: 4px;"
             " font-size: 11px;"
+            " font-family: Menlo, Consolas, \"DejaVu Sans Mono\","
+            " monospace;"
             "}"
             "QLabel:hover {"
             f" background-color: {_Colors.PARAMETER_PILL_HOVER_BACKGROUND};"
@@ -185,6 +232,10 @@ class _FilterStackEntryView(QWidget):
         value = getattr(self._entry.filter, param.name, None)
         if isinstance(value, float):
             value_text = f"{value:g}"
+        elif hasattr(value, "value"):
+            # Enum members: render the underlying value, not the
+            # "ClassName.MEMBER" repr that str() produces in Py3.10.
+            value_text = str(value.value)
         else:
             value_text = str(value)
         units = f" {param.units}" if param.units else ""

@@ -171,7 +171,7 @@ def test_add_spec_value_parameter():
     assert p.min_value is None
     assert p.max_value is None
     assert p.default == 0.0
-    assert p.units == "ADU"
+    assert p.units == "keV"
 
 
 def test_add_value_is_public_attribute():
@@ -261,10 +261,10 @@ def test_substitute_in_range_spec_shape():
 def test_substitute_in_range_spec_parameters():
     params = {p.name: p for p in UniformFilter.SubstituteInRange.SPEC.parameters}
     assert params["start"].label == "Start"
-    assert params["start"].units == "ADU"
+    assert params["start"].units == "keV"
     assert params["start"].default == 0.0
     assert params["end"].label == "End"
-    assert params["end"].default == 1000.0
+    assert params["end"].default == 1.0
     assert params["value"].label == "Value"
     assert params["value"].default == 0.0
     for p in params.values():
@@ -323,14 +323,14 @@ def test_substitute_out_of_range_spec_parameters():
     assert params["start"].label == "Start"
     assert params["start"].default == 0.0
     assert params["end"].label == "End"
-    assert params["end"].default == 65535.0
+    assert params["end"].default == 20.0
     assert params["value"].label == "Value"
     assert params["value"].default == 0.0
     for p in params.values():
         assert p.type is ParameterType.FLOAT
         assert p.min_value is None
         assert p.max_value is None
-        assert p.units == "ADU"
+        assert p.units == "keV"
 
 
 def test_substitute_out_of_range_attributes_are_public():

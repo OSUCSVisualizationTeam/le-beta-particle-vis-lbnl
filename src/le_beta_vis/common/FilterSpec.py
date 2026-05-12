@@ -100,9 +100,15 @@ class FilterSpec:
     ``SPEC`` so the UI can introspect via ``entry.filter.SPEC`` without
     a registry lookup. ``filter_class`` is the constructor the UI calls
     when the user picks this type from the Add Filter menu.
+
+    ``pinned`` marks structural filters whose presence is required by the
+    pipeline (ADU→keV conversion, scaling preset, windowing, colormap).
+    Pinned filters are seeded by the ViewModel, cannot be deleted by the
+    user, and are excluded from the Add Filter menu.
     """
 
     type_id: str
     display_name: str
     parameters: List[ParameterSpec] = field(default_factory=list)
     filter_class: Optional[type] = None
+    pinned: bool = False

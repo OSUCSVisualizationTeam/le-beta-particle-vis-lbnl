@@ -1,15 +1,11 @@
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
-    QGroupBox,
-    QLabel,
     QStyleFactory,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from ...fitsconverters import Colormap, ScalingFunction
 from ...viewmodels.RawDataViewModel import RawDataViewModel
 from ..ClusterAnalysisView import ClusterAnalysisView
 from ._ROIInfoWidget import _ROIInfoWidget
@@ -18,7 +14,13 @@ from .filter_pipeline_panel import FilterPipelinePanelView
 
 
 class _RightSidebarView(QFrame):
-    """Right sidebar: visualization controls, clustering tab, ROI info tab."""
+    """Right sidebar: visualization controls, clustering tab, ROI info tab.
+
+    Scaling mode and colormap selection used to live in dedicated
+    QComboBox controls at the top of the Vis tab; they now live as
+    pinned cards inside :class:`FilterPipelinePanelView` so the
+    pipeline reads as a single composable chain.
+    """
 
     def __init__(self, viewModel: RawDataViewModel) -> None:
         super().__init__()
@@ -47,29 +49,9 @@ class _RightSidebarView(QFrame):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(8)
 
-        vizGroup = QGroupBox("")
-        vizLayout = QVBoxLayout(vizGroup)
-
-        vizLayout.addWidget(QLabel(self.tr("Scaling")))
-        self.scalingSelector = QComboBox()
-        self.scalingSelector.addItems([s.value for s in ScalingFunction])
-        self.scalingSelector.currentTextChanged.connect(
-            lambda text: self._vm.setScalingFunction(text)
-        )
-        vizLayout.addWidget(self.scalingSelector)
-
-        vizLayout.addWidget(QLabel(self.tr("Colormap")))
-        self.cmapSelector = QComboBox()
-        self.cmapSelector.addItems([c.value for c in Colormap])
-        self.cmapSelector.currentTextChanged.connect(
-            lambda text: self._vm.setColormap(text)
-        )
-        vizLayout.addWidget(self.cmapSelector)
-
-        layout.addWidget(vizGroup)
-
         self._filterPipelinePanel = FilterPipelinePanelView(
-            self._vm.filterStackViewModel
+            self._vm.filterStackViewModel,
+            self._vm,
         )
         layout.addWidget(self._filterPipelinePanel, 1)
 
@@ -82,11 +64,6 @@ class _RightSidebarView(QFrame):
 
     def _buildRoiInfoTab(self) -> QWidget:
         return _ROIInfoWidget(self._vm)
-
-    def syncSelectors(self) -> None:
-        """Sync selector widgets to match current ViewModel state."""
-        self.cmapSelector.setCurrentText(self._vm.colormap)
-        self.scalingSelector.setCurrentText(self._vm.scalingFunction)
 
     def focusRoiTab(self) -> None:
         """Switch the tab widget to the ROI Info tab."""

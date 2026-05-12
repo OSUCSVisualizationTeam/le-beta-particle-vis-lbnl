@@ -1,5 +1,5 @@
 import decimal
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QDoubleValidator, QIntValidator, QKeyEvent
@@ -84,6 +84,7 @@ class _FilterParameterPopover(QFrame):
         )
         self._spec: Optional[ParameterSpec] = None
         self._editor_widget: Optional[QWidget] = None
+        self._external_setter: Optional[Callable[[Any], None]] = None
         self._outer = QVBoxLayout(self)
         self._outer.setContentsMargins(10, 8, 10, 8)
         self._outer.setSpacing(6)
@@ -119,12 +120,27 @@ class _FilterParameterPopover(QFrame):
         self.hide()
         self.dismissed.emit()
 
+    def set_external_value(self, value: Any) -> None:
+        """Update the open editor in response to an out-of-band change.
+
+        Used when another control (e.g. VerticalRangeControl) edits the
+        same underlying parameter while the popover is open. Writes to
+        the editor widget with signals blocked so the change does not
+        re-emit ``valueChanged`` and create a feedback loop.
+
+        No-op when the popover isn't currently showing an editor.
+        """
+        if self._external_setter is None:
+            return
+        self._external_setter(value)
+
     # --- Editor construction ---
 
     def _buildEditor(
         self, spec: ParameterSpec, current_value: Any
     ) -> None:
         self._clearLayout()
+        self._external_setter = None
         header = QLabel(f"<b>{spec.label}</b>")
         header.setStyleSheet(
             f"color: {_Colors.POPOVER_HEADER_TEXT}; font-size: 13px;"
@@ -203,6 +219,20 @@ class _FilterParameterPopover(QFrame):
         slider.valueChanged.connect(on_slider_changed)
         spinbox.valueChanged.connect(on_spinbox_changed)
 
+        def set_external(v: Any) -> None:
+            try:
+                clamped = spec.clamp(float(v))
+            except (TypeError, ValueError):
+                return
+            spinbox.blockSignals(True)
+            spinbox.setValue(clamped)
+            spinbox.blockSignals(False)
+            slider.blockSignals(True)
+            slider.setValue(self._toSliderValue(clamped, spec))
+            slider.blockSignals(False)
+
+        self._external_setter = set_external
+
         row.addWidget(slider, 1)
         row.addWidget(spinbox)
         return container
@@ -221,6 +251,17 @@ class _FilterParameterPopover(QFrame):
             self.valueChanged.emit(spec.clamp(v))
 
         slider.valueChanged.connect(on_changed)
+
+        def set_external(v: Any) -> None:
+            try:
+                clamped = spec.clamp(float(v))
+            except (TypeError, ValueError):
+                return
+            slider.blockSignals(True)
+            slider.setValue(self._toSliderValue(clamped, spec))
+            slider.blockSignals(False)
+
+        self._external_setter = set_external
         return slider
 
     # --- Unbounded float (sci-notation entry) ---
@@ -247,6 +288,17 @@ class _FilterParameterPopover(QFrame):
             self.valueChanged.emit(spec.clamp(v))
 
         edit.textEdited.connect(on_edited)
+
+        def set_external(v: Any) -> None:
+            try:
+                edit.blockSignals(True)
+                edit.setText(self._formatFloat(float(v)))
+            except (TypeError, ValueError):
+                pass
+            finally:
+                edit.blockSignals(False)
+
+        self._external_setter = set_external
         return edit
 
     # --- Int / Enum ---
@@ -255,15 +307,36 @@ class _FilterParameterPopover(QFrame):
         self, spec: ParameterSpec, value: int
     ) -> QWidget:
         if spec.min_value is not None and spec.max_value is not None:
-            spinbox = QSpinBox()
-            spinbox.setRange(int(spec.min_value), int(spec.max_value))
-            if spec.step is not None:
-                spinbox.setSingleStep(int(spec.step))
-            spinbox.setValue(int(spec.clamp(value)))
-            spinbox.valueChanged.connect(
-                lambda v: self.valueChanged.emit(spec.clamp(v))
-            )
-            return spinbox
+            return self._buildBoundedIntEditor(spec, value)
+        return self._buildUnboundedIntEditor(spec, value)
+
+    def _buildBoundedIntEditor(
+        self, spec: ParameterSpec, value: int
+    ) -> QWidget:
+        spinbox = QSpinBox()
+        spinbox.setRange(int(spec.min_value), int(spec.max_value))
+        if spec.step is not None:
+            spinbox.setSingleStep(int(spec.step))
+        spinbox.setValue(int(spec.clamp(value)))
+        spinbox.valueChanged.connect(
+            lambda v: self.valueChanged.emit(spec.clamp(v))
+        )
+
+        def set_external(v: Any) -> None:
+            try:
+                spinbox.blockSignals(True)
+                spinbox.setValue(int(spec.clamp(v)))
+            except (TypeError, ValueError):
+                pass
+            finally:
+                spinbox.blockSignals(False)
+
+        self._external_setter = set_external
+        return spinbox
+
+    def _buildUnboundedIntEditor(
+        self, spec: ParameterSpec, value: int
+    ) -> QWidget:
         edit = QLineEdit()
         edit.setText(str(int(value)))
         edit.setValidator(QIntValidator())
@@ -277,6 +350,17 @@ class _FilterParameterPopover(QFrame):
             self.valueChanged.emit(spec.clamp(v))
 
         edit.textEdited.connect(on_edited)
+
+        def set_external(v: Any) -> None:
+            try:
+                edit.blockSignals(True)
+                edit.setText(str(int(v)))
+            except (TypeError, ValueError):
+                pass
+            finally:
+                edit.blockSignals(False)
+
+        self._external_setter = set_external
         return edit
 
     def _buildEnumEditor(
@@ -285,11 +369,24 @@ class _FilterParameterPopover(QFrame):
         combo = QComboBox()
         values = list(spec.enum_values or [])
         combo.addItems(values)
-        if value in values:
-            combo.setCurrentText(str(value))
+        # Enum members compare equal to their `.value` string under
+        # str-Enum, but str(member) renders as "ClassName.MEMBER" which
+        # isn't in the items list — write the .value when present.
+        current_text = value.value if hasattr(value, "value") else str(value)
+        if current_text in values:
+            combo.setCurrentText(current_text)
         combo.currentTextChanged.connect(
             lambda text: self.valueChanged.emit(text)
         )
+
+        def set_external(v: Any) -> None:
+            text = v.value if hasattr(v, "value") else str(v)
+            if text in values:
+                combo.blockSignals(True)
+                combo.setCurrentText(text)
+                combo.blockSignals(False)
+
+        self._external_setter = set_external
         return combo
 
     # --- Slider <-> value helpers ---
@@ -337,6 +434,14 @@ class _FilterParameterPopover(QFrame):
         if not self.isVisible():
             return super().eventFilter(obj, event)
         if event.type() == QEvent.MouseButtonPress:
+            # An open Qt.Popup top-level (e.g. a QComboBox dropdown
+            # belonging to one of our own editors) consumes mouse
+            # presses outside our QFrame's rect. Without this guard,
+            # picking an item from the combo would dismiss the popover
+            # before the combo could register the selection.
+            active_popup = QApplication.activePopupWidget()
+            if active_popup is not None and active_popup is not self:
+                return super().eventFilter(obj, event)
             global_pos = self._globalPosOf(event)
             if global_pos is None:
                 return super().eventFilter(obj, event)

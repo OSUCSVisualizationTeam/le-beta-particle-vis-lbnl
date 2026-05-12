@@ -1,16 +1,15 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from typing import Tuple, Any
-from enum import Enum
+
+from le_beta_vis.common.VizFilter import ScalingFunction
 from .colormaps import Colormap
 
-
-class ScalingFunction(str, Enum):
-    """Available scaling functions for data visualization."""
-
-    LINEAR = "linear"
-    LOG = "log"
-    SQRT = "sqrt"
+__all__ = [
+    "Colormap",
+    "Fits2QPixmapConverter",
+    "ScalingFunction",
+]
 
 
 class Fits2QPixmapConverter(ABC):

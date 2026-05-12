@@ -1,10 +1,10 @@
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence
 
 import numpy as np
 
-from le_beta_vis.common.VizFilter import UniformVizFilter
+from le_beta_vis.common.VizFilter import ScalingFunction, UniformVizFilter
 
-from .interface import Colormap, Fits2QPixmapConverter, ScalingFunction
+from .interface import Colormap, Fits2QPixmapConverter
 from .opencv import OpenCVBasedConverter
 
 
@@ -15,49 +15,14 @@ class _Stage:
         raise NotImplementedError
 
 
-class ScaleStage(_Stage):
-    """Clips values to ``vrange`` and applies the scaling function.
-
-    Output is a float array in the closed interval ``[0, 1]`` (modulo
-    floating-point drift). This is the same math the monolithic
-    :class:`OpenCVBasedConverter` ran in steps 1–2 of its pipeline,
-    extracted so the filter chain can sit between scaling and
-    colormapping.
-    """
-
-    def __init__(
-        self, scaling: ScalingFunction, vrange: Tuple[float, float]
-    ) -> None:
-        self._scaling = scaling
-        self._vrange = vrange
-
-    def apply(self, data: np.ndarray) -> np.ndarray:
-        vmin, vmax = self._vrange
-        denom = vmax - vmin
-        if denom <= 0:
-            denom = 1.0
-
-        if vmin > 0:
-            clipped = np.where(data < vmin, vmin, data)
-        else:
-            clipped = np.where(data < 0, 0, data)
-        clipped = np.where(clipped > vmax, vmax, clipped)
-
-        shifted = np.maximum(clipped - vmin, 0)
-
-        if self._scaling == ScalingFunction.LOG:
-            return np.log1p(shifted) / np.log1p(denom)
-        if self._scaling == ScalingFunction.SQRT:
-            return np.sqrt(shifted) / np.sqrt(denom)
-        return shifted / denom
-
-
 class FilterStage(_Stage):
     """Runs an ordered chain of :class:`UniformVizFilter` instances.
 
-    Empty chain is identity. This is the seam the Interactive Filter
-    Stack plugs into — issue #31's Gaussian Blur and any future
-    user-authored filters take their turn here.
+    The chain is authoritative: ADU→keV, user filters, ScalePreset and
+    Window all live here. The last filter (Window) is responsible for
+    producing output in ``[0, 1]`` so the downstream colormap can rely
+    on that LUT input contract. An empty chain is identity, which would
+    leave raw input passing through unchanged — useful for tests.
     """
 
     def __init__(self, filters: Sequence[UniformVizFilter]) -> None:
@@ -76,15 +41,15 @@ class ColormapStage(_Stage):
     When ``enabled`` is ``True`` (default), delegates the colormap
     application to :class:`OpenCVBasedConverter` so the kernel stays
     aligned with cluster-thumbnail rendering. Input is expected in
-    ``[0, 1]``; an identity vrange is passed because the data has
-    already been scaled by :class:`ScaleStage` (and possibly modified
-    by :class:`FilterStage`).
+    ``[0, 1]`` — the pinned Window filter at the end of FilterStage
+    owns this contract; the converter is invoked with an identity
+    vrange.
 
-    When ``enabled`` is ``False``, min/max-normalises the input to a
-    ``[0, 255]`` grayscale ramp, returned as a 3-channel ``uint8``
-    buffer for ``QImage.Format_RGB888`` compatibility. This is the
-    "colormap off" path: scientists see the raw shape of post-filter
-    data without colormap interpretation.
+    When ``enabled`` is ``False``, emits a grayscale ramp from the same
+    ``[0, 1]`` input (multiply by 255, cast to ``uint8``, broadcast to
+    three channels). No per-frame min/max stretch — Window has already
+    normalised, so applying another stretch here would silently override
+    the user's chosen window.
     """
 
     def __init__(
@@ -95,27 +60,22 @@ class ColormapStage(_Stage):
     ) -> None:
         self._colormap = colormap
         self._enabled = enabled
-        self._converter = converter if converter is not None else OpenCVBasedConverter()
+        self._converter = (
+            converter if converter is not None else OpenCVBasedConverter()
+        )
 
     def apply(self, data: np.ndarray) -> np.ndarray:
         if self._enabled:
             return self._converter.convert(
                 data, self._colormap, (0.0, 1.0), ScalingFunction.LINEAR,
             )
-        return self._normalize_to_grayscale(data)
+        return self._unit_interval_to_grayscale(data)
 
     @staticmethod
-    def _normalize_to_grayscale(data: np.ndarray) -> np.ndarray:
+    def _unit_interval_to_grayscale(data: np.ndarray) -> np.ndarray:
         if data.size == 0:
             return np.array([], dtype=np.uint8)
-        dmin = float(np.min(data))
-        dmax = float(np.max(data))
-        denom = dmax - dmin
-        if denom <= 0:
-            normalized = np.zeros_like(data, dtype=float)
-        else:
-            normalized = (data - dmin) / denom
-        as_uint8 = np.clip(normalized * 255, 0, 255).astype(np.uint8)
+        as_uint8 = np.clip(data * 255.0, 0, 255).astype(np.uint8)
         rgb = np.dstack([as_uint8, as_uint8, as_uint8])
         return np.ascontiguousarray(rgb)
 
@@ -123,24 +83,21 @@ class ColormapStage(_Stage):
 class RenderPipeline:
     """Composable render pipeline for the Raw Data View.
 
-    Stages: ``ScaleStage`` → ``FilterStage`` → ``ColormapStage``. The
-    filter chain is the Interactive Filter Stack — callers (currently
-    :class:`RawDataViewModel`) pass a snapshot of the active
-    :class:`UniformVizFilter` list at render time. An empty chain is
-    identity, preserving pre-pipeline rendering output.
+    Stages: ``FilterStage`` → ``ColormapStage``. The filter chain is
+    the full Interactive Filter Stack — pinned (ADU→keV, ScalePreset,
+    Window) plus user filters — passed in render order. The pinned
+    Window at the end of the chain is what normalises into ``[0, 1]``
+    for the colormap.
     """
 
     def __init__(
         self,
-        scaling: ScalingFunction,
-        vrange: Tuple[float, float],
         filters: Sequence[UniformVizFilter],
         colormap: Colormap,
         colormap_enabled: bool = True,
         converter: Optional[Fits2QPixmapConverter] = None,
     ) -> None:
         self._stages: List[_Stage] = [
-            ScaleStage(scaling, vrange),
             FilterStage(filters),
             ColormapStage(
                 colormap, enabled=colormap_enabled, converter=converter,

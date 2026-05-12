@@ -26,4 +26,24 @@ BUILTIN_FILTERS: List[FilterSpec] = [
     UniformFilter.Add.SPEC,                   # Offset
     UniformFilter.SubstituteInRange.SPEC,     # Replace In Range
     UniformFilter.ScalarMultiply.SPEC,        # Scale
+    UniformFilter.ADUtoKeV.SPEC,              # pinned, position 0
+    UniformFilter.ScalePreset.SPEC,           # pinned, second-to-last
+    UniformFilter.Window.SPEC,                # pinned, last filter
 ]
+
+
+def addable_specs() -> List[FilterSpec]:
+    """Specs that should appear in the Add Filter menu.
+
+    Pinned filters are structural — they're seeded by the ViewModel and
+    cannot be added or removed by the user, so this excludes them.
+    """
+    return [spec for spec in BUILTIN_FILTERS if not spec.pinned]
+
+
+def pinned_specs() -> List[FilterSpec]:
+    """Specs that the ViewModel must seed into the filter stack.
+
+    Returned in canonical pipeline order (ADU→keV first, Window last).
+    """
+    return [spec for spec in BUILTIN_FILTERS if spec.pinned]

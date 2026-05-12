@@ -1,6 +1,6 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, QSize, Qt
 from PySide6.QtGui import (
     QAction,
     QDragEnterEvent,
@@ -9,6 +9,7 @@ from PySide6.QtGui import (
     QDropEvent,
 )
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -19,8 +20,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from le_beta_vis.common.FilterRegistry import BUILTIN_FILTERS
+from le_beta_vis.common.FilterRegistry import addable_specs
 from le_beta_vis.common.FilterSpec import FilterSpec, ParameterSpec
+from le_beta_vis.frontend.fitsconverters import Colormap
+from le_beta_vis.frontend.icons import load_icon
 from le_beta_vis.frontend.theme import FilterPipelinePanelColors as _Colors
 from le_beta_vis.frontend.viewmodels.FilterStackViewModel import (
     FilterStackViewModel,
@@ -54,10 +57,12 @@ class FilterPipelinePanelView(QFrame):
     def __init__(
         self,
         viewModel: FilterStackViewModel,
+        rawDataViewModel: Any = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self._vm = viewModel
+        self._rvm = rawDataViewModel
         self._popover: Optional[_FilterParameterPopover] = None
         self._active_entry_id: Optional[str] = None
         self._active_param_name: Optional[str] = None
@@ -87,6 +92,8 @@ class FilterPipelinePanelView(QFrame):
 
         layout.addWidget(self._buildTitle())
         layout.addWidget(self._buildScrollArea(), 1)
+        if self._rvm is not None:
+            layout.addWidget(self._buildColormapCard())
         layout.addWidget(self._buildBottomBar())
 
     def _buildTitle(self) -> QLabel:
@@ -138,6 +145,67 @@ class FilterPipelinePanelView(QFrame):
         self._scroll_area.setWidget(self._scroll_inner)
         return self._scroll_area
 
+    def _buildColormapCard(self) -> QWidget:
+        """Terminal pinned card: picks the [0, 1] → RGB colormap.
+
+        Backed directly by ``RawDataViewModel.setColormap`` because the
+        colormap produces an RGB output (not a float array) and so
+        cannot be expressed as a ``UniformVizFilter`` in the stack. The
+        card mimics the pinned-card visual treatment for consistency
+        with ADU→keV / Scale / Window.
+        """
+        card = QWidget()
+        card.setStyleSheet(
+            f"background-color: {_Colors.SCROLL_AREA_BACKGROUND};"
+        )
+        outer = QVBoxLayout(card)
+        outer.setContentsMargins(8, 0, 8, 4)
+        outer.setSpacing(0)
+
+        caption = QWidget()
+        caption.setStyleSheet(
+            f"background-color: {_Colors.CARD_HEADER_BACKGROUND};"
+            " border-top-left-radius: 6px; border-top-right-radius: 6px;"
+        )
+        cap_row = QHBoxLayout(caption)
+        cap_row.setContentsMargins(8, 6, 8, 6)
+        cap_row.setSpacing(8)
+        pin = QLabel()
+        pin.setPixmap(
+            load_icon("grabber", _Colors.GRABBER_DISABLED)
+            .pixmap(QSize(16, 16))
+        )
+        pin.setToolTip(self.tr("Pinned — required by the pipeline"))
+        cap_row.addWidget(pin)
+        name = QLabel(self.tr("Colormap"))
+        name.setStyleSheet(
+            f"color: {_Colors.FILTER_NAME_ENABLED};"
+            " font-weight: bold; font-size: 14px;"
+        )
+        cap_row.addWidget(name, 1)
+
+        body = QWidget()
+        body.setStyleSheet(
+            f"background-color: {_Colors.CARD_BODY_BACKGROUND};"
+            " border-bottom-left-radius: 6px;"
+            " border-bottom-right-radius: 6px;"
+        )
+        body_row = QHBoxLayout(body)
+        body_row.setContentsMargins(10, 6, 10, 6)
+        self._colormap_combo = QComboBox()
+        self._colormap_combo.addItems([c.value for c in Colormap])
+        current = self._rvm.colormap
+        if current in [c.value for c in Colormap]:
+            self._colormap_combo.setCurrentText(current)
+        self._colormap_combo.currentTextChanged.connect(
+            lambda text: self._rvm.setColormap(text)
+        )
+        body_row.addWidget(self._colormap_combo, 1)
+
+        outer.addWidget(caption)
+        outer.addWidget(body)
+        return card
+
     def _buildBottomBar(self) -> QWidget:
         bar = QWidget()
         row = QHBoxLayout(bar)
@@ -177,7 +245,7 @@ class FilterPipelinePanelView(QFrame):
             f"QMenu::item:selected {{ background-color: {_Colors.ADD_FILTER_MENU_HOVER}; }}"
             f"QMenu::item:disabled {{ color: {_Colors.ADD_FILTER_MENU_DISABLED_TEXT}; }}"
         )
-        for spec in BUILTIN_FILTERS:
+        for spec in addable_specs():
             self._addSpecAction(menu, spec)
         menu.addSeparator()
         coming_soon = QAction(self.tr("More filters coming soon"), menu)
@@ -203,9 +271,23 @@ class FilterPipelinePanelView(QFrame):
     # --- Rebuild ---
 
     def _rebuild(self) -> None:
-        # Strip entry widgets (everything between empty_state at index 0
-        # and the trailing stretch). takeAt(1) shifts the remaining
-        # items down so the loop drains correctly.
+        entries = self._vm.entries
+        # Hot path: parameter-only change (VerticalRangeControl drag,
+        # popover slider). Same entries in the same order — refresh
+        # pill text on the existing cards instead of destroying and
+        # recreating them. A full rebuild on every slider tick stalls
+        # the UI thread.
+        if self._canRefreshInPlace(entries):
+            for card, entry in zip(self._entryWidgets(), entries):
+                card.refresh_pills(entry)
+            self._updateCounter()
+            self._syncOpenPopover()
+            return
+
+        # Structural change: full rebuild. Strip entry widgets
+        # (everything between empty_state at index 0 and the trailing
+        # stretch). takeAt(1) shifts the remaining items down so the
+        # loop drains correctly.
         while self._entries_layout.count() > 2:
             item = self._entries_layout.takeAt(1)
             if item is None:
@@ -215,7 +297,6 @@ class FilterPipelinePanelView(QFrame):
                 widget.setParent(None)
                 widget.deleteLater()
 
-        entries = self._vm.entries
         self._empty_state.setVisible(len(entries) == 0)
 
         for index, entry in enumerate(entries):
@@ -229,6 +310,38 @@ class FilterPipelinePanelView(QFrame):
             )
 
         self._updateCounter()
+        self._syncOpenPopover()
+
+    def _canRefreshInPlace(self, entries) -> bool:
+        cards = self._entryWidgets()
+        if len(cards) != len(entries):
+            return False
+        for card, entry in zip(cards, entries):
+            if card.entry_id != entry.id:
+                return False
+            if card.enabled != entry.enabled:
+                return False
+        return True
+
+    def _syncOpenPopover(self) -> None:
+        """Mirror out-of-band parameter changes into the open popover.
+
+        When VerticalRangeControl edits the pinned Window vmin/vmax (or
+        any other external editor writes into the active filter), this
+        method finds the current value and pushes it into the popover so
+        the user sees the live update. No-op when no popover is open.
+        """
+        if self._popover is None or not self._popover.isVisible():
+            return
+        if self._active_entry_id is None or self._active_param_name is None:
+            return
+        for entry in self._vm.entries:
+            if entry.id != self._active_entry_id:
+                continue
+            current = getattr(entry.filter, self._active_param_name, None)
+            if current is not None:
+                self._popover.set_external_value(current)
+            return
 
     def _updateCounter(self) -> None:
         total = len(self._vm.entries)
