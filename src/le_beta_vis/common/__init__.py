@@ -63,3 +63,10 @@ from .ZMQEventHandlerSource import ZMQEventHandlerSource
 from .ZMQEventLoggingHandler import ZMQEventLoggingHandler
 from .ActionableEvent import ActionDescriptor, ActionableEvent
 from .ActionRegistry import ActionRegistry, NoOpActionRegistry, ActionHandler
+from .ClassifierDataClasses import (
+    ClassificationRequest,
+    ClassificationRequestCluster
+)
+from .ClassifierService import (
+    ClassifierService,
+)

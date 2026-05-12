@@ -1,6 +1,6 @@
-"""Tests for ZMQBasedClassifierService routing and parsing."""
+"""Tests for ZMQBasedClassifierServer routing and parsing."""
 
-from le_beta_vis.backend.ZMQBasedClassifierService import ZMQBasedClassifierService
+from le_beta_vis.backend.ZMQBasedClassifierServer import ZMQBasedClassifierServer
 from le_beta_vis.common.ClassifierDataClasses import ClassificationRequest
 from le_beta_vis.common.ClassifierService import (
     ClassificationBatchResult,
@@ -53,7 +53,7 @@ class _RecordingClassifier(ClassifierService):
 
 
 def _make_service(classifier):
-    return ZMQBasedClassifierService(
+    return ZMQBasedClassifierServer(
         config=_ConfigStub(),
         classifier=classifier,
         auto_start=False,
