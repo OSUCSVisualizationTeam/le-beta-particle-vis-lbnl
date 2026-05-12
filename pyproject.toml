@@ -25,6 +25,7 @@ dependencies = [
     "scikit-image",
     "scipy",
     "superqt",
+    "tomli; python_version < '3.11'",
     "watchdog",
 ]
 
@@ -38,7 +39,6 @@ packaging = [
     "dmgbuild; sys_platform == 'darwin'",
     "pillow",
     "pyinstaller",
-    "tomli",
 ]
 
 [tool.setuptools.packages.find]
