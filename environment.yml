@@ -21,6 +21,7 @@ dependencies:
   - scipy
   - pip
   - pyyaml
+  - jsonschema
   - redis-py
   - watchdog
   - mysql-connector-python
