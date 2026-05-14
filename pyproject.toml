@@ -25,6 +25,8 @@ dependencies = [
     "scikit-image",
     "scipy",
     "superqt",
+    "jsonschema",
+    "tomli; python_version < '3.11'",
     "watchdog",
 ]
 
@@ -38,7 +40,6 @@ packaging = [
     "dmgbuild; sys_platform == 'darwin'",
     "pillow",
     "pyinstaller",
-    "tomli",
 ]
 
 [tool.setuptools.packages.find]
@@ -63,6 +64,9 @@ le_beta_vis = [
     "common/fonts/*.ttf",
     "common/fonts/LICENSE_DEJAVU",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.flake8]
 max-line-length = 127

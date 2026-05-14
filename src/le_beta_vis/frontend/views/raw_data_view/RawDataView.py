@@ -85,7 +85,6 @@ class RawDataView(QWidget):
         self._bindMosaicCallbacks()
         self._bindRangeAndFocusCallbacks()
         self._bindClusteringStateCallback()
-        self._rightSidebar.syncSelectors()
         if self._repository is not None:
             self._cavm.setExportHandler(self._onExportRequested)
 

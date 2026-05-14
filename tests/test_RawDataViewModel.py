@@ -15,7 +15,7 @@ import pytest
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
-from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter, ScalingFunction
+from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     RawDataViewModel,
@@ -103,9 +103,19 @@ def test_load_file_renders_first_hdu(view_model):
             view_model._converter.convert.assert_called()
 
 
-def test_set_active_hdu(view_model):
-    """Test switching HDUs and verify keV conversion factor."""
-    view_model._config.set("global:physics:kev_conversion", 0.5)
+def test_set_active_hdu():
+    """Switching HDUs feeds raw ADU through the pipeline and produces a
+    rendered buffer; the pinned ADU→keV filter is seeded from the
+    configured conversion factor."""
+    config = MockConfigurationService()
+    config.set("global:physics:kev_conversion", 0.5)
+    physics_manager = PhysicsConversionManagerImpl(config)
+    view_model = RawDataViewModel(config, physics_manager)
+    view_model._converter = MagicMock()
+    view_model._converter.convert.return_value = np.zeros(
+        (10, 10, 3), dtype=np.uint8,
+    )
+    view_model._request_render = view_model._render_worker_logic
 
     mock_capture = MagicMock(spec=CCDCaptureModel)
     data = np.array([[10, 20], [30, 40]])
@@ -116,10 +126,10 @@ def test_set_active_hdu(view_model):
     view_model.setActiveHDU(1)
 
     assert view_model.activeIndex == 1
-    # Verify converter called with scaled data (data * 0.5)
-    args, _ = view_model._converter.convert.call_args
-    assert np.array_equal(args[0], data * 0.5)
     assert isinstance(view_model.currentBuffer, np.ndarray)
+    # ADU→keV factor was seeded from the configured value
+    adu_idx = view_model.filterStackViewModel.find_pinned_index("adu_to_kev")
+    assert view_model.filterStackViewModel.entries[adu_idx].filter.factor == 0.5
 
 
 def test_set_colormap(view_model):
@@ -456,7 +466,13 @@ def test_initial_scaling_from_config():
 
 
 def test_set_scaling_function_triggers_render(view_model):
-    """Test that setScalingFunction updates state and triggers render."""
+    """Test that setScalingFunction updates state and triggers render.
+
+    Detailed scaling-function math is covered by RenderPipeline /
+    ScaleStage tests; here we only verify the property update and that
+    a render was triggered (the colormap stage of the pipeline reaches
+    the mocked converter).
+    """
     mock_capture = MagicMock()
     mock_capture.rawData.return_value = np.zeros((10, 10))
     view_model._captures = [mock_capture]
@@ -465,8 +481,7 @@ def test_set_scaling_function_triggers_render(view_model):
     view_model.setScalingFunction("sqrt")
 
     assert view_model.scalingFunction == "sqrt"
-    _, kwargs = view_model._converter.convert.call_args
-    assert kwargs["scaling"] == ScalingFunction.SQRT
+    view_model._converter.convert.assert_called()
 
 
 def test_set_scaling_function_invalid_is_noop(view_model):
