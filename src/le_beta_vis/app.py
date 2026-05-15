@@ -6,9 +6,10 @@ import shutil
 import subprocess
 import sys
 import os
+import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QApplication, QSplashScreen
 
@@ -93,6 +94,11 @@ def _install_linux_desktop_integration() -> None:
 
 def main() -> None:
     """Launch the LE Beta Particle Visualization application."""
+    _t = time.perf_counter()
+
+    def _mark(label: str) -> None:
+        print(f"[startup] {(time.perf_counter() - _t) * 1000:6.1f} ms  {label}", flush=True)
+
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
@@ -115,44 +121,74 @@ def main() -> None:
                 exc_info=True,
             )
 
+    _mark("main() entered, platform setup done")
+
     QApplication.setDesktopFileName(APP_ID)
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
+    _mark("QApplication created")
 
     splash = QSplashScreen(QPixmap(str(SPLASH_PATH)))
     splash.show()
     app.processEvents()
     splash.showMessage("Loading…", Qt.AlignBottom | Qt.AlignHCenter, Qt.darkGray)
+    _mark("splash shown + processEvents()")
 
-    # Heavy imports deferred until splash is visible so the macOS startup
-    # blank-window period is masked. mlccd_diffusion and cv2 are pre-warmed
-    # here so their first-import GIL cost occurs before the user can interact.
-    from le_beta_vis.common import APP_VERSION
-    from le_beta_vis.frontend.MainWindow import MainWindow
-    from le_beta_vis.backend.ServicesManager import ServicesManager
-    import mlccd_diffusion.help_functions  # noqa: F401
-    import cv2  # noqa: F401
+    def _load() -> None:
+        _mark("_load() entered (first event loop frame — splash now on screen)")
 
-    app.setApplicationName(_APPLICATION_DISPLAY_NAME)
-    app.setApplicationDisplayName(_APPLICATION_DISPLAY_NAME)
-    app.setApplicationVersion(APP_VERSION)
+        try:
+            # mlccd_diffusion and cv2 are pre-warmed here so their first-import
+            # GIL cost occurs before the user can interact with the main window.
+            from le_beta_vis.common import APP_VERSION
+            _mark("imported le_beta_vis.common")
 
-    # In the future, we would load a QTranslator here:
-    # translator = QTranslator()
-    # if translator.load(QLocale.system(), "app", "_", "translations"):
-    #     app.installTranslator(translator)
+            from le_beta_vis.frontend.MainWindow import MainWindow
+            _mark("imported MainWindow")
 
-    services = ServicesManager()
-    services.start_all()
+            from le_beta_vis.backend.ServicesManager import ServicesManager
+            _mark("imported ServicesManager")
 
-    window = MainWindow()
-    window.show()
-    splash.finish(window)
+            import mlccd_diffusion.help_functions  # noqa: F401
+            _mark("imported mlccd_diffusion")
 
-    def cleanup() -> None:
-        services.stop_all()
+            import cv2  # noqa: F401
+            _mark("imported cv2")
 
-    app.aboutToQuit.connect(cleanup)
+            app.setApplicationName(_APPLICATION_DISPLAY_NAME)
+            app.setApplicationDisplayName(_APPLICATION_DISPLAY_NAME)
+            app.setApplicationVersion(APP_VERSION)
+
+            # In the future, we would load a QTranslator here:
+            # translator = QTranslator()
+            # if translator.load(QLocale.system(), "app", "_", "translations"):
+            #     app.installTranslator(translator)
+
+            services = ServicesManager()
+            services.start_all()
+            _mark("ServicesManager started")
+
+            def cleanup() -> None:
+                services.stop_all()
+
+            app.aboutToQuit.connect(cleanup)
+
+            window = MainWindow()
+            _mark("MainWindow constructed")
+
+            window.show()
+            splash.finish(window)
+            _mark("window shown, splash dismissed")
+
+        except Exception:
+            log.exception("Fatal error during application startup")
+            app.exit(1)
+
+    # Defer all heavy loading so the event loop gets one full iteration first.
+    # On macOS, Core Animation defers frame commits until the run loop yields;
+    # without this, processEvents() alone does not guarantee the splash paints
+    # to screen before blocking imports begin.
+    QTimer.singleShot(0, _load)
     sys.exit(app.exec())
 
 
