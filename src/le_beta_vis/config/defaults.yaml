@@ -18,7 +18,7 @@ global:db:database:
   type: str
   default: "lbnlfits"
   description: >-
-    Database name for the Event Persistence Service.  
+    Database name for the Event Persistence Service.
 
 global:db:username:
   type: str
@@ -621,3 +621,18 @@ gui:livemode:histogram_min_height_pct:
     Minimum height of the energy histogram as a fraction of
     screen height (0.05–0.5).  Default: 0.10 (10%).
 
+# ---------------------------------------------------------------------------
+# Classifier Service
+# ---------------------------------------------------------------------------
+
+classifier:classifier_ipc:
+  type: str
+  default: "ipc:///tmp/EPCClassifierRequest.ipc"
+  description: >-
+    ZMQ IPC address for the classifier service requests.
+
+classifier:command_ipc:
+  type: str
+  default: "ipc:///tmp/EPCClassifierCommand.ipc"
+  description: >-
+    ZMQ IPC address for the classifier service commands.

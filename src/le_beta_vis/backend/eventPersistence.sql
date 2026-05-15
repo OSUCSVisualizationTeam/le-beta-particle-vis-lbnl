@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS `clusters` (
   `sigmaX` FLOAT NOT NULL,
   `sigmaY` FLOAT NOT NULL,
   `classification` VARCHAR(255),
+  `cnn_classification` FLOAT,
+  `bdt_classification` FLOAT,
+  `nrg_classification` FLOAT,
   `pixelCount` INT NOT NULL,
   INDEX `fk_fits_files` (`fitsFile` ASC) VISIBLE,
   PRIMARY KEY (`clusterID`),
@@ -70,31 +73,39 @@ DROP PROCEDURE IF EXISTS insert_cluster;
 DELIMITER //
 
 CREATE PROCEDURE insert_cluster(
-    IN fitsFile INT,
-    IN HDU INT,
-    IN box_top INT,
-    IN box_left INT,
-    IN box_bottom INT,
-    IN box_right INT,
-    IN data BLOB,
-    IN totalEnergy FLOAT,
-    IN sigmaX FLOAT,
-    IN sigmaY FLOAT,
-    IN classification VARCHAR(255),
-    IN pixelCount INT,
-    OUT clusterID INT
+    IN in_fitsFile INT,
+    IN in_HDU INT,
+    IN in_box_top INT,
+    IN in_box_left INT,
+    IN in_box_bottom INT,
+    IN in_box_right INT,
+    IN in_data BLOB,
+    IN in_totalEnergy FLOAT,
+    IN in_sigmaX FLOAT,
+    IN in_sigmaY FLOAT,
+    IN in_classification VARCHAR(255),
+    IN in_cnnclassification VARCHAR(255),
+    IN in_bdtclassification VARCHAR(255),
+    IN in_nrgclassification VARCHAR(255),
+    IN in_pixelCount INT,
+    OUT out_clusterID INT
 )
 BEGIN
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         ROLLBACK;
-        SET clusterID = -99;
+        SET out_clusterID = -99;
     END;
     START TRANSACTION;
-    INSERT INTO clusters(fitsFile, hdu_id, box_top, box_left, box_bottom, box_right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount)
-    VALUES (fitsFile, HDU, box_top, box_left, box_bottom, box_right, data, totalEnergy, sigmaX, sigmaY, classification, pixelCount);
+    INSERT INTO clusters(fitsFile, hdu_id, box_top, box_left, box_bottom, 
+                        box_right, data, totalEnergy, sigmaX, sigmaY, classification,
+                        cnn_classification, bdt_classification, nrg_classification, pixelCount)
+    VALUES (in_fitsFile, in_HDU, in_box_top, in_box_left, in_box_bottom, 
+            in_box_right, in_data, in_totalEnergy, in_sigmaX, 
+            in_sigmaY, in_classification, in_cnnclassification,
+            in_bdtclassification, in_nrgclassification, in_pixelCount);
 
-    SET clusterID = LAST_INSERT_ID();
+    SET out_clusterID = LAST_INSERT_ID();
 
     COMMIT;
 END //
