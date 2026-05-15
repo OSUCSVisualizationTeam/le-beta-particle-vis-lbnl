@@ -8,12 +8,9 @@ import sys
 import os
 from pathlib import Path
 
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication
-
-from le_beta_vis.common import APP_VERSION
-from le_beta_vis.frontend.MainWindow import MainWindow
-from le_beta_vis.backend.ServicesManager import ServicesManager
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import QApplication, QSplashScreen
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +29,9 @@ def _resolve_resource_path(relative: str) -> Path:
 
 ICON_PATH = _resolve_resource_path(
     os.path.join("resources", "icons", "lbnl-logo.png")
+)
+SPLASH_PATH = _resolve_resource_path(
+    os.path.join("resources", "images", "splash.png")
 )
 
 XDG_DATA_HOME = Path(
@@ -118,6 +118,21 @@ def main() -> None:
     QApplication.setDesktopFileName(APP_ID)
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
+
+    splash = QSplashScreen(QPixmap(str(SPLASH_PATH)))
+    splash.show()
+    app.processEvents()
+    splash.showMessage("Loading…", Qt.AlignBottom | Qt.AlignHCenter, Qt.darkGray)
+
+    # Heavy imports deferred until splash is visible so the macOS startup
+    # blank-window period is masked. mlccd_diffusion and cv2 are pre-warmed
+    # here so their first-import GIL cost occurs before the user can interact.
+    from le_beta_vis.common import APP_VERSION
+    from le_beta_vis.frontend.MainWindow import MainWindow
+    from le_beta_vis.backend.ServicesManager import ServicesManager
+    import mlccd_diffusion.help_functions  # noqa: F401
+    import cv2  # noqa: F401
+
     app.setApplicationName(_APPLICATION_DISPLAY_NAME)
     app.setApplicationDisplayName(_APPLICATION_DISPLAY_NAME)
     app.setApplicationVersion(APP_VERSION)
@@ -132,6 +147,7 @@ def main() -> None:
 
     window = MainWindow()
     window.show()
+    splash.finish(window)
 
     def cleanup() -> None:
         services.stop_all()

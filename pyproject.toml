@@ -61,6 +61,7 @@ le_beta_vis = [
     "backend/SAMPLE.env",
     "config/*.yaml",
     "resources/icons/*.png",
+    "resources/images/*.png",
     "common/fonts/*.ttf",
     "common/fonts/LICENSE_DEJAVU",
 ]
