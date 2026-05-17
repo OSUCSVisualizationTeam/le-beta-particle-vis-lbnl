@@ -136,6 +136,20 @@ class LiveModeViewModel:
         return self._physics
 
     @property
+    def badges_classifiers_enabled(self) -> bool:
+        """Gate for the symbol + confidence badges on the grid."""
+        return self._config.get_bool(
+            "gui:livemode:badges:classifiers_enabled", True,
+        )
+
+    @property
+    def badges_min_cell_size_px(self) -> int:
+        """Minimum rendered cell side at which badges are drawn."""
+        return self._config.get_int(
+            "gui:livemode:badges:min_cell_size_px", 48, minimum=1,
+        )
+
+    @property
     def left_panel_width_pct(self) -> float:
         """Left panel width as fraction of screen width."""
         return self._config.get_float(

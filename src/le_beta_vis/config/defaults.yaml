@@ -621,6 +621,25 @@ gui:livemode:histogram_min_height_pct:
     Minimum height of the energy histogram as a fraction of
     screen height (0.05–0.5).  Default: 0.10 (10%).
 
+gui:livemode:badges:classifiers_enabled:
+  type: bool
+  default: true
+  description: >-
+    Show particle symbol and confidence % badges on Live Mode grid
+    thumbnails. When false, only the Energy (keV) badge is rendered.
+    Disable for exposures where the trained classifiers are not
+    appropriate. The keV badge is always rendered regardless of this
+    setting and is also hidden per-cell when the cluster's best
+    classifier score is non-positive.
+
+gui:livemode:badges:min_cell_size_px:
+  type: int
+  default: 48
+  description: >-
+    Minimum rendered cell side (in pixels) at which Live Mode grid
+    badges are drawn. At denser grids cells become too small for
+    legible badges and all badges (including keV) are suppressed.
+
 # ---------------------------------------------------------------------------
 # Classifier Service
 # ---------------------------------------------------------------------------

@@ -528,6 +528,49 @@ class TestConfiguration:
     ) -> None:
         assert vm.histogram_min_height_pct == 0.10
 
+    def test_badges_classifiers_enabled_default(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        assert vm.badges_classifiers_enabled is True
+
+    def test_badges_classifiers_enabled_override_false(self) -> None:
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 4,
+            "gui:livemode:grid_columns": 5,
+            "gui:livemode:badges:classifiers_enabled": False,
+        })
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
+        )
+        assert vm.badges_classifiers_enabled is False
+
+    def test_badges_min_cell_size_px_default(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        assert vm.badges_min_cell_size_px == 48
+
+    def test_badges_min_cell_size_px_override(self) -> None:
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 4,
+            "gui:livemode:grid_columns": 5,
+            "gui:livemode:badges:min_cell_size_px": 80,
+        })
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
+        )
+        assert vm.badges_min_cell_size_px == 80
+
+    def test_badges_min_cell_size_px_clamped_to_one(self) -> None:
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 4,
+            "gui:livemode:grid_columns": 5,
+            "gui:livemode:badges:min_cell_size_px": 0,
+        })
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
+        )
+        assert vm.badges_min_cell_size_px == 1
+
 
 # ---------------------------------------------------------------------------
 # Tests — Observer callbacks
