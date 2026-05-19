@@ -8,7 +8,7 @@ from typing import Optional
 
 import numpy as np
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -31,18 +31,21 @@ from le_beta_vis.frontend.widgets.InteractiveHistogramWidget import (
 
 from ..LiveModeViewModel import LiveModeViewModel
 from ._ScaleGradientWidget import _ScaleGradientWidget
+from .ClusterLocationMapWidget import ClusterLocationMapWidget
 
 _HISTOGRAM_BINS = 50
 
 
 class FeaturedClusterWidget(QWidget):
-    """Left panel for Live Mode: featured image, gradient, stats, histogram.
+    """Left panel for Live Mode: featured image, gradient, stats, histogram, sensor map.
 
     Args:
         vm: The Live Mode ViewModel.
         inspector_vm: ViewModel for the cluster detail stats widget.
         parent: Optional parent widget.
     """
+
+    _hduFrameReady = Signal(object, object)
 
     def __init__(
         self,
@@ -54,6 +57,8 @@ class FeaturedClusterWidget(QWidget):
         self._vm = vm
         self._inspector_vm = inspector_vm
         self._buildLayout()
+        self._hduFrameReady.connect(self._onHduFrameReady)
+        vm.add_hdu_frame_ready_callback(self._hduFrameReady.emit)
 
     # --- Construction ---
 
@@ -102,6 +107,18 @@ class FeaturedClusterWidget(QWidget):
         )
         layout.addWidget(self._histogram, stretch=1)
 
+        sensorLabel = QLabel(self.tr("Sensor Location"))
+        sensorLabel.setStyleSheet(
+            f"color: {LiveModeColors.TITLE_TEXT};"
+            "font-size: 12px; font-weight: bold;"
+        )
+        sensorLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        layout.addWidget(sensorLabel)
+
+        self._locationMap = ClusterLocationMapWidget(physics=self._vm.physics)
+        self._locationMap.setMinimumHeight(120)
+        layout.addWidget(self._locationMap, stretch=0)
+
     def _buildFeaturedRow(self) -> QWidget:
         """Builds the row containing the featured image and gradient bar."""
         row = QWidget()
@@ -138,12 +155,16 @@ class FeaturedClusterWidget(QWidget):
         self._updateGradient(cluster)
         self._statsWidget.setCluster(cluster)
         self._updateHistogram(cluster)
+        self._updateClassifierVisibility(cluster)
+        self._vm.load_hdu_for_cluster(cluster)
 
     def clearFeaturedPanel(self) -> None:
         """Clear the featured panel to its empty state."""
         self._featuredWidget.clear()
         self._statsWidget.clear()
         self._histogram.setData(None)
+        self._locationMap.clear()
+        self._statsWidget.set_classifiers_visible(False)
 
     def refreshFeaturedSize(self) -> None:
         """Resize the featured image widget to fill available panel width."""
@@ -215,3 +236,20 @@ class FeaturedClusterWidget(QWidget):
             return 1.0
         peak = float(np.max(cluster.data))
         return peak if peak > 0 else 1.0
+
+    def _updateClassifierVisibility(self, cluster: Cluster) -> None:
+        """Show or hide the classifier section based on config key and score availability."""
+        has_scores = max(
+            cluster.cnnClassification,
+            cluster.nrgClassification,
+            cluster.bdtClassification,
+        ) > 0
+        show = self._vm.badges_classifiers_enabled and has_scores
+        self._statsWidget.set_classifiers_visible(show)
+
+    def _onHduFrameReady(self, frame: object, bbox: object) -> None:
+        """Main-thread slot: update the sensor location map with the loaded HDU frame."""
+        if frame is not None and bbox is not None:
+            self._locationMap.set_hdu_frame(frame, bbox)
+        else:
+            self._locationMap.clear()

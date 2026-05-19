@@ -55,6 +55,8 @@ class ClusterDetailWidget(QWidget):
         self._show_filename = show_filename
         self._show_open_action = show_open_action
         self._has_filename = False
+        self._classifiers_visible: bool = True
+        self._current_cluster: Optional[Cluster] = None
         # Honor caller-supplied background-color stylesheets (live mode
         # paints a dark panel behind the stats); QWidget ignores its own
         # stylesheet background unless WA_StyledBackground is enabled.
@@ -88,14 +90,37 @@ class ClusterDetailWidget(QWidget):
             cluster: The cluster to display, or None to clear.
         """
         if cluster is None:
-            self._label.clear()
-            self._has_filename = False
-            self._refreshOpenAction()
+            self.clear()
             return
+        self._current_cluster = cluster
         data = self._vm.formatClusterData(cluster)
         self._has_filename = bool(data.fits_filename)
         self._label.setText(self._buildHtml(data))
         self._refreshOpenAction()
+
+    def clear(self) -> None:
+        """Clear the widget to its empty state."""
+        self._current_cluster = None
+        self._label.clear()
+        self._has_filename = False
+        self._refreshOpenAction()
+
+    def set_classifiers_visible(self, visible: bool) -> None:
+        """Show or hide the particle type header and classifier score rows.
+
+        Intended for live mode where classifiers may be disabled or the
+        incoming cluster may not yet have classification scores.  Historical
+        views should not call this — the section is always visible by default.
+
+        Args:
+            visible: True to show classifier rows; False to hide them.
+        """
+        if self._classifiers_visible == visible:
+            return
+        self._classifiers_visible = visible
+        if self._current_cluster is not None:
+            data = self._vm.formatClusterData(self._current_cluster)
+            self._label.setText(self._buildHtml(data))
 
     def _refreshOpenAction(self) -> None:
         """Shows/enables the Open button based on flags + data."""
@@ -109,19 +134,26 @@ class ClusterDetailWidget(QWidget):
 
     def _buildHtml(self, data: ClusterDisplayData) -> str:
         """Constructs HTML from structured data with translatable labels."""
-        rows = self._buildScoreRows(data)
-        rows += self._buildDetailRows(data)
-        return (
-            f"<div>"
-            f'<span style="font-size: 16px; font-weight: bold;">'
-            f"{data.particle_symbol} &mdash; {data.particle_name}"
-            f"</span><br/>"
-            f'<table style="margin-top: 6px;">{rows}</table>'
-            f"</div>"
+        parts = ["<div>"]
+        if self._classifiers_visible:
+            parts.append(
+                f'<span style="font-size: 16px; font-weight: bold;">'
+                f"{data.particle_symbol} &mdash; {data.particle_name}"
+                f"</span><br/>"
+                f'<table style="margin-top: 6px;">'
+                f"{self._buildScoreRows(data)}"
+                f"</table><hr/>"
+            )
+        parts.append(
+            f'<table style="margin-top: 4px;">'
+            f"{self._buildDetailRows(data)}"
+            f"</table>"
         )
+        parts.append("</div>")
+        return "".join(parts)
 
     def _buildScoreRows(self, data: ClusterDisplayData) -> str:
-        """Builds the CNN / NRG / BDT classification score rows."""
+        """Builds the CNN / NRG / BDT classification score table rows."""
         return (
             f'<tr><td>CNN:</td><td style="{data.cnn_css}">'
             f"{data.cnn_pct}</td></tr>"
@@ -129,8 +161,6 @@ class ClusterDetailWidget(QWidget):
             f"{data.nrg_pct}</td></tr>"
             f'<tr><td>BDT:</td><td style="{data.bdt_css}">'
             f"{data.bdt_pct}</td></tr>"
-            f"</table><hr/>"
-            f'<table style="margin-top: 4px;">'
         )
 
     def _buildDetailRows(self, data: ClusterDisplayData) -> str:

@@ -113,6 +113,12 @@ class ExportOptionsDialogColors:
     CANCEL_BUTTON_HOVER = "#505050"
 
 
+class ClusterLocationMapColors:
+    """Colors for ClusterLocationMapWidget."""
+
+    BORDER = "#3a3a3a"
+
+
 class HUDAnnotationOverlayColors:
     """Colors for AnnotationOverlay rectangles on HDUVisualizationHUDWidget."""
 

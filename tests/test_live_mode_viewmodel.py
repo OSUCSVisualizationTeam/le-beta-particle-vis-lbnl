@@ -617,3 +617,131 @@ class TestCallbacks:
         mock_service.request_cluster_data.assert_called_once_with(
             cluster, callback,
         )
+
+
+class TestLoadHduForCluster:
+    """Tests for load_hdu_for_cluster HDU caching and callback firing."""
+
+    def _make_vm_with_service(self, service: MagicMock) -> LiveModeViewModel:
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 2,
+            "gui:livemode:grid_columns": 5,
+        })
+        return LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(),
+            _StubPhysics(), thumbnailService=service,
+        )
+
+    def _make_fits_cluster(
+        self,
+        fits_filename: str = "/data/capture.fits",
+        hdu_id: int = 0,
+    ) -> Cluster:
+        cluster = _make_cluster()
+        cluster.fitsFilename = fits_filename
+        cluster.hdu_id = hdu_id
+        return cluster
+
+    def test_fires_none_when_no_fits_filename(self) -> None:
+        vm = self._make_vm_with_service(MagicMock())
+        results = []
+        vm.add_hdu_frame_ready_callback(lambda f, b: results.append((f, b)))
+        cluster = _make_cluster()
+        cluster.fitsFilename = None
+        vm.load_hdu_for_cluster(cluster)
+        assert results == [(None, None)]
+
+    def test_fires_none_when_no_hdu_id(self) -> None:
+        vm = self._make_vm_with_service(MagicMock())
+        results = []
+        vm.add_hdu_frame_ready_callback(lambda f, b: results.append((f, b)))
+        cluster = _make_cluster()
+        cluster.fitsFilename = "/data/capture.fits"
+        cluster.hdu_id = None
+        vm.load_hdu_for_cluster(cluster)
+        assert results == [(None, None)]
+
+    def test_fires_none_when_no_service(self) -> None:
+        config = _StubConfig({
+            "gui:livemode:grid_rows": 2,
+            "gui:livemode:grid_columns": 5,
+        })
+        vm = LiveModeViewModel(
+            config, _StubEventHandler(), _StubRepository(), _StubPhysics(),
+        )
+        results = []
+        vm.add_hdu_frame_ready_callback(lambda f, b: results.append((f, b)))
+        vm.load_hdu_for_cluster(self._make_fits_cluster())
+        assert results == [(None, None)]
+
+    def test_delegates_to_service_on_cache_miss(self) -> None:
+        service = MagicMock()
+        vm = self._make_vm_with_service(service)
+        cluster = self._make_fits_cluster("/data/a.fits", hdu_id=1)
+        vm.load_hdu_for_cluster(cluster)
+        args = service.request_hdu_frame.call_args
+        assert args is not None
+        assert args[0][0] == "/data/a.fits"
+        assert args[0][1] == 1
+        assert callable(args[0][2])
+
+    def test_cache_hit_skips_service(self) -> None:
+        service = MagicMock()
+        frame = np.ones((8, 8), dtype=np.float32)
+
+        def fake_request(filename, hdu_id, on_ready):
+            on_ready(frame)
+
+        service.request_hdu_frame.side_effect = fake_request
+        vm = self._make_vm_with_service(service)
+        cluster = self._make_fits_cluster("/data/b.fits", hdu_id=0)
+
+        results = []
+        vm.add_hdu_frame_ready_callback(lambda f, b: results.append(f))
+
+        vm.load_hdu_for_cluster(cluster)
+        assert service.request_hdu_frame.call_count == 1
+
+        vm.load_hdu_for_cluster(cluster)
+        assert service.request_hdu_frame.call_count == 1
+        assert len(results) == 2
+
+    def test_different_file_invalidates_cache(self) -> None:
+        service = MagicMock()
+        frame_a = np.ones((8, 8), dtype=np.float32)
+        frame_b = np.ones((8, 8), dtype=np.float32) * 2
+
+        frames = iter([frame_a, frame_b])
+
+        def fake_request(filename, hdu_id, on_ready):
+            on_ready(next(frames))
+
+        service.request_hdu_frame.side_effect = fake_request
+        vm = self._make_vm_with_service(service)
+
+        results = []
+        vm.add_hdu_frame_ready_callback(lambda f, b: results.append(f))
+
+        vm.load_hdu_for_cluster(self._make_fits_cluster("/data/a.fits"))
+        vm.load_hdu_for_cluster(self._make_fits_cluster("/data/b.fits"))
+        assert service.request_hdu_frame.call_count == 2
+        assert len(results) == 2
+
+    def test_remove_callback(self) -> None:
+        service = MagicMock()
+        frame = np.ones((4, 4), dtype=np.float32)
+
+        def fake_request(filename, hdu_id, on_ready):
+            on_ready(frame)
+
+        service.request_hdu_frame.side_effect = fake_request
+        vm = self._make_vm_with_service(service)
+
+        results = []
+        def cb(f, b): return results.append(f)  # noqa: E731
+        vm.add_hdu_frame_ready_callback(cb)
+        vm.load_hdu_for_cluster(self._make_fits_cluster())
+        vm.remove_hdu_frame_ready_callback(cb)
+        vm._hdu_cache = None
+        vm.load_hdu_for_cluster(self._make_fits_cluster())
+        assert len(results) == 1

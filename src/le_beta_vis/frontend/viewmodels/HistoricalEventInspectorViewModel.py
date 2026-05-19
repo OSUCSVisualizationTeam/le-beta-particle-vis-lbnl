@@ -209,10 +209,10 @@ class HistoricalEventInspectorViewModel:
         )
 
     def _formatEnergy(self, cluster: Cluster) -> str:
-        """Formats the energy value as keV + ADU or ADU-only."""
+        """Formats the energy value as keV-only or ADU-only."""
         if self._physics and self._displayKeV:
             energy_kev = self._physics.adu_to_kev(cluster.energy)
-            return f"{energy_kev:.4f} keV ({cluster.energy:.0f} ADU)"
+            return f"{energy_kev:.4f} keV"
         return f"{cluster.energy:.2f} ADU"
 
     def _formatGeometry(self, cluster: Cluster) -> str:
@@ -223,11 +223,9 @@ class HistoricalEventInspectorViewModel:
         return f"{w}\u00d7{h}"
 
     def _formatCenter(self, cluster: Cluster) -> str:
-        """Formats the relative center within the bounding box."""
+        """Formats the absolute HDU pixel coordinates of the cluster center."""
         if cluster.centerX is not None and cluster.centerY is not None:
-            rel_cx = cluster.centerX - cluster.boundingBox.left
-            rel_cy = cluster.centerY - cluster.boundingBox.top
-            return f"({rel_cx}, {rel_cy})"
+            return f"({cluster.centerX}, {cluster.centerY})"
         return "N/A"
 
     def formatHistogramXLabel(self, cluster: Cluster) -> str:

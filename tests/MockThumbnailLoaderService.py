@@ -39,5 +39,13 @@ class MockThumbnailLoaderService(ThumbnailLoaderService):
     ) -> None:
         on_ready(cluster.data)
 
+    def request_hdu_frame(
+        self,
+        fits_filename: str,
+        hdu_id: int,
+        on_ready: Callable[[Optional[np.ndarray]], None],
+    ) -> None:
+        on_ready(None)
+
     def shutdown(self) -> None:
         pass

@@ -14,6 +14,7 @@ from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 
+from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.EventHandlerInterface import EventHandlerInterface
@@ -78,6 +79,10 @@ class LiveModeViewModel:
         self._on_featured_changed: List[
             Callable[[Optional[Cluster]], None]
         ] = []
+        self._hdu_frame_callbacks: List[
+            Callable[[Optional[np.ndarray], Optional[BoundingBox]], None]
+        ] = []
+        self._hdu_cache: Optional[Tuple[str, int, np.ndarray]] = None
 
         self._active = False
 
@@ -288,6 +293,73 @@ class LiveModeViewModel:
         """Register callback fired when featured cluster changes."""
         self._on_featured_changed.append(cb)
 
+    def add_hdu_frame_ready_callback(
+        self,
+        cb: Callable[[Optional[np.ndarray], Optional[BoundingBox]], None],
+    ) -> None:
+        """Register callback fired when an HDU frame finishes loading.
+
+        The callback fires from the ThumbnailLoaderService worker thread.
+        Views must use the Signal.emit pattern to marshal onto the main
+        thread.
+
+        Args:
+            cb: Receives (frame_array, bounding_box) or (None, None).
+        """
+        self._hdu_frame_callbacks.append(cb)
+
+    def remove_hdu_frame_ready_callback(
+        self,
+        cb: Callable[[Optional[np.ndarray], Optional[BoundingBox]], None],
+    ) -> None:
+        """Unregister a previously registered HDU frame callback.
+
+        Args:
+            cb: The callback to remove.
+        """
+        try:
+            self._hdu_frame_callbacks.remove(cb)
+        except ValueError:
+            pass
+
+    def load_hdu_for_cluster(self, cluster: Cluster) -> None:
+        """Load the parent HDU frame for *cluster* asynchronously.
+
+        Checks a single-entry cache keyed on (fitsFilename, hdu_id).
+        A cache hit fires callbacks immediately on the calling thread.
+        A cache miss delegates to ThumbnailLoaderService and fires
+        callbacks from its worker thread.
+
+        Args:
+            cluster: The cluster whose parent HDU frame is needed.
+        """
+        if cluster.fitsFilename is None or cluster.hdu_id is None:
+            self._notify_hdu_frame_ready(None, None)
+            return
+
+        filename = cluster.fitsFilename
+        hdu_id = cluster.hdu_id
+        bbox = cluster.boundingBox
+
+        if (
+            self._hdu_cache is not None
+            and self._hdu_cache[0] == filename
+            and self._hdu_cache[1] == hdu_id
+        ):
+            self._notify_hdu_frame_ready(self._hdu_cache[2], bbox)
+            return
+
+        if self._thumbnail_service is None:
+            self._notify_hdu_frame_ready(None, None)
+            return
+
+        def _on_frame_loaded(frame: Optional[np.ndarray]) -> None:
+            if frame is not None:
+                self._hdu_cache = (filename, hdu_id, frame)
+            self._notify_hdu_frame_ready(frame, bbox)
+
+        self._thumbnail_service.request_hdu_frame(filename, hdu_id, _on_frame_loaded)
+
     # --- Private: advance helpers ---
 
     def _insert_fresh_clusters(self) -> None:
@@ -431,3 +503,11 @@ class LiveModeViewModel:
     ) -> None:
         for cb in self._on_featured_changed:
             cb(cluster)
+
+    def _notify_hdu_frame_ready(
+        self,
+        frame: Optional[np.ndarray],
+        bbox: Optional[BoundingBox],
+    ) -> None:
+        for cb in self._hdu_frame_callbacks:
+            cb(frame, bbox)
