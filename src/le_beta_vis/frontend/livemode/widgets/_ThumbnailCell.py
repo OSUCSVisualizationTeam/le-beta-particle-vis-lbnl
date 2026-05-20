@@ -7,7 +7,7 @@ drawn over the cluster pixmap, so the cluster scaling logic in
 ``EnergyClusterWidget.to_pixmap`` is never altered.
 """
 
-from typing import Optional
+from typing import Callable, Optional
 
 from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import (
@@ -18,6 +18,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
 )
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QLabel, QWidget
 
 from le_beta_vis.common.Cluster import Cluster
@@ -80,6 +81,14 @@ class _ThumbnailCell(QLabel):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setAlignment(Qt.AlignCenter)
+        self._cluster: Optional[Cluster] = None
+        self._on_click: Optional[Callable[[Cluster], None]] = None
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Pin this cell's cluster on click; does not bubble to the dialog."""
+        event.accept()
+        if self._cluster is not None and self._on_click is not None:
+            self._on_click(self._cluster)
 
     def setClusterPixmap(
         self,
@@ -108,6 +117,7 @@ class _ThumbnailCell(QLabel):
                 When False, only the keV badge is rendered.
             min_cell_size_px: Suppress *all* badges below this side.
         """
+        self._cluster = cluster
         if cluster is None or cluster.data is None:
             if empty_pixmap is not None:
                 self.setPixmap(empty_pixmap)

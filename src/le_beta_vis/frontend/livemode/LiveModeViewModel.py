@@ -10,6 +10,7 @@ rotation via a deterministic one-per-tick dequeue.
 import logging
 import threading
 from functools import partial
+from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
 import numpy as np
@@ -83,6 +84,15 @@ class LiveModeViewModel:
             Callable[[Optional[np.ndarray], Optional[BoundingBox]], None]
         ] = []
         self._hdu_cache: Optional[Tuple[str, int, np.ndarray]] = None
+
+        self._paused: bool = False
+        self._pinned_cluster: Optional[Cluster] = None
+        self._on_paused_changed: List[Callable[[bool], None]] = []
+        self._on_pinned_changed: List[Callable[[Optional[Cluster]], None]] = []
+
+        self.pending_cluster_for_historical: Optional[Cluster] = None
+        self.pending_save_cluster: Optional[Cluster] = None
+        self.pending_save_path: Optional[Path] = None
 
         self._active = False
 
@@ -174,6 +184,107 @@ class LiveModeViewModel:
             maximum=0.5,
         )
 
+    @property
+    def controls_enabled(self) -> bool:
+        """Whether the control strip overlay is shown."""
+        return self._config.get_bool("gui:livemode:controls:enabled", True)
+
+    @property
+    def controls_autohide_ms(self) -> int:
+        """Milliseconds of inactivity before control strip auto-hides."""
+        return self._config.get_int("gui:livemode:controls:autohide_ms", 3000, minimum=500)
+
+    @property
+    def controls_background_opacity(self) -> float:
+        """Alpha (0.0–1.0) for the control strip background."""
+        return self._config.get_float(
+            "gui:livemode:controls:background_opacity", 0.80, minimum=0.0, maximum=1.0,
+        )
+
+    @property
+    def controls_icon_size_pct(self) -> float:
+        """Control strip icon size as a percentage of screen height."""
+        return self._config.get_float(
+            "gui:livemode:controls:icon_size_pct", 3.0, minimum=0.1,
+        )
+
+    # --- Pause / pin state ---
+
+    @property
+    def paused(self) -> bool:
+        """True when the advance timer and animations are frozen."""
+        return self._paused
+
+    @property
+    def pinned_cluster(self) -> Optional[Cluster]:
+        """The currently pinned cluster, or None if not pinned."""
+        return self._pinned_cluster
+
+    def toggle_paused(self) -> None:
+        """Toggle the paused state.
+
+        When unpausing, pin is also cleared so the featured rotation
+        resumes on a clean slate.
+        """
+        self._paused = not self._paused
+        if not self._paused and self._pinned_cluster is not None:
+            self._pinned_cluster = None
+            self._notify_pinned_changed()
+        self._notify_paused_changed()
+
+    def pin_cluster(self, cluster: Cluster) -> None:
+        """Pin *cluster* as the locked featured cluster.
+
+        Args:
+            cluster: The cluster to hold in the featured position.
+        """
+        self._pinned_cluster = cluster
+        self._notify_pinned_changed()
+
+    def unpin(self) -> None:
+        """Release the pinned cluster and return to free rotation."""
+        if self._pinned_cluster is not None:
+            self._pinned_cluster = None
+            self._notify_pinned_changed()
+
+    def request_open_in_historical(self, cluster: Cluster) -> None:
+        """Store intent to navigate to *cluster* in the Historical view.
+
+        The caller (View) must dismiss Live Mode immediately after this
+        call.  MainWindow reads ``pending_cluster_for_historical`` after
+        ``dialog.exec()`` returns.
+
+        Args:
+            cluster: The cluster to inspect in the Historical view.
+        """
+        self.pending_cluster_for_historical = cluster
+        self._pinned_cluster = None
+        self._notify_pinned_changed()
+
+    def request_save_frame(self, cluster: Cluster, path: Path) -> None:
+        """Store intent to export the current frame after Live Mode closes.
+
+        The caller (View) must dismiss Live Mode immediately after this
+        call.  MainWindow reads ``pending_save_cluster`` and
+        ``pending_save_path`` after ``dialog.exec()`` returns.
+
+        Args:
+            cluster: Representative cluster identifying the FITS frame.
+            path: Destination file path chosen by the user.
+        """
+        self.pending_save_cluster = cluster
+        self.pending_save_path = path
+
+    def add_paused_changed_callback(self, cb: Callable[[bool], None]) -> None:
+        """Register callback fired when paused state changes."""
+        self._on_paused_changed.append(cb)
+
+    def add_pinned_changed_callback(
+        self, cb: Callable[[Optional[Cluster]], None],
+    ) -> None:
+        """Register callback fired when pinned cluster changes."""
+        self._on_pinned_changed.append(cb)
+
     # --- Lifecycle ---
 
     def activate(self) -> None:
@@ -199,28 +310,6 @@ class LiveModeViewModel:
         self._fresh_provider.deactivate()
         logger.info("LiveModeViewModel deactivated")
 
-    # --- Live Mode "Save frame" — placeholder for issue #183 ----------
-    #
-    # Issue #56 ships the export machinery (HistoricalExportViewModel +
-    # storage/PNG services); the actual Save-frame BUTTON lives on the
-    # Live Mode control strip implemented in issue #183. Wiring this
-    # method here now keeps the two issues decoupled — #183 only has to
-    # call `saveCurrentFrame()`. Do not remove without coordinating with
-    # #183.
-
-    def saveCurrentFrame(self) -> None:
-        """Placeholder hook for the Live Mode Save-frame button.
-
-        Wired to invoke ``HistoricalExportViewModel.export`` with a
-        single-frame ``ClusterQueryFilter(fits_id=<current>)`` so Live
-        Mode and Historical share one export code path.
-        """
-        # TODO(#183): Build ClusterQueryFilter(fits_id=<current>) from the
-        # paused frame and hand it to HistoricalExportViewModel.export().
-        # HistoricalExportViewModel is accessible via the MainWindow;
-        # wiring requires a reference not currently threaded into this VM.
-        logger.info("saveCurrentFrame: placeholder pending #183 wiring")
-
     # --- Grid advancement ---
 
     def advance(self) -> int:
@@ -239,8 +328,11 @@ class LiveModeViewModel:
 
         Returns:
             1 if the grid advanced (a cluster became featured),
-            0 if the queue was entirely empty.
+            0 if paused or the queue was entirely empty.
         """
+        if self._paused:
+            return 0
+
         featured = self._queue.dequeue_front()
 
         if featured is None and self._queue.slots_needed() == self._capacity:
@@ -511,3 +603,11 @@ class LiveModeViewModel:
     ) -> None:
         for cb in self._hdu_frame_callbacks:
             cb(frame, bbox)
+
+    def _notify_paused_changed(self) -> None:
+        for cb in self._on_paused_changed:
+            cb(self._paused)
+
+    def _notify_pinned_changed(self) -> None:
+        for cb in self._on_pinned_changed:
+            cb(self._pinned_cluster)

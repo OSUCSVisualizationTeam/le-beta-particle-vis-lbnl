@@ -78,6 +78,11 @@ class HistoricalView(QWidget):
         self._initUI()
         self._bindViewModel()
 
+    @property
+    def export_viewmodel(self) -> Optional[HistoricalExportViewModel]:
+        """The export ViewModel, available after ``_buildExportViewModel`` runs."""
+        return self._exportVM
+
     def _initUI(self) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)

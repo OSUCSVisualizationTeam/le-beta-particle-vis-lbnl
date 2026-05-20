@@ -72,6 +72,22 @@ class LiveModeBadgeColors:
     TEXT_LIGHT = "#ffffff"
 
 
+class LiveModeControlStripColors:
+    """Colors for the translucent control strip overlay in Live Mode."""
+
+    BACKGROUND_RGBA = (30, 30, 30, 204)
+    ICON_DEFAULT = "#e3e3e3"
+    ICON_ACTIVE = "#4fc3f7"
+
+
+class FeaturedClusterMiniToolbarColors:
+    """Colors for the pin/details mini toolbar overlaid on FeaturedClusterWidget."""
+
+    BACKGROUND_RGBA = (30, 30, 30, 180)
+    ICON_DEFAULT = "#e3e3e3"
+    ICON_ACTIVE = "#4fc3f7"
+
+
 class MainWindowStatusBarColors:
     """Colors for the global MainWindow QStatusBar."""
 

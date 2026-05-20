@@ -7,7 +7,7 @@ On each advance step, cells animate to their new positions using
 Cell size is computed dynamically from the available space.
 """
 
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 from PySide6.QtCore import (
@@ -61,6 +61,7 @@ class DetectedClusterCollectionWidget(QWidget):
         self._cells: List[_ThumbnailCell] = []
         self._anim_group: Optional[QParallelAnimationGroup] = None
         self._deferred_grid: Optional[List[Optional[Cluster]]] = None
+        self._cell_click_handler: Optional[Callable[[Cluster], None]] = None
         self._createCells()
 
     # --- Public ---
@@ -140,6 +141,28 @@ class DetectedClusterCollectionWidget(QWidget):
         self._anim_group.finished.connect(self._onAnimationFinished)
         self._anim_group.start()
 
+    def set_cell_click_handler(
+        self, handler: Optional[Callable[[Cluster], None]],
+    ) -> None:
+        """Set a callback invoked when any thumbnail cell is clicked.
+
+        Args:
+            handler: Called with the clicked cluster, or None to clear.
+        """
+        self._cell_click_handler = handler
+        for cell in self._cells:
+            cell._on_click = handler
+
+    def pause_animation(self) -> None:
+        """Pause the current animation group if one is running."""
+        if self._anim_group is not None:
+            self._anim_group.pause()
+
+    def resume_animation(self) -> None:
+        """Resume a paused animation group."""
+        if self._anim_group is not None:
+            self._anim_group.resume()
+
     def stop(self) -> None:
         """Immediately stop any running animation."""
         self._stopAnimation()
@@ -159,6 +182,7 @@ class DetectedClusterCollectionWidget(QWidget):
         for _ in range(self._rows * self._cols):
             cell = _ThumbnailCell(self)
             cell.setFixedSize(QSize(1, 1))
+            cell._on_click = self._cell_click_handler
             self._cells.append(cell)
 
     @staticmethod
