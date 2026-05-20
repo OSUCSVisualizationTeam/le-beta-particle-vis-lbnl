@@ -106,6 +106,9 @@ class _FakeThumbnailService(ThumbnailLoaderService):
     def request_cluster_data(self, cluster, on_ready):
         on_ready(np.ones((2, 2), dtype=np.float64))
 
+    def request_hdu_frame(self, fits_filename, hdu_id, on_ready):
+        on_ready(None)
+
     def shutdown(self):
         pass
 

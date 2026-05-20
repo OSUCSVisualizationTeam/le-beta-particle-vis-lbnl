@@ -621,6 +621,54 @@ gui:livemode:histogram_min_height_pct:
     Minimum height of the energy histogram as a fraction of
     screen height (0.05–0.5).  Default: 0.10 (10%).
 
+gui:livemode:badges:classifiers_enabled:
+  type: bool
+  default: true
+  description: >-
+    Show particle symbol and confidence % badges on Live Mode grid
+    thumbnails. When false, only the Energy (keV) badge is rendered.
+    Disable for exposures where the trained classifiers are not
+    appropriate. The keV badge is always rendered regardless of this
+    setting and is also hidden per-cell when the cluster's best
+    classifier score is non-positive.
+
+gui:livemode:badges:min_cell_size_px:
+  type: int
+  default: 48
+  description: >-
+    Minimum rendered cell side (in pixels) at which Live Mode grid
+    badges are drawn. At denser grids cells become too small for
+    legible badges and all badges (including keV) are suppressed.
+
+gui:livemode:controls:enabled:
+  type: bool
+  default: true
+  description: >-
+    Show the translucent control strip overlay inside the Live Mode
+    screensaver.  When false, only Esc dismisses the view.
+
+gui:livemode:controls:autohide_ms:
+  type: int
+  default: 3000
+  description: >-
+    Milliseconds of cursor inactivity before the control strip
+    auto-hides.  The strip reappears when the cursor moves near
+    the top of the screen.
+
+gui:livemode:controls:background_opacity:
+  type: float
+  default: 0.80
+  description: >-
+    Alpha (0.0–1.0) of the translucent control strip background.
+
+gui:livemode:controls:icon_size_pct:
+  type: float
+  default: 3.0
+  description: >-
+    Control strip icon size as a percentage of screen height.
+    A floor of 24 px is enforced so icons never become unreadably
+    small on unusual displays.
+
 # ---------------------------------------------------------------------------
 # Classifier Service
 # ---------------------------------------------------------------------------

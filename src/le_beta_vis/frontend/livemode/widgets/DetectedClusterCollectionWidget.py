@@ -7,7 +7,7 @@ On each advance step, cells animate to their new positions using
 Cell size is computed dynamically from the available space.
 """
 
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 from PySide6.QtCore import (
@@ -17,59 +17,17 @@ from PySide6.QtCore import (
     QPoint,
     QPropertyAnimation,
     QSize,
-    Qt,
     Signal,
 )
 from PySide6.QtGui import QPixmap, QResizeEvent
-from PySide6.QtWidgets import QLabel, QWidget
+from PySide6.QtWidgets import QWidget
 
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
 from le_beta_vis.frontend.widgets.EnergyClusterWidget import EnergyClusterWidget
 
 from ..LiveModeViewModel import LiveModeViewModel
-
-
-class _ThumbnailCell(QLabel):
-    """Single thumbnail cell, positioned absolutely in the grid."""
-
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
-        super().__init__(parent)
-        self.setAlignment(Qt.AlignCenter)
-
-    def setClusterPixmap(
-        self,
-        cluster: Optional[Cluster],
-        colormap: Optional[Colormap],
-        cell_size: int,
-        empty_pixmap: Optional[QPixmap] = None,
-        target_side: Optional[int] = None,
-    ) -> None:
-        """Renders a cluster thumbnail into this cell.
-
-        Args:
-            cluster: Cluster data, or None for an empty cell.
-            colormap: Colormap for rendering.
-            cell_size: Target side length in pixels.
-            empty_pixmap: Pre-rendered pixmap for empty cells.
-            target_side: Shared bbox side across all cells in the
-                same repaint so small clusters are not upscaled to
-                fill the cell, preserving relative spatial scale.
-        """
-        if cluster is None or cluster.data is None:
-            if empty_pixmap is not None:
-                self.setPixmap(empty_pixmap)
-            else:
-                pm = QPixmap(cell_size, cell_size)
-                pm.fill(Qt.black)
-                self.setPixmap(pm)
-            return
-        self.setPixmap(
-            EnergyClusterWidget.to_pixmap(
-                cluster.data, colormap, cell_size,
-                target_side=target_side,
-            )
-        )
+from ._ThumbnailCell import _ThumbnailCell
 
 
 class DetectedClusterCollectionWidget(QWidget):
@@ -103,6 +61,7 @@ class DetectedClusterCollectionWidget(QWidget):
         self._cells: List[_ThumbnailCell] = []
         self._anim_group: Optional[QParallelAnimationGroup] = None
         self._deferred_grid: Optional[List[Optional[Cluster]]] = None
+        self._cell_click_handler: Optional[Callable[[Cluster], None]] = None
         self._createCells()
 
     # --- Public ---
@@ -116,11 +75,17 @@ class DetectedClusterCollectionWidget(QWidget):
         colormap = self._vm.colormap
         empty_pm = self._makeEmptyPixmap(colormap, self._cell_size)
         target_side = self._computeCommonBboxSide(grid)
+        classifiers_enabled = self._vm.badges_classifiers_enabled
+        min_cell_size_px = self._vm.badges_min_cell_size_px
+        physics = self._vm.physics
         for i, cell in enumerate(self._cells):
             cluster = grid[i] if i < len(grid) else None
             cell.setClusterPixmap(
                 cluster, colormap, self._cell_size, empty_pm,
                 target_side=target_side,
+                physics=physics,
+                classifiers_enabled=classifiers_enabled,
+                min_cell_size_px=min_cell_size_px,
             )
 
     def isAnimating(self) -> bool:
@@ -176,6 +141,28 @@ class DetectedClusterCollectionWidget(QWidget):
         self._anim_group.finished.connect(self._onAnimationFinished)
         self._anim_group.start()
 
+    def set_cell_click_handler(
+        self, handler: Optional[Callable[[Cluster], None]],
+    ) -> None:
+        """Set a callback invoked when any thumbnail cell is clicked.
+
+        Args:
+            handler: Called with the clicked cluster, or None to clear.
+        """
+        self._cell_click_handler = handler
+        for cell in self._cells:
+            cell._on_click = handler
+
+    def pause_animation(self) -> None:
+        """Pause the current animation group if one is running."""
+        if self._anim_group is not None:
+            self._anim_group.pause()
+
+    def resume_animation(self) -> None:
+        """Resume a paused animation group."""
+        if self._anim_group is not None:
+            self._anim_group.resume()
+
     def stop(self) -> None:
         """Immediately stop any running animation."""
         self._stopAnimation()
@@ -195,6 +182,7 @@ class DetectedClusterCollectionWidget(QWidget):
         for _ in range(self._rows * self._cols):
             cell = _ThumbnailCell(self)
             cell.setFixedSize(QSize(1, 1))
+            cell._on_click = self._cell_click_handler
             self._cells.append(cell)
 
     @staticmethod

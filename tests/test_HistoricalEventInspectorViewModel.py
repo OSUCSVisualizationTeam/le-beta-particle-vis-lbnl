@@ -179,10 +179,10 @@ def test_data_cluster_id_none(vm):
 
 
 def test_data_energy_kev(vm, cluster):
-    """When displayKeV is True, energy shows keV + ADU."""
+    """When displayKeV is True, energy shows keV only (no ADU)."""
     data = vm.formatClusterData(cluster)
     assert "keV" in data.energy
-    assert "ADU" in data.energy
+    assert "ADU" not in data.energy
 
 
 def test_data_energy_adu_only():
@@ -216,11 +216,11 @@ def test_data_geometry(vm, cluster):
 # --- formatClusterData: center ---
 
 
-def test_data_center_relative(vm, cluster):
-    """Center should be relative to bounding box origin."""
+def test_data_center_absolute(vm, cluster):
+    """Center should be absolute HDU pixel coordinates."""
     data = vm.formatClusterData(cluster)
-    # centerX=26 - left=20 = 6; centerY=15 - top=10 = 5
-    assert data.center == "(6, 5)"
+    # centerX=26, centerY=15 — absolute HDU coordinates
+    assert data.center == "(26, 15)"
 
 
 # --- formatClusterData: sigma ---
