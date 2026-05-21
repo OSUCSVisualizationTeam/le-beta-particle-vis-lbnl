@@ -452,9 +452,11 @@ class EventPersistence:
             if len(select_args) > 0:
                 select_query += " WHERE " + " AND ".join(select_args)
 
+            select_query += " LIMIT 2000"
+
             cursor.execute(select_query, tuple(select_argv))
             # saving results into a list of tuples
-            results = cursor.fetchall()
+            results = cursor.fetchall() # Temporarily limit result set size to avoid a crash in macOS
 
             cursor.close()
             return self.process_retrieval_clusters(results)
