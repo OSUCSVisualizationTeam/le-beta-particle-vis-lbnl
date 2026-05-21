@@ -315,6 +315,9 @@ class EventPersistence:
                 cluster.sigma_x,
                 cluster.sigma_y,
                 cluster.classification,
+                None,       #null values for per model classifications
+                None,
+                None,
                 cluster.total_pixels,
                 None,
             )
