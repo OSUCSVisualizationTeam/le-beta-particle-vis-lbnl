@@ -2,7 +2,7 @@ import decimal
 from typing import Any, Callable, Optional
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QDoubleValidator, QIntValidator, QKeyEvent
+from PySide6.QtGui import QIntValidator, QKeyEvent
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -264,42 +264,33 @@ class _FilterParameterPopover(QFrame):
         self._external_setter = set_external
         return slider
 
-    # --- Unbounded float (sci-notation entry) ---
+    # --- Unbounded float (spinbox with wide practical range) ---
 
     def _buildUnboundedFloatEditor(
         self, spec: ParameterSpec, value: float
     ) -> QWidget:
-        edit = QLineEdit()
-        edit.setText(self._formatFloat(value))
-        validator = QDoubleValidator()
-        validator.setNotation(QDoubleValidator.ScientificNotation)
-        if spec.min_value is not None:
-            validator.setBottom(float(spec.min_value))
-        if spec.max_value is not None:
-            validator.setTop(float(spec.max_value))
-        edit.setValidator(validator)
-        edit.setMinimumWidth(160)
+        spinbox = QDoubleSpinBox()
+        lo = float(spec.min_value) if spec.min_value is not None else -1e15
+        hi = float(spec.max_value) if spec.max_value is not None else 1e15
+        spinbox.setRange(lo, hi)
+        spinbox.setSingleStep(spec.step if spec.step is not None else 0.1)
+        spinbox.setDecimals(self._decimalsForStep(spec.step))
+        spinbox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        spinbox.setValue(float(value))
 
-        def on_edited(text: str) -> None:
-            try:
-                v = float(text)
-            except ValueError:
-                return
-            self.valueChanged.emit(spec.clamp(v))
-
-        edit.textEdited.connect(on_edited)
+        spinbox.valueChanged.connect(lambda v: self.valueChanged.emit(v))
 
         def set_external(v: Any) -> None:
             try:
-                edit.blockSignals(True)
-                edit.setText(self._formatFloat(float(v)))
+                spinbox.blockSignals(True)
+                spinbox.setValue(float(v))
             except (TypeError, ValueError):
                 pass
             finally:
-                edit.blockSignals(False)
+                spinbox.blockSignals(False)
 
         self._external_setter = set_external
-        return edit
+        return spinbox
 
     # --- Int / Enum ---
 
@@ -416,10 +407,6 @@ class _FilterParameterPopover(QFrame):
         except (decimal.InvalidOperation, TypeError):
             return 2
         return max(-int(exponent), 0)
-
-    @staticmethod
-    def _formatFloat(value: float) -> str:
-        return f"{value:g}"
 
     # --- Dismissal ---
 
