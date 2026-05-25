@@ -119,6 +119,37 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
             return
         self._executor.submit(self._extract_data_worker, cluster, on_ready)
 
+    def request_hdu_frame(
+        self,
+        fits_filename: str,
+        hdu_id: int,
+        on_ready: Callable[[Optional[np.ndarray]], None],
+    ) -> None:
+        """Load the full 2-D pixel array for one HDU asynchronously."""
+        self._executor.submit(self._hdu_frame_worker, fits_filename, hdu_id, on_ready)
+
+    def _hdu_frame_worker(
+        self,
+        fits_filename: str,
+        hdu_id: int,
+        on_ready: Callable[[Optional[np.ndarray]], None],
+    ) -> None:
+        try:
+            with self._lock:
+                hdus = self._get_or_load_hdus(fits_filename)
+            if 0 <= hdu_id < len(hdus):
+                on_ready(np.asarray(hdus[hdu_id].rawData()))
+            else:
+                on_ready(None)
+        except Exception:
+            logger.warning(
+                "HDU frame load failed for %s hdu=%d",
+                fits_filename,
+                hdu_id,
+                exc_info=True,
+            )
+            on_ready(None)
+
     def _extract_data_worker(
         self,
         cluster: Cluster,

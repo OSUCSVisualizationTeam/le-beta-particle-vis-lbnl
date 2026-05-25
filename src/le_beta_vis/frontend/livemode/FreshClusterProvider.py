@@ -164,13 +164,13 @@ class FreshClusterProvider(ClusterProvider):
             clusterId=payload.get("cluster_id"),
             hdu_id=payload.get("hdu_id"),
             cnnClassification=float(
-                payload.get("cnn_classification", 0.0),
+                payload.get("cnn_classification") or 0.0,
             ),
             nrgClassification=float(
-                payload.get("nrg_classification", 0.0),
+                payload.get("nrg_classification") or 0.0,
             ),
             bdtClassification=float(
-                payload.get("bdt_classification", 0.0),
+                payload.get("bdt_classification") or 0.0,
             ),
             classification=str(
                 payload.get("classification", "UNCLASSIFIED"),

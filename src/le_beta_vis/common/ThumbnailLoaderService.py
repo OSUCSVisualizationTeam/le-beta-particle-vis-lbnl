@@ -71,6 +71,27 @@ class ThumbnailLoaderService(ABC):
         ...
 
     @abstractmethod
+    def request_hdu_frame(
+        self,
+        fits_filename: str,
+        hdu_id: int,
+        on_ready: Callable[[Optional[np.ndarray]], None],
+    ) -> None:
+        """Load the full 2-D pixel array for one HDU asynchronously.
+
+        Reuses the FITS HDU cache so consecutive calls for the same file
+        do not reload from disk. The result is delivered once via *on_ready*
+        and is not cached.
+
+        Args:
+            fits_filename: Path to the FITS file.
+            hdu_id: Zero-based index of the HDU within the file.
+            on_ready: Callback invoked with the raw 2-D array, or None on
+                failure.
+        """
+        ...
+
+    @abstractmethod
     def shutdown(self) -> None:
         """Release all resources (threads, timers, cached data)."""
         ...

@@ -4,8 +4,9 @@ Material Symbols
 Source: https://fonts.google.com/icons
 Author: Google LLC
 
-The icons in this directory (delete.svg, grabber.svg, toggle_off.svg,
-toggle_on.svg) are derived from Google's Material Symbols icon set,
+The icons in this directory (cancel.svg, delete.svg, grabber.svg, info.svg,
+keep.svg, keep_off.svg, pause_circle.svg, play_circle.svg, save.svg,
+toggle_off.svg, toggle_on.svg) are derived from Google's Material Symbols icon set,
 licensed under the Apache License, Version 2.0. The icons are used
 unmodified except for:
 

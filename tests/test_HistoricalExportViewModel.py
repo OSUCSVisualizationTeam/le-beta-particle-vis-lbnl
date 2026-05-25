@@ -87,6 +87,9 @@ class _NoopThumbnails(ThumbnailLoaderService):
     def request_cluster_data(self, cluster, on_ready):
         on_ready(None)
 
+    def request_hdu_frame(self, fits_filename, hdu_id, on_ready):
+        on_ready(None)
+
     def shutdown(self):
         pass
 

@@ -110,6 +110,8 @@ class LiveModeView(QDialog):
         """Registers ViewModel callbacks for cross-thread notification."""
         self._vm.add_grid_changed_callback(self._onGridChangedFromBg)
         self._vm.add_featured_changed_callback(self._onFeaturedChangedFromBg)
+        self._vm.add_paused_changed_callback(self._onPausedChanged)
+        self._clusterCollection.set_cell_click_handler(self._onCellClicked)
 
     def _onGridChangedFromBg(self) -> None:
         """Callback from ViewModel (may be on a background thread).
@@ -170,15 +172,34 @@ class LiveModeView(QDialog):
         self._clusterCollection.stop()
         self._vm.deactivate()
 
-    # --- Dismissal ---
+    # --- Dismissal and interaction ---
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        """Dismisses the screensaver on any key press."""
-        self.reject()
+        """Space toggles pause; Esc exits; all other keys are ignored."""
+        if event.key() == Qt.Key_Space:
+            self._vm.toggle_paused()
+        elif event.key() == Qt.Key_Escape:
+            self.reject()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        """Dismisses the screensaver on any mouse click."""
+        """Dismiss on any click on the dialog background."""
         self.reject()
+
+    def _onCellClicked(self, cluster: Cluster) -> None:
+        """Pin the cluster whose thumbnail was clicked and display it."""
+        self._vm.pin_cluster(cluster)
+        self._showClusterInFeaturedPanel(cluster)
+
+    def _onPausedChanged(self, paused: bool) -> None:
+        """Start or stop the advance timer in response to pause state."""
+        if self._advance_timer is None:
+            return
+        if paused:
+            self._advance_timer.stop()
+            self._clusterCollection.pause_animation()
+        else:
+            self._advance_timer.start(self._vm.advance_interval_ms)
+            self._clusterCollection.resume_animation()
 
     # --- Timers ---
 
@@ -205,7 +226,13 @@ class LiveModeView(QDialog):
     # --- Panel updates ---
 
     def _updateFeaturedPanel(self, cluster: Optional[Cluster]) -> None:
-        """Updates the featured panel for the given cluster."""
+        """Advance-driven update — skipped when a cluster is pinned."""
+        if cluster is not None and self._vm.pinned_cluster is not None:
+            return
+        self._showClusterInFeaturedPanel(cluster)
+
+    def _showClusterInFeaturedPanel(self, cluster: Optional[Cluster]) -> None:
+        """Unconditionally render *cluster* in the featured panel."""
         if cluster is None:
             self._featured_cluster = None
             self._featuredPanel.clearFeaturedPanel()

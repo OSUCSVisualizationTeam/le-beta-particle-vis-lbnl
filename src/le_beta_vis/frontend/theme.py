@@ -49,6 +49,45 @@ class LiveModeColors:
     TITLE_TEXT = "#ffffff"
 
 
+class LiveModeBadgeColors:
+    """Colors for Live Mode grid thumbnail badges.
+
+    Backgrounds mirror the historical event-grid palette so the two
+    surfaces read consistently. Badge text color is chosen at draw
+    time by a WCAG relative-luminance check (see ``_pickBadgeFg`` in
+    the cell module) so every badge clears AA contrast (>= 4.5:1).
+    """
+
+    BORDER = "#0d0d0d"
+    BORDER_WIDTH_PX = 1
+
+    CONFIDENCE_HIGH_BG = "#2ecc71"
+    CONFIDENCE_MID_BG = "#f39c12"
+    CONFIDENCE_LOW_BG = "#95a5a6"
+
+    ENERGY_BG = "#1f2a36"
+    ENERGY_FG = "#ffffff"
+
+    TEXT_DARK = "#0d0d0d"
+    TEXT_LIGHT = "#ffffff"
+
+
+class LiveModeControlStripColors:
+    """Colors for the translucent control strip overlay in Live Mode."""
+
+    BACKGROUND_RGBA = (30, 30, 30, 204)
+    ICON_DEFAULT = "#e3e3e3"
+    ICON_ACTIVE = "#4fc3f7"
+
+
+class FeaturedClusterMiniToolbarColors:
+    """Colors for the pin/details mini toolbar overlaid on FeaturedClusterWidget."""
+
+    BACKGROUND_RGBA = (30, 30, 30, 180)
+    ICON_DEFAULT = "#e3e3e3"
+    ICON_ACTIVE = "#4fc3f7"
+
+
 class MainWindowStatusBarColors:
     """Colors for the global MainWindow QStatusBar."""
 
@@ -88,6 +127,12 @@ class ExportOptionsDialogColors:
     CANCEL_BUTTON_FOREGROUND = "#cccccc"
     CANCEL_BUTTON_BORDER = "#555555"
     CANCEL_BUTTON_HOVER = "#505050"
+
+
+class ClusterLocationMapColors:
+    """Colors for ClusterLocationMapWidget."""
+
+    BORDER = "#3a3a3a"
 
 
 class HUDAnnotationOverlayColors:

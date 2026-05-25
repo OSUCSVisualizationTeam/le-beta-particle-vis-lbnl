@@ -326,6 +326,28 @@ class MainWindow(QMainWindow):
         dialog = LiveModeView(vm, parent=self)
         dialog.exec()
 
+        self._handleLiveModePostExit(vm)
+
+    def _handleLiveModePostExit(self, vm) -> None:
+        """Handle pending intents stored on the ViewModel after Live Mode closes."""
+        from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
+
+        if vm.pending_cluster_for_historical is not None:
+            cluster = vm.pending_cluster_for_historical
+            self.tabs.setCurrentWidget(self.historicalView)
+            self.historicalViewModel.setQueryFilter(
+                ClusterQueryFilter(cluster_id=cluster.clusterId)
+            )
+            self.historicalViewModel.loadEvents()
+
+        if vm.pending_save_cluster is not None and vm.pending_save_path is not None:
+            export_vm = self.historicalView.export_viewmodel
+            if export_vm is not None:
+                export_vm.export(
+                    vm.pending_save_path,
+                    ClusterQueryFilter(fits_id=vm.pending_save_cluster.fitsId),
+                )
+
     def _onOpenSettings(self) -> None:
         """Open the Settings dialog."""
         from .viewmodels.SettingsViewModel import SettingsViewModel
