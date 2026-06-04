@@ -78,6 +78,7 @@ class ClusterAnalysisView(QWidget):
         self._bindClusteringCallbacks()
         self._bindExtractionButton()
         self._bindWidgetSignals()
+        self._bindClassificationScoresCallback()
 
     def _bindClusteringCallbacks(self) -> None:
         def on_completed() -> None:
@@ -99,6 +100,16 @@ class ClusterAnalysisView(QWidget):
         self._vm.add_selected_cluster_changed_callback(
             on_selected_changed,
         )
+
+    def _bindClassificationScoresCallback(self) -> None:
+        def on_scores_changed() -> None:
+            QMetaObject.invokeMethod(
+                self,
+                "_updateClassificationScores",
+                Qt.AutoConnection,
+            )
+
+        self._vm.add_classification_scores_changed_callback(on_scores_changed)
 
     def _bindExtractionButton(self) -> None:
         def refresh() -> None:
@@ -146,6 +157,13 @@ class ClusterAnalysisView(QWidget):
         """Syncs the widget's multi-selection with ViewModel state."""
         self._clusteredEventWidget.setSelectedIndices(
             self._vm.selectedClusterIndices,
+        )
+
+    @Slot()
+    def _updateClassificationScores(self) -> None:
+        """Overlays ML scores on cluster rows after classification completes."""
+        self._clusteredEventWidget.updateClassificationResults(
+            self._vm.classificationScores,
         )
 
     @Slot()

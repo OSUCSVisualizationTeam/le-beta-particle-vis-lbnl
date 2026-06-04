@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import (
@@ -13,9 +13,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from le_beta_vis.common.ClassifierService import ClusterScores
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
+from le_beta_vis.common.ParticleType import CLASSIFICATION_THRESHOLD, ParticleType
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
-from le_beta_vis.frontend.theme import ClusteredEventWidgetColors as _CEC
+from le_beta_vis.frontend.theme import (
+    ClusteredEventWidgetColors as _CEC,
+    RawClusterClassificationDialogColors as _SC,
+)
 from le_beta_vis.frontend.widgets.EnergyClusterWidget import (
     EnergyClusterWidget,
 )
@@ -50,6 +55,7 @@ class ClusteredEventWidget(QWidget):
         self._colormap: Optional[Colormap] = None
         self._displayKeV: bool = True
         self._kevConversion: float = 1.02857e-5
+        self._classification_scores: Dict[int, ClusterScores] = {}
         self._initUI()
 
     def _initUI(self) -> None:
@@ -119,28 +125,50 @@ class ClusteredEventWidget(QWidget):
     def setResults(self, results: List[ClusteredEventInfo]) -> None:
         """Populates the list with clustered events.
 
-        Replaces any existing content. Generates thumbnails and
-        builds list entries with summary metadata.
+        Replaces any existing content. Clears any prior classification scores
+        so stale badges do not appear on the new result set.
 
         Args:
             results: List of ClusteredEventInfo from extraction.
         """
         self._results = list(results)
+        self._classification_scores = {}
+        self._rebuildRows()
+
+    def updateClassificationResults(
+        self, scores: Dict[int, ClusterScores]
+    ) -> None:
+        """Overlays ML classification scores on the existing cluster rows.
+
+        Rebuilds the list so each row gains CNN/NRG/BDT score labels and a
+        particle-type badge. Call after a classification dialog closes with
+        results; no-op when *scores* is empty.
+
+        Args:
+            scores: Per-cluster scores keyed by cluster list index.
+        """
+        if not scores:
+            return
+        self._classification_scores = dict(scores)
+        self._rebuildRows()
+
+    def clear(self) -> None:
+        """Clears the list and resets to empty state."""
+        self.setResults([])
+
+    def _rebuildRows(self) -> None:
+        """Rebuilds QListWidget rows from the current results and scores."""
         self._listWidget.clear()
         self._updateCountLabel()
         self._btnClassify.setEnabled(False)
         self._btnExport.setEnabled(False)
 
-        for i, event in enumerate(results):
+        for i, event in enumerate(self._results):
             item = QListWidgetItem()
             widget = self._createEntryWidget(i, event)
             item.setSizeHint(widget.sizeHint())
             self._listWidget.addItem(item)
             self._listWidget.setItemWidget(item, widget)
-
-    def clear(self) -> None:
-        """Clears the list and resets to empty state."""
-        self.setResults([])
 
     def setSelectedIndices(self, indices: List[int]) -> None:
         """Programmatically sets the multi-selection from a list of indices.
@@ -218,9 +246,53 @@ class ClusteredEventWidget(QWidget):
             QLabel(self.tr("Pixels: {count}").format(count=event.pixelCount))
         )
 
+        if index in self._classification_scores:
+            self._appendScoreLabels(metaLayout, self._classification_scores[index])
+
         layout.addLayout(metaLayout)
         layout.setStretch(1, 1)
         return entry
+
+    def _appendScoreLabels(
+        self, layout: QVBoxLayout, scores: ClusterScores
+    ) -> None:
+        """Appends CNN/NRG/BDT score rows and a particle badge to *layout*."""
+
+        def _fmt(v: Optional[float]) -> str:
+            return f"{v * 100:.0f}%" if v is not None else "?"
+
+        def _color(v: Optional[float]) -> str:
+            if v is None:
+                return _SC.SCORE_LABEL_LOW
+            if v >= CLASSIFICATION_THRESHOLD:
+                return _SC.SCORE_LABEL_GOOD
+            if v >= 0.5:
+                return _SC.SCORE_LABEL_MEDIUM
+            return _SC.SCORE_LABEL_LOW
+
+        for model, val in (
+            ("CNN", scores.cnn),
+            ("NRG", scores.nrg),
+            ("BDT", scores.bdt),
+        ):
+            lbl = QLabel(
+                self.tr("{model}: <b>{score}</b>").format(
+                    model=model, score=_fmt(val)
+                )
+            )
+            lbl.setStyleSheet(f"color: {_color(val)};")
+            layout.addWidget(lbl)
+
+        valid = [v for v in (scores.cnn, scores.nrg, scores.bdt) if v is not None]
+        particle = (
+            ParticleType.TRITIUM
+            if valid and max(valid) >= CLASSIFICATION_THRESHOLD
+            else ParticleType.UNCLASSIFIED
+        )
+        badge = QLabel(
+            self.tr("Type: {symbol}").format(symbol=particle.symbol)
+        )
+        layout.addWidget(badge)
 
     def _createEnergyLabel(self, event: ClusteredEventInfo) -> QLabel:
         """Creates the energy label, converting to keV if enabled."""

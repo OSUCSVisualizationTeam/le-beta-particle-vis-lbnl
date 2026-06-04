@@ -170,6 +170,23 @@ class RawClusterLabelingDialogColors:
     RESULT_TEXT = "#c8e6c9"
 
 
+class RawClusterClassificationDialogColors:
+    """Colors for the ML classification dialog."""
+
+    CALLOUT_BACKGROUND = "#1a2a3a"
+    CALLOUT_BORDER = "#1565c0"
+    CALLOUT_TEXT = "#bbdefb"
+    CLASSIFY_BUTTON_BACKGROUND = "#0078d7"
+    CLASSIFY_BUTTON_FOREGROUND = "#ffffff"
+    CLASSIFY_BUTTON_HOVER = "#005fa3"
+    CANCEL_BUTTON_BACKGROUND = "#3d3d3d"
+    CANCEL_BUTTON_FOREGROUND = "#cccccc"
+    CANCEL_BUTTON_BORDER = "#555555"
+    SCORE_LABEL_GOOD = "#81c784"
+    SCORE_LABEL_MEDIUM = "#ffb74d"
+    SCORE_LABEL_LOW = "#e57373"
+
+
 class ClusteredEventWidgetColors:
     BUTTON_DISABLED_TEXT = "#a0a0a0"
 

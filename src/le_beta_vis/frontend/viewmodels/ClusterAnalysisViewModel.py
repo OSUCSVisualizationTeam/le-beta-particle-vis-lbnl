@@ -6,11 +6,12 @@ Pure Python — no Qt dependencies.
 import logging
 import threading
 from enum import Enum
-from typing import Callable, FrozenSet, List, Optional
+from typing import Callable, Dict, FrozenSet, List, Optional
 
 import numpy as np
 
 from le_beta_vis.common.BoundingBox import BoundingBox
+from le_beta_vis.common.ClassifierService import ClusterScores
 from le_beta_vis.common.ClusterExtractor import (
     ClusteredEventInfo,
     ClusterExtractor,
@@ -70,6 +71,10 @@ class ClusterAnalysisViewModel:
         self._export_handler: Optional[
             Callable[[List[ClusteredEventInfo]], None]
         ] = None
+        self._classify_handler: Optional[
+            Callable[[List[ClusteredEventInfo]], None]
+        ] = None
+        self._classification_scores: Dict[int, ClusterScores] = {}
 
     def _init_callbacks(self) -> None:
         """Initializes all observer callback registries to empty lists."""
@@ -81,6 +86,7 @@ class ClusterAnalysisViewModel:
         self._on_clustering_error_callbacks: List[Callable] = []
         self._on_clustering_progress_callbacks: List[Callable] = []
         self._on_selected_cluster_changed_callbacks: List[Callable] = []
+        self._on_classification_scores_changed_callbacks: List[Callable] = []
 
     # --- ROI ---
 
@@ -251,6 +257,11 @@ class ClusterAnalysisViewModel:
         return -1
 
     @property
+    def classificationScores(self) -> Dict[int, ClusterScores]:
+        """Current per-cluster ML scores. Empty until applyClassificationScores is called."""
+        return dict(self._classification_scores)
+
+    @property
     def selectedCluster(self) -> Optional[ClusteredEventInfo]:
         """Backward-compat: returns the single selected cluster, or None."""
         idx = self.selectedClusterIndex
@@ -280,12 +291,17 @@ class ClusterAnalysisViewModel:
         self.selectClusters([] if index < 0 else [index])
 
     def clearClusteringResults(self) -> None:
-        """Clears results and resets selection. Notifies listeners."""
-        if self._clusteringResults or self._selectedClusterIndices:
+        """Clears results, selection, and classification scores. Notifies listeners."""
+        had_results = bool(self._clusteringResults or self._selectedClusterIndices)
+        had_scores = bool(self._classification_scores)
+        if had_results:
             self._clusteringResults = []
             self._selectedClusterIndices = frozenset()
             self._notify_clustering_completed()
             self._notify_selected_cluster_changed()
+        if had_scores:
+            self._classification_scores = {}
+            self._notify_classification_scores_changed()
 
     def setExportHandler(
         self,
@@ -300,24 +316,61 @@ class ClusterAnalysisViewModel:
         """
         self._export_handler = handler
 
-    def classifySelectedCluster(self) -> None:
-        """Placeholder for cluster classification (issue #54).
+    def setClassifyHandler(
+        self,
+        handler: Optional[Callable[[List[ClusteredEventInfo]], None]],
+    ) -> None:
+        """Injects the classify callback for selected clusters.
 
-        Logs the request for all selected clusters; no-op until the
-        classification pipeline is wired.
+        The handler receives the full list of selected clusters and is
+        responsible for presenting the classification dialog and calling
+        applyClassificationScores with the results. Kept as an injection seam
+        so this pure-Python VM stays free of Qt dialog knowledge.
+        """
+        self._classify_handler = handler
+
+    def add_classification_scores_changed_callback(
+        self, cb: Callable[[], None]
+    ) -> None:
+        """Registers cb to be called when classification scores are updated or cleared."""
+        self._on_classification_scores_changed_callbacks.append(cb)
+
+    def _notify_classification_scores_changed(self) -> None:
+        for cb in list(self._on_classification_scores_changed_callbacks):
+            cb()
+
+    def classifySelectedCluster(self) -> None:
+        """Invokes the classify handler for all currently selected clusters.
+
+        No-op when no handler is wired or no clusters are selected.
         """
         clusters = self.selectedClusters
         if not clusters:
             logger.info("classifySelectedCluster: no cluster selected")
             return
-        for cluster in clusters:
+        if self._classify_handler is None:
             logger.info(
-                "classifySelectedCluster: placeholder for cluster at "
-                "(%d, %d) with energy %.2f ADU",
-                cluster.centerX,
-                cluster.centerY,
-                cluster.energy,
+                "classifySelectedCluster: no handler wired (%d cluster(s) selected)",
+                len(clusters),
             )
+            return
+        self._classify_handler(clusters)
+
+    def applyClassificationScores(
+        self, scores: Dict[int, ClusterScores]
+    ) -> None:
+        """Stores per-cluster ML scores and notifies the View to update badges.
+
+        Called by RawDataView after the classification dialog closes. Scores are
+        keyed by cluster list index and cleared by clearClusteringResults().
+
+        Args:
+            scores: Per-cluster scores from RawClusterClassificationViewModel.
+        """
+        if not scores:
+            return
+        self._classification_scores = dict(scores)
+        self._notify_classification_scores_changed()
 
     def exportSelectedCluster(self) -> None:
         """Requests an export for all currently selected clusters.

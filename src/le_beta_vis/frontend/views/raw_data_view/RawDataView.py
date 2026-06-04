@@ -87,6 +87,7 @@ class RawDataView(QWidget):
         self._bindClusteringStateCallback()
         if self._repository is not None:
             self._cavm.setExportHandler(self._onExportRequested)
+        self._cavm.setClassifyHandler(self._onClassifyRequested)
 
     def _bindMosaicCallbacks(self) -> None:
         self.viewModel.mosaicViewModel.add_thumbnails_changed_callback(
@@ -191,6 +192,26 @@ class RawDataView(QWidget):
         dialog = _RawClusterLabelingDialog(vm, parent=self.window())
         if dialog.exec() == QDialog.Accepted:
             self._cavm.removeClustersByIndices(indices_to_remove)
+
+    def _onClassifyRequested(self, clusters: List[ClusteredEventInfo]) -> None:
+        # TODO(#XXX): Replace MockClassifierService with the production
+        # ZMQBasedClassifierService once it is wired through ServicesManager.
+        from le_beta_vis.common import MockClassifierService
+        from ...viewmodels.RawClusterClassificationViewModel import (
+            RawClusterClassificationViewModel,
+        )
+        from ._RawClusterClassificationDialog import _RawClusterClassificationDialog
+
+        vm = RawClusterClassificationViewModel(
+            clusters=clusters,
+            service=MockClassifierService(),
+            physics=self.viewModel.physics_manager,
+        )
+        dialog = _RawClusterClassificationDialog(vm, parent=self.window())
+        dialog.exec()
+        # Propagate scores regardless of accept/reject. Scores are only present
+        # when the user reached POST phase; empty dict is a safe no-op.
+        self._cavm.applyClassificationScores(vm.scores)
 
     def openClusterForAnalysis(
         self,
