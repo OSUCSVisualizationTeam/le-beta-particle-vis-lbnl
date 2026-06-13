@@ -30,6 +30,31 @@ def test_fetch_events_returns_empty(caplog):
     assert "fetch_events" in caplog.text
 
 
+def test_fetch_clusters_returns_empty(caplog):
+    repo = _make_repo()
+    qf = ClusterQueryFilter(fits_id=1)
+    got = {"events": None, "error": None}
+    with caplog.at_level(logging.WARNING):
+        repo.fetch_clusters(
+            qf,
+            limit=10,
+            offset=0,
+            callback=lambda events: got.__setitem__("events", events),
+            on_error=lambda error: got.__setitem__("error", error),
+        )
+    assert got["events"] == []
+    assert got["error"] is None
+    assert "fetch_clusters" in caplog.text
+
+
+def test_fetch_clusters_sync_returns_empty(caplog):
+    repo = _make_repo()
+    with caplog.at_level(logging.WARNING):
+        result = repo.fetch_clusters_sync()
+    assert result == []
+    assert "fetch_clusters_sync" in caplog.text
+
+
 def test_query_clusters_returns_empty(caplog):
     repo = _make_repo()
     qf = ClusterQueryFilter(fits_id=1)

@@ -4,6 +4,7 @@ from le_beta_vis.common.YAMLBackedConfigurationService import (
     YAMLBackedConfigurationService,
 )
 from le_beta_vis.common.EPSDataClasses import (
+    ClusterPagedQueryFilter,
     ClusterQueryFilter,
     ClusterRecentQueryFilter,
     FitsQueryFilter,
@@ -13,6 +14,9 @@ from le_beta_vis.common.EPSDataClasses import (
     ClassificationUpdateRequest,
     EPSClusterRecord,
     EPSFitsRecord
+)
+from le_beta_vis.backend.PagedClusterRetrieval import (
+    paged_retrieve_clusters as _paged_retrieve_clusters,
 )
 import os
 import zmq
@@ -216,6 +220,16 @@ class EventPersistence:
                     {"result": "failure", "error": str(err)}
                 )
 
+        elif request.get("Action") == "PagedRetrieval":
+            try:
+                paged_filter = ClusterPagedQueryFilter.from_eps_dict(request)
+                response = self.paged_retrieve_clusters(paged_filter)
+                socket.send_json(response)
+            except Exception as err:
+                socket.send_json(
+                    {"result": "failure", "clusters": None, "error": str(err)}
+                )
+
     def fits_event(self, request: dict, socket: zmq.Socket):
         """Processes a requested cluster event and calls storage or retrieval of cluster."""
         logger.info("Fits request received by EPS.")
@@ -315,7 +329,7 @@ class EventPersistence:
                 cluster.sigma_x,
                 cluster.sigma_y,
                 cluster.classification,
-                None,       #null values for per model classifications
+                None,  # null values for per model classifications
                 None,
                 None,
                 cluster.total_pixels,
@@ -338,7 +352,7 @@ class EventPersistence:
     def retrieve_fits(self, fits: FitsQueryFilter) -> dict:
         """Selects from the database all values from the fits table that match any and all values from the request."""
         try:
-            if not self.conn: 
+            if not self.conn:
                 self.conn = self.db_connect()
             cursor = self.conn.cursor(dictionary=True)
 
@@ -459,21 +473,21 @@ class EventPersistence:
 
             cursor.execute(select_query, tuple(select_argv))
             # saving results into a list of tuples
-            results = cursor.fetchall() # Temporarily limit result set size to avoid a crash in macOS
+            results = cursor.fetchall()  # Temporarily limit result set size to avoid a crash in macOS
 
             cursor.close()
             return self.process_retrieval_clusters(results)
 
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
-        
+
     def classify_cluster(self, cluster: ClassificationUpdateRequest) -> dict:
         """Executes the insert_classifications stored procedure in the database based on the EPS
-            UpdateClassification request. 
+            UpdateClassification request.
         """
         try:
             if not self.conn:
-                    self.conn = self.db_connect()
+                self.conn = self.db_connect()
             cursor = self.conn.cursor()
             cluster_id = cluster.cluster_id
             classification = cluster.classification
@@ -488,14 +502,14 @@ class EventPersistence:
                 self.conn.commit()
                 cursor.close()
                 return {"result": "failure", "error": "No clusters were updated, incorrect ID or classification."}
-            else:    
+            else:
                 self.conn.close()
                 self.conn = None
                 raise FailedProcException
 
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
-        
+
     def retrieve_recent_clusters(self, recent_clusters: ClusterRecentQueryFilter) -> dict:
         """Selects the newest clusters ordered by FITS date, paginated.
 
@@ -526,6 +540,21 @@ class EventPersistence:
 
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
+
+    def paged_retrieve_clusters(self, paged_filter: ClusterPagedQueryFilter) -> dict:
+        """Selects clusters matching ``paged_filter`` with bounded pagination.
+
+        Defaults and caps the effective ``limit`` from
+        ``eps:retrieval_limit_default`` / ``eps:retrieval_limit_max`` so an
+        unbounded or excessive client request cannot return the entire
+        table. Delegates the query and formatting to
+        ``PagedClusterRetrieval.paged_retrieve_clusters``.
+        """
+        if not self.conn:
+            self.conn = self.db_connect()
+        default_limit = int(self.config.get("eps:retrieval_limit_default", 500))
+        max_limit = int(self.config.get("eps:retrieval_limit_max", 2000))
+        return _paged_retrieve_clusters(self.conn, paged_filter, default_limit, max_limit)
 
     def process_retrieval_fits(self, results) -> dict:
         """Takes the results from a fits retrieval SELECT statement and formats the EPS response into JSON.

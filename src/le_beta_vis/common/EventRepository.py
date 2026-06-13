@@ -37,6 +37,45 @@ class EventRepository(ABC):
         Implementations should return a list of ``Cluster``
         objects with classification scores and pixel data
         populated.
+
+        .. deprecated::
+            Implementations are not required to bound this request, which
+            can return an entire table in one reply. Prefer
+            :meth:`fetch_clusters`, which is bounded by
+            ``eps:retrieval_limit_default``/``eps:retrieval_limit_max``.
+        """
+        raise NotImplementedError
+
+    def fetch_clusters(
+        self,
+        query_filter: Optional[ClusterQueryFilter],
+        limit: Optional[int],
+        offset: int,
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
+        """Bounded, paginated cluster retrieval.
+
+        Args:
+            query_filter: Optional filter criteria. ``None`` means no
+                filtering beyond pagination.
+            limit: Maximum number of clusters to return. ``None`` means
+                the implementation should apply its configured default
+                (e.g. ``eps:retrieval_limit_default``).
+            offset: Number of rows to skip.
+        """
+        raise NotImplementedError
+
+    def fetch_clusters_sync(
+        self,
+        query_filter: Optional[ClusterQueryFilter] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[Cluster]:
+        """Synchronous counterpart to :meth:`fetch_clusters`.
+
+        Callers already running on a background thread may call this
+        directly to avoid an async callback round-trip.
         """
         raise NotImplementedError
 

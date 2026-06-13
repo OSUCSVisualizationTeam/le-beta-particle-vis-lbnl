@@ -3,6 +3,21 @@
 # Adapted from GitHub Copilot:
 # I need to create unit tests for this file under the tests directory, name it test_EventPersistenceService.
 # Ensure that all functions, edge cases, and paths are tested for storage and retrieval.
+import zmq
+from le_beta_vis.common.EPSDataClasses import (
+    ClassificationUpdateRequest,
+    ClusterPagedQueryFilter,
+    ClusterQueryFilter,
+    ClusterRecentQueryFilter,
+    ClusterStoreRequest,
+    FitsQueryFilter,
+    FitsStoreRequest,
+)
+from le_beta_vis.backend.EventPersistenceService import (
+    EventPersistence,
+    FailedProcException,
+    _parse_date_filter,
+)
 import unittest
 from datetime import datetime
 from unittest.mock import Mock, MagicMock, patch, call
@@ -29,21 +44,6 @@ except ModuleNotFoundError:
     mysql_module.connector = connector_module
     sys.modules["mysql"] = mysql_module
     sys.modules["mysql.connector"] = connector_module
-
-from le_beta_vis.backend.EventPersistenceService import (
-    EventPersistence,
-    FailedProcException,
-    _parse_date_filter,
-)
-from le_beta_vis.common.EPSDataClasses import (
-    ClassificationUpdateRequest,
-    ClusterQueryFilter,
-    ClusterRecentQueryFilter,
-    ClusterStoreRequest,
-    FitsQueryFilter,
-    FitsStoreRequest,
-)
-import zmq
 
 
 class TestParseDateFilter(unittest.TestCase):
@@ -163,7 +163,7 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
         """Test successful database connection"""
         mock_connection = MagicMock()
         mock_mysql_connect.return_value = mock_connection
-        
+
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -190,7 +190,7 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
         """Test database connection failure"""
         import mysql.connector
         mock_mysql_connect.side_effect = mysql.connector.Error("Connection failed")
-        
+
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -222,7 +222,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -260,7 +260,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -295,7 +295,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -331,7 +331,7 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -381,7 +381,7 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -431,7 +431,7 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -484,7 +484,7 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -535,7 +535,7 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_cursor = MagicMock()
         mock_connection = MagicMock()
         mock_connection.cursor.return_value = mock_cursor
@@ -702,6 +702,108 @@ class TestEventPersistenceRecentRetrieval(unittest.TestCase):
         self.assertEqual(sent["result"], "success")
 
 
+class TestEventPersistencePagedRetrieval(unittest.TestCase):
+    """Test cases for the PagedRetrieval endpoint (issue #147)."""
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch.object(EventPersistence, 'paged_retrieve_clusters')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_cluster_event_dispatches_paged_retrieval(
+        self, mock_db_connect, mock_paged_retrieve, mock_init_server, mock_config,
+    ):
+        """cluster_event routes 'PagedRetrieval' to paged_retrieve_clusters."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key, default=None: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, default)
+
+        mock_socket = MagicMock()
+        mock_paged_retrieve.return_value = {
+            "result": "success",
+            "clusters": [],
+            "limit": 10,
+            "offset": 20,
+        }
+
+        ep = EventPersistence()
+        request = {"Action": "PagedRetrieval", "limit": 10, "offset": 20}
+        ep.cluster_event(request, mock_socket)
+
+        mock_paged_retrieve.assert_called_once()
+        paged_filter = mock_paged_retrieve.call_args.args[0]
+        self.assertIsInstance(paged_filter, ClusterPagedQueryFilter)
+        self.assertEqual(paged_filter.limit, 10)
+        self.assertEqual(paged_filter.offset, 20)
+        mock_socket.send_json.assert_called_once()
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "success")
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService._paged_retrieve_clusters')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_paged_retrieve_clusters_uses_configured_limits(
+        self, mock_db_connect, mock_paged_retrieve, mock_init_server, mock_config,
+    ):
+        """paged_retrieve_clusters injects eps:retrieval_limit_default/_max from config."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key, default=None: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+            "eps:retrieval_limit_default": 100,
+            "eps:retrieval_limit_max": 200,
+        }.get(key, default)
+
+        mock_connection = MagicMock()
+        mock_db_connect.return_value = mock_connection
+        mock_paged_retrieve.return_value = {"result": "success", "clusters": []}
+
+        ep = EventPersistence()
+        ep.conn = mock_connection
+        paged_filter = ClusterPagedQueryFilter(limit=10, offset=0)
+
+        result = ep.paged_retrieve_clusters(paged_filter)
+
+        mock_paged_retrieve.assert_called_once_with(mock_connection, paged_filter, 100, 200)
+        self.assertEqual(result["result"], "success")
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_cluster_event_paged_retrieval_over_limit_returns_failure(
+        self, mock_db_connect, mock_init_server, mock_config,
+    ):
+        """A limit beyond eps:retrieval_limit_max surfaces as a failure response."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key, default=None: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+            "eps:retrieval_limit_default": 500,
+            "eps:retrieval_limit_max": 2000,
+        }.get(key, default)
+
+        mock_connection = MagicMock()
+        mock_db_connect.return_value = mock_connection
+        mock_socket = MagicMock()
+
+        ep = EventPersistence()
+        ep.conn = mock_connection
+        request = {"Action": "PagedRetrieval", "limit": 99999, "offset": 0}
+        ep.cluster_event(request, mock_socket)
+
+        mock_socket.send_json.assert_called_once()
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "failure")
+
+
 class TestEventPersistenceClassifyCluster(unittest.TestCase):
     """Test cases for classify_cluster method"""
 
@@ -852,7 +954,7 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         ep = EventPersistence()
 
         results = [
@@ -895,7 +997,7 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         ep = EventPersistence()
 
         results = []
@@ -916,7 +1018,7 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         ep = EventPersistence()
 
         error_msg = "Database error occurred"
@@ -942,7 +1044,7 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         ep = EventPersistence()
 
         # Dictionary rows returned by mysql cursor(dictionary=True)
@@ -1003,7 +1105,7 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         ep = EventPersistence()
 
         results = []
@@ -1024,7 +1126,7 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         ep = EventPersistence()
 
         error_msg = "Database error occurred"
@@ -1051,7 +1153,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_store_cluster.return_value = 42
 
@@ -1091,7 +1193,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_store_cluster.return_value = None
 
@@ -1131,7 +1233,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_retrieve_clusters.return_value = {"result": "success", "clusters": []}
 
@@ -1160,7 +1262,8 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'classify_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    def test_cluster_event_update_classification_success(self, mock_db_connect, mock_classify_cluster, mock_init_server, mock_config):
+    def test_cluster_event_update_classification_success(
+            self, mock_db_connect, mock_classify_cluster, mock_init_server, mock_config):
         """Test cluster event with UpdateClassification action"""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
@@ -1193,7 +1296,8 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'classify_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    def test_cluster_event_update_classification_exception(self, mock_db_connect, mock_classify_cluster, mock_init_server, mock_config):
+    def test_cluster_event_update_classification_exception(
+            self, mock_db_connect, mock_classify_cluster, mock_init_server, mock_config):
         """Test UpdateClassification action when classify_cluster raises exception"""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
@@ -1234,7 +1338,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_store_cluster.return_value = None
 
@@ -1250,6 +1354,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
         mock_socket.send_json.assert_called_once()
         sent = mock_socket.send_json.call_args[0][0]
         self.assertEqual(sent["result"], "failure")
+
 
 class TestEventPersistenceFitsEvent(unittest.TestCase):
     """Test cases for fits_event method"""
@@ -1267,7 +1372,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_store_fits.return_value = 42
 
@@ -1303,7 +1408,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_store_fits.return_value = None
 
@@ -1339,7 +1444,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_retrieve_fits.return_value = {"result": "success", "fits": []}
 
@@ -1364,7 +1469,8 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch.object(EventPersistence, 'retrieve_fits')
     @patch.object(EventPersistence, 'retrieve_clusters')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
-    def test_fits_event_clusters(self, mock_db_connect, mock_retrieve_clusters, mock_retrieve_fits, mock_init_server, mock_config):
+    def test_fits_event_clusters(self, mock_db_connect, mock_retrieve_clusters,
+                                 mock_retrieve_fits, mock_init_server, mock_config):
         """Test fits event with Clusters action"""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
@@ -1373,7 +1479,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_retrieve_fits.return_value = {"result": "success", "fits": [{"fits_id": 1}]}
         mock_retrieve_clusters.return_value = {"result": "success", "clusters": []}
@@ -1407,7 +1513,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
             "global:db:password": "test_pass",
             "global:db:database": "test_db"
         }.get(key, None)
-        
+
         mock_socket = MagicMock()
         mock_store_fits.return_value = None
 
@@ -1421,6 +1527,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
         mock_socket.send_json.assert_called_once()
         sent = mock_socket.send_json.call_args[0][0]
         self.assertEqual(sent["result"], "failure")
+
 
 if __name__ == '__main__':
     unittest.main()

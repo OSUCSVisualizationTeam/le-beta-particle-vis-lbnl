@@ -190,6 +190,126 @@ class TestQueryClusters:
         sent = sock.send_json.call_args[0][0]
         assert sent == {"Action": "Retrieval"}
 
+    def test_fetch_events_emits_deprecation_warning(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+        done = threading.Event()
+
+        with pytest.warns(DeprecationWarning):
+            repo.fetch_events(
+                callback=lambda _: done.set(),
+                on_error=lambda _: done.set(),
+            )
+        _await_callback(done)
+
+
+# -------------------------------------------------------------------
+# fetch_clusters / fetch_clusters_sync (PagedRetrieval action, issue #147)
+# -------------------------------------------------------------------
+
+
+class TestFetchClusters:
+
+    def test_success_returns_clusters(self):
+        raw_response = {
+            "result": "success",
+            "clusters": [
+                {
+                    "fits_id": 1,
+                    "hdu_id": 0,
+                    "cluster_id": 10,
+                    "bounding_box": {"top": 10, "left": 20, "bottom": 30, "right": 40},
+                    "data": None,
+                    "total_energy": 500.0,
+                    "sigmaX": 1.5,
+                    "sigmaY": 2.0,
+                    "classification": "tritium",
+                    "total_pixels": 20,
+                    "filename": "a.fits",
+                    "date": "2026-01-01",
+                },
+            ],
+            "limit": 10,
+            "offset": 0,
+        }
+        ctx, sock = _mock_context(raw_response)
+        repo = _make_repo(ctx)
+
+        clusters = repo.fetch_clusters_sync(limit=10, offset=0)
+
+        assert len(clusters) == 1
+        assert clusters[0].fitsId == 1
+        assert clusters[0].clusterId == 10
+        assert clusters[0].energy == 500.0
+
+    def test_failure_raises(self):
+        ctx, sock = _mock_context({"result": "failure"})
+        repo = _make_repo(ctx)
+
+        with pytest.raises(Exception):
+            repo.fetch_clusters_sync(limit=10, offset=0)
+
+    def test_zmq_error_returns_empty(self):
+        ctx, sock = _mock_context()
+        sock.send_json.side_effect = zmq.ZMQError("timeout")
+        repo = _make_repo(ctx)
+
+        assert repo.fetch_clusters_sync(limit=10, offset=0) == []
+
+    def test_default_limit_injected_from_config(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        config = MockConfigurationService()
+        config._store["eps:retrieval_limit_default"] = 250
+        repo = _make_repo(ctx, config=config)
+
+        repo.fetch_clusters_sync()
+
+        sent = sock.send_json.call_args[0][0]
+        assert sent["Action"] == "PagedRetrieval"
+        assert sent["limit"] == 250
+        assert sent["offset"] == 0
+
+    def test_explicit_limit_overrides_default(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        config = MockConfigurationService()
+        config._store["eps:retrieval_limit_default"] = 250
+        repo = _make_repo(ctx, config=config)
+
+        repo.fetch_clusters_sync(limit=5, offset=15)
+
+        sent = sock.send_json.call_args[0][0]
+        assert sent["limit"] == 5
+        assert sent["offset"] == 15
+
+    def test_filter_merged_into_request(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+        qf = ClusterQueryFilter(fits_id=42, classification="tritium")
+
+        repo.fetch_clusters_sync(query_filter=qf, limit=10, offset=0)
+
+        sent = sock.send_json.call_args[0][0]
+        assert sent["Action"] == "PagedRetrieval"
+        assert sent["fits_id"] == 42
+        assert sent["classification"] == "tritium"
+
+    def test_async_fetch_clusters_invokes_callback(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+        done = threading.Event()
+        got = {"clusters": None}
+
+        repo.fetch_clusters(
+            query_filter=None,
+            limit=10,
+            offset=0,
+            callback=lambda clusters: (got.__setitem__("clusters", clusters), done.set()),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
+
+        assert got["clusters"] == []
+
 
 # -------------------------------------------------------------------
 # query_recent_clusters (RecentRetrieval action)
