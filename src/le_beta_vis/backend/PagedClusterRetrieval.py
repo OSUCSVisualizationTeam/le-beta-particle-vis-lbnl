@@ -13,7 +13,11 @@ from typing import Any, List, Tuple
 
 import mysql.connector
 
-from le_beta_vis.common.EPSDataClasses import ClusterPagedQueryFilter, ClusterQueryFilter
+from le_beta_vis.common.EPSDataClasses import (
+    ClusterPagedQueryFilter,
+    ClusterQueryFilter,
+    EPSClusterRecord,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,30 +110,7 @@ def _build_cluster_select(filters: ClusterQueryFilter) -> Tuple[str, List[Any]]:
 
 def _format_cluster_rows(results) -> List[dict]:
     """Maps cluster/fits_files row dicts to the EPS cluster response shape."""
-    clusters_list = []
-    for result in results:
-        clusters_list.append(
-            {
-                "fits_id": result["fitsFile"],
-                "cluster_id": result["clusterID"],
-                "hdu_id": result["hdu_id"],
-                "bounding_box": {
-                    "top": result["box_top"],
-                    "left": result["box_left"],
-                    "bottom": result["box_bottom"],
-                    "right": result["box_right"],
-                },
-                "data": None,
-                "total_energy": result["totalEnergy"],
-                "sigmaX": result["sigmaX"],
-                "sigmaY": result["sigmaY"],
-                "classification": result["classification"],
-                "total_pixels": result["pixelCount"],
-                "filename": result["filename"],
-                "date": str(result["date"]),
-            }
-        )
-    return clusters_list
+    return [EPSClusterRecord.from_db_row(result).to_response_dict() for result in results]
 
 
 def paged_retrieve_clusters(

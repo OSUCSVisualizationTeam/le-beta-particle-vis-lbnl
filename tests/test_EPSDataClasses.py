@@ -409,6 +409,72 @@ class TestEPSClusterRecord:
         assert rec.total_energy == 42.0
         assert rec.hdu_id == 0
 
+    def test_from_db_row_maps_column_names(self):
+        row = {
+            "fitsFile": 1,
+            "clusterID": 10,
+            "hdu_id": 0,
+            "box_top": 1,
+            "box_left": 2,
+            "box_bottom": 3,
+            "box_right": 4,
+            "data": b"raw bytes",
+            "totalEnergy": 500.0,
+            "sigmaX": 1.5,
+            "sigmaY": 2.0,
+            "classification": "tritium",
+            "pixelCount": 20,
+            "filename": "test.fits",
+            "date": "2026-01-01",
+        }
+        rec = EPSClusterRecord.from_db_row(row)
+        assert rec.fits_id == 1
+        assert rec.cluster_id == 10
+        assert rec.bounding_box == {"top": 1, "left": 2, "bottom": 3, "right": 4}
+        assert rec.data is None
+        assert rec.total_energy == 500.0
+        assert rec.sigma_x == 1.5
+        assert rec.sigma_y == 2.0
+        assert rec.classification == "tritium"
+        assert rec.total_pixels == 20
+        assert rec.filename == "test.fits"
+        assert rec.date == "2026-01-01"
+
+    def test_from_db_row_stringifies_date(self):
+        row = {
+            "fitsFile": 1, "clusterID": 10, "hdu_id": 0,
+            "box_top": 1, "box_left": 2, "box_bottom": 3, "box_right": 4,
+            "data": None, "totalEnergy": 0.0, "sigmaX": 0.0, "sigmaY": 0.0,
+            "classification": "", "pixelCount": 0, "filename": "f.fits",
+            "date": datetime(2026, 1, 1),
+        }
+        rec = EPSClusterRecord.from_db_row(row)
+        assert rec.date == "2026-01-01 00:00:00"
+
+    def test_to_response_dict_round_trip_from_db_row(self):
+        row = {
+            "fitsFile": 1, "clusterID": 10, "hdu_id": 2,
+            "box_top": 1, "box_left": 2, "box_bottom": 3, "box_right": 4,
+            "data": None, "totalEnergy": 500.0, "sigmaX": 1.5, "sigmaY": 2.0,
+            "classification": "tritium", "pixelCount": 20, "filename": "test.fits",
+            "date": "2026-01-01",
+        }
+        d = EPSClusterRecord.from_db_row(row).to_response_dict()
+        assert d == {
+            "fits_id": 1,
+            "cluster_id": 10,
+            "hdu_id": 2,
+            "bounding_box": {"top": 1, "left": 2, "bottom": 3, "right": 4},
+            "data": None,
+            "total_energy": 500.0,
+            "sigmaX": 1.5,
+            "sigmaY": 2.0,
+            "classification": "tritium",
+            "total_pixels": 20,
+            "filename": "test.fits",
+            "date": "2026-01-01",
+        }
+
 
 # -------------------------------------------------------------------
 # EPSFitsRecord

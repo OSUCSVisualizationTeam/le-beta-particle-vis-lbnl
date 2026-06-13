@@ -421,6 +421,54 @@ class EPSClusterRecord:
             date=str(d.get("date", "")),
         )
 
+    @staticmethod
+    def from_db_row(row: Dict[str, Any]) -> "EPSClusterRecord":
+        """Parses one ``clusters``/``fits_files`` join row from a dictionary cursor.
+
+        Unlike :meth:`from_eps_dict`, the source keys are database column
+        names (``fitsFile``, ``clusterID``, ``box_top``, ``totalEnergy``,
+        ``pixelCount``, ...) rather than the EPS wire-format keys. Pixel
+        data is never hydrated from the database — ``data`` is always
+        ``None``.
+        """
+        return EPSClusterRecord(
+            fits_id=row["fitsFile"],
+            fits_list=None,
+            hdu_id=row["hdu_id"],
+            cluster_id=row["clusterID"],
+            bounding_box={
+                "top": row["box_top"],
+                "left": row["box_left"],
+                "bottom": row["box_bottom"],
+                "right": row["box_right"],
+            },
+            data=None,
+            total_energy=row["totalEnergy"],
+            sigma_x=row["sigmaX"],
+            sigma_y=row["sigmaY"],
+            classification=row["classification"],
+            total_pixels=row["pixelCount"],
+            filename=row["filename"],
+            date=str(row["date"]),
+        )
+
+    def to_response_dict(self) -> Dict[str, Any]:
+        """Builds the EPS wire-format dict for a single cluster response entry."""
+        return {
+            "fits_id": self.fits_id,
+            "cluster_id": self.cluster_id,
+            "hdu_id": self.hdu_id,
+            "bounding_box": self.bounding_box,
+            "data": self.data,
+            "total_energy": self.total_energy,
+            "sigmaX": self.sigma_x,
+            "sigmaY": self.sigma_y,
+            "classification": self.classification,
+            "total_pixels": self.total_pixels,
+            "filename": self.filename,
+            "date": self.date,
+        }
+
 
 @dataclass(frozen=True)
 class EPSFitsRecord:
