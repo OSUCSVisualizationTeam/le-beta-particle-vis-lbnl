@@ -26,6 +26,7 @@ from .EPSDataClasses import (
     FitsClusterQueryFilter,
     EPSClusterRecord,
     EPSFitsRecord,
+    PagedRetrieveClustersResponse,
 )
 from .ClusterProvider import ClusterBatch, ClusterProvider, NoOpClusterProvider
 from .EventRepository import EventRepository

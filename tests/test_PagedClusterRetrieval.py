@@ -64,10 +64,10 @@ class TestPagedRetrieveClusters(unittest.TestCase):
         paged_filter = ClusterPagedQueryFilter(limit=10, offset=0)
         result = paged_retrieve_clusters(mock_conn, paged_filter, default_limit=500, max_limit=2000)
 
-        self.assertEqual(result["result"], "success")
-        self.assertEqual(len(result["clusters"]), 2)
-        self.assertEqual(result["limit"], 10)
-        self.assertEqual(result["offset"], 0)
+        self.assertTrue(result.is_success)
+        self.assertEqual(len(result.clusters), 2)
+        self.assertEqual(result.limit, 10)
+        self.assertEqual(result.offset, 0)
 
         sql, params = mock_cursor.execute.call_args[0]
         self.assertIn("LIMIT %s OFFSET %s", sql)
@@ -79,7 +79,7 @@ class TestPagedRetrieveClusters(unittest.TestCase):
         paged_filter = ClusterPagedQueryFilter(limit=10, offset=50)
         result = paged_retrieve_clusters(mock_conn, paged_filter, default_limit=500, max_limit=2000)
 
-        self.assertEqual(result["offset"], 50)
+        self.assertEqual(result.offset, 50)
         _, params = mock_cursor.execute.call_args[0]
         self.assertEqual(params[-2:], (10, 50))
 
@@ -89,8 +89,8 @@ class TestPagedRetrieveClusters(unittest.TestCase):
         paged_filter = ClusterPagedQueryFilter(limit=10, offset=0)
         result = paged_retrieve_clusters(mock_conn, paged_filter, default_limit=500, max_limit=2000)
 
-        self.assertEqual(result["result"], "success")
-        self.assertEqual(result["clusters"], [])
+        self.assertTrue(result.is_success)
+        self.assertEqual(result.clusters, [])
 
     def test_default_limit_applied_when_limit_is_none(self):
         mock_conn, mock_cursor = _make_conn([_make_row(1)])
@@ -98,7 +98,7 @@ class TestPagedRetrieveClusters(unittest.TestCase):
         paged_filter = ClusterPagedQueryFilter()
         result = paged_retrieve_clusters(mock_conn, paged_filter, default_limit=500, max_limit=2000)
 
-        self.assertEqual(result["limit"], 500)
+        self.assertEqual(result.limit, 500)
         _, params = mock_cursor.execute.call_args[0]
         self.assertEqual(params[-2:], (500, 0))
 
@@ -138,8 +138,8 @@ class TestPagedRetrieveClusters(unittest.TestCase):
         paged_filter = ClusterPagedQueryFilter(limit=10)
         result = paged_retrieve_clusters(mock_conn, paged_filter, default_limit=500, max_limit=2000)
 
-        self.assertEqual(result["result"], "failure")
-        self.assertIsNone(result["clusters"])
+        self.assertFalse(result.is_success)
+        self.assertIsNone(result.clusters)
 
 
 if __name__ == "__main__":

@@ -471,6 +471,26 @@ class EPSClusterRecord:
 
 
 @dataclass(frozen=True)
+class PagedRetrieveClustersResponse:
+    """Typed envelope for a PagedRetrieval EPS response.
+
+    ``clusters`` holds the pre-serialized cluster dicts produced by
+    ``_format_cluster_rows`` so that ``dataclasses.asdict()`` round-trips
+    to JSON without any custom serialization logic.
+    """
+
+    result: str
+    clusters: Optional[List[dict]]
+    limit: int
+    offset: int
+    error: Optional[str] = None
+
+    @property
+    def is_success(self) -> bool:
+        return self.result == "success"
+
+
+@dataclass(frozen=True)
 class EPSFitsRecord:
     """A single FITS file record from an EPS FITS Retrieval response."""
 

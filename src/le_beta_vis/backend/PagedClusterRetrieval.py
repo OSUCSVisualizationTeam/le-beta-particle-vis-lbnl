@@ -17,6 +17,7 @@ from le_beta_vis.common.EPSDataClasses import (
     ClusterPagedQueryFilter,
     ClusterQueryFilter,
     EPSClusterRecord,
+    PagedRetrieveClustersResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -118,7 +119,7 @@ def paged_retrieve_clusters(
     paged_filter: ClusterPagedQueryFilter,
     default_limit: int,
     max_limit: int,
-) -> dict:
+) -> PagedRetrieveClustersResponse:
     """Runs a bounded, paginated cluster retrieval against the database.
 
     Applies ``default_limit`` when the request does not specify ``limit``,
@@ -144,12 +145,18 @@ def paged_retrieve_clusters(
         results = cursor.fetchall()
         cursor.close()
 
-        return {
-            "result": "success",
-            "clusters": _format_cluster_rows(results),
-            "limit": effective_limit,
-            "offset": paged_filter.offset,
-        }
+        return PagedRetrieveClustersResponse(
+            result="success",
+            clusters=_format_cluster_rows(results),
+            limit=effective_limit,
+            offset=paged_filter.offset,
+        )
     except mysql.connector.Error as err:
         logger.warning("Could not retrieve paged clusters: %s", err)
-        return {"result": "failure", "clusters": None, "error": str(err)}
+        return PagedRetrieveClustersResponse(
+            result="failure",
+            clusters=None,
+            limit=0,
+            offset=0,
+            error=str(err),
+        )

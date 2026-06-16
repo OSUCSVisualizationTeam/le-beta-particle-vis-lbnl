@@ -1,4 +1,5 @@
 from le_beta_vis.common.ZMQEventHandlerClient import DEFAULT_EVENT_PUB_ENDPOINT
+import dataclasses
 import mysql.connector
 from le_beta_vis.common.YAMLBackedConfigurationService import (
     YAMLBackedConfigurationService,
@@ -13,7 +14,8 @@ from le_beta_vis.common.EPSDataClasses import (
     ClusterStoreRequest,
     ClassificationUpdateRequest,
     EPSClusterRecord,
-    EPSFitsRecord
+    EPSFitsRecord,
+    PagedRetrieveClustersResponse,
 )
 from le_beta_vis.backend.PagedClusterRetrieval import (
     paged_retrieve_clusters as _paged_retrieve_clusters,
@@ -224,7 +226,7 @@ class EventPersistence:
             try:
                 paged_filter = ClusterPagedQueryFilter.from_eps_dict(request)
                 response = self.paged_retrieve_clusters(paged_filter)
-                socket.send_json(response)
+                socket.send_json(dataclasses.asdict(response))
             except Exception as err:
                 socket.send_json(
                     {"result": "failure", "clusters": None, "error": str(err)}
@@ -541,7 +543,7 @@ class EventPersistence:
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
 
-    def paged_retrieve_clusters(self, paged_filter: ClusterPagedQueryFilter) -> dict:
+    def paged_retrieve_clusters(self, paged_filter: ClusterPagedQueryFilter) -> PagedRetrieveClustersResponse:
         """Selects clusters matching ``paged_filter`` with bounded pagination.
 
         Defaults and caps the effective ``limit`` from

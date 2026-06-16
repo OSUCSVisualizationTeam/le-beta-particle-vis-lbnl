@@ -721,13 +721,11 @@ class TestEventPersistencePagedRetrieval(unittest.TestCase):
             "global:db:database": "test_db",
         }.get(key, default)
 
+        from le_beta_vis.common.EPSDataClasses import PagedRetrieveClustersResponse
         mock_socket = MagicMock()
-        mock_paged_retrieve.return_value = {
-            "result": "success",
-            "clusters": [],
-            "limit": 10,
-            "offset": 20,
-        }
+        mock_paged_retrieve.return_value = PagedRetrieveClustersResponse(
+            result="success", clusters=[], limit=10, offset=20
+        )
 
         ep = EventPersistence()
         request = {"Action": "PagedRetrieval", "limit": 10, "offset": 20}
@@ -762,7 +760,10 @@ class TestEventPersistencePagedRetrieval(unittest.TestCase):
 
         mock_connection = MagicMock()
         mock_db_connect.return_value = mock_connection
-        mock_paged_retrieve.return_value = {"result": "success", "clusters": []}
+        from le_beta_vis.common.EPSDataClasses import PagedRetrieveClustersResponse
+        mock_paged_retrieve.return_value = PagedRetrieveClustersResponse(
+            result="success", clusters=[], limit=10, offset=0
+        )
 
         ep = EventPersistence()
         ep.conn = mock_connection
@@ -771,7 +772,7 @@ class TestEventPersistencePagedRetrieval(unittest.TestCase):
         result = ep.paged_retrieve_clusters(paged_filter)
 
         mock_paged_retrieve.assert_called_once_with(mock_connection, paged_filter, 100, 200)
-        self.assertEqual(result["result"], "success")
+        self.assertTrue(result.is_success)
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')

@@ -31,6 +31,7 @@ from .EPSDataClasses import (
     FitsClusterQueryFilter,
     FitsQueryFilter,
     FitsStoreRequest,
+    PagedRetrieveClustersResponse,
 )
 from .EventRepository import EventRepository, onCluster, onError, onFits, onUpdate
 
@@ -140,16 +141,21 @@ class ZMQBasedEventRepository(EventRepository):
         if response is None:
             return []
 
-        if response.get("result") != "success":
+        paged = PagedRetrieveClustersResponse(
+            result=response.get("result", "failure"),
+            clusters=response.get("clusters"),
+            limit=response.get("limit", 0),
+            offset=response.get("offset", 0),
+            error=response.get("error"),
+        )
+        if not paged.is_success:
             logger.warning(
-                "EPS paged cluster query returned failure: %s",
-                response.get("result"),
+                "EPS paged cluster query returned failure: %s", paged.error
             )
-            raise Exception(f"EPS paged cluster query failed: {response.get('result')}")
+            raise Exception(f"EPS paged cluster query failed: {paged.error}")
 
-        raw_clusters = response.get("clusters", [])
         clusters: List[Cluster] = []
-        for raw in raw_clusters:
+        for raw in (paged.clusters or []):
             record = EPSClusterRecord.from_eps_dict(raw)
             cluster = self._map_to_cluster(record, record.filename, record.date)
             if cluster is not None:
