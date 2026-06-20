@@ -109,6 +109,32 @@ class MockEventRepository(EventRepository):
 
         self.fetch_events(callback=_filter_and_forward, on_error=on_error)
 
+    def fetch_clusters(
+        self,
+        query_filter: Optional[ClusterQueryFilter],
+        limit: Optional[int],
+        offset: int,
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
+        """Returns synthetic clusters, filtered and offset/limit-sliced."""
+        callback(self.fetch_clusters_sync(query_filter, limit, offset))
+
+    def fetch_clusters_sync(
+        self,
+        query_filter: Optional[ClusterQueryFilter] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[Cluster]:
+        """Returns a filtered, offset/limit-sliced synthetic cluster list."""
+        captured: List[Cluster] = []
+        self.fetch_events(callback=captured.extend, on_error=lambda _msg: None)
+        if query_filter is not None:
+            captured = [c for c in captured if self._matches(c, query_filter)]
+        if limit is None:
+            return captured[offset:]
+        return captured[offset: offset + limit]
+
     def query_recent_clusters(
         self,
         limit: int,

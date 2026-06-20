@@ -38,9 +38,14 @@ from le_beta_vis.frontend.widgets._EventItemDelegate import (
     _EventItemDelegate,
 )
 from le_beta_vis.frontend.widgets._EventGridSectionGrouping import (
+    EvictionResult,
     SectionInfo,
+    evict_back_sections,
+    evict_front_sections,
     flat_index_to_section,
     group_clusters,
+    merge_or_append_sections,
+    merge_or_prepend_sections,
 )
 from le_beta_vis.frontend.widgets._EventGridSectionHeaderWidget import (
     EventGridSectionHeaderWidget,
@@ -148,28 +153,46 @@ class EventGridWidget(QWidget):
         overlay.raise_()
         return overlay
 
-    def _buildSectionHeader(
-        self, info: SectionInfo, section_index: int,
-    ) -> EventGridSectionHeaderWidget:
-        """Creates a section header widget for *info* with navigation."""
+    def _buildSectionHeader(self, info: SectionInfo) -> EventGridSectionHeaderWidget:
+        """Creates a section header widget for *info* with navigation.
+
+        Navigation looks up the header's *current* position in
+        ``self._sections`` at click time (via ``_indexOfHeader``)
+        rather than capturing a fixed index — sections can be
+        inserted/removed by ``appendEvents``/``prependEvents``/
+        ``evictFront``/``evictBack`` after this header is built, which
+        would make a captured index stale.
+        """
         header = EventGridSectionHeaderWidget()
         date = info.date_part if info.date_part else self.tr("Unknown Date")
         file = info.file_part if info.file_part else self.tr("Unknown File")
         header.setDateText(date)
         header.setFileText(file)
         header.navigatePrevious.connect(
-            lambda s=section_index: self._scrollToSection(s - 1),
+            lambda h=header: self._scrollToSection(self._indexOfHeader(h) - 1),
         )
         header.navigateNext.connect(
-            lambda s=section_index: self._scrollToSection(s + 1),
+            lambda h=header: self._scrollToSection(self._indexOfHeader(h) + 1),
         )
         header.navigateToSelf.connect(
-            lambda s=section_index: self._scrollToSection(s),
+            lambda h=header: self._scrollToSection(self._indexOfHeader(h)),
         )
         return header
 
-    def _buildSectionListView(self, section_index: int) -> QListView:
-        """Creates a per-section QListView with shared delegate."""
+    def _indexOfHeader(self, header: EventGridSectionHeaderWidget) -> int:
+        """Returns *header*'s current position in ``self._sections``, or -1."""
+        for i, row in enumerate(self._sections):
+            if row.header_widget is header:
+                return i
+        return -1
+
+    def _buildSectionListView(self) -> QListView:
+        """Creates a per-section QListView with shared delegate.
+
+        Click handling looks up the view's *current* section index at
+        click time (via ``_indexOfListView``) for the same reason
+        navigation does — see ``_buildSectionHeader``.
+        """
         view = QListView()
         view.setItemDelegate(self._delegate)
         view.setViewMode(QListView.ViewMode.IconMode)
@@ -183,9 +206,16 @@ class EventGridWidget(QWidget):
         view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         view.setStyleSheet(f"background-color: {COLOR_BACKGROUND_SURFACE};")
         view.clicked.connect(
-            lambda idx, s=section_index: self._onSectionItemClicked(s, idx)
+            lambda idx, v=view: self._onItemClicked(v, idx)
         )
         return view
+
+    def _indexOfListView(self, view: QListView) -> int:
+        """Returns *view*'s current position in ``self._sections``, or -1."""
+        for i, row in enumerate(self._sections):
+            if row.list_view is view:
+                return i
+        return -1
 
     def _configureKineticScrolling(self, viewport: QWidget) -> None:
         """Sets up touch-style kinetic scrolling on *viewport*."""
@@ -306,8 +336,8 @@ class EventGridWidget(QWidget):
         """
         self._clearSections()
         sections = group_clusters(events)
-        for idx, info in enumerate(sections):
-            self._addSection(idx, info, events)
+        for info in sections:
+            self._addSection(info, events)
         self._setAllNavigationStates()
         QTimer.singleShot(0, self._afterLayout)
         self._scheduleVisibilityCheck()
@@ -323,30 +353,83 @@ class EventGridWidget(QWidget):
             row.list_view.deleteLater()
         self._sections.clear()
 
+    def _buildItem(self, cluster: Cluster) -> QStandardItem:
+        """Builds one non-editable grid item carrying its source cluster."""
+        item = QStandardItem()
+        item.setData(cluster, CLUSTER_ROLE)
+        item.setEditable(False)
+        return item
+
     def _addSection(
         self,
-        section_index: int,
         info: SectionInfo,
         events: List[Cluster],
+        base_offset: int = 0,
     ) -> None:
-        """Creates and adds one section (header + list view) to the layout."""
-        header = self._buildSectionHeader(info, section_index)
+        """Creates and appends one section (header + list view) to the layout.
+
+        Args:
+            info: Section descriptor with a global ``start_index``.
+            events: Cluster list to slice rows from.
+            base_offset: Subtracted from ``info.start_index`` to get
+                the local slice position into *events* — 0 when
+                *events* is the full resident list (``setEvents``),
+                or the window's prior end when *events* is a freshly
+                appended chunk (``appendEvents``).
+        """
+        header = self._buildSectionHeader(info)
         model = QStandardItemModel()
-        view = self._buildSectionListView(section_index)
+        view = self._buildSectionListView()
         view.setModel(model)
 
-        start = info.start_index
-        for cluster in events[start : start + info.count]:
-            item = QStandardItem()
-            item.setData(cluster, CLUSTER_ROLE)
-            item.setEditable(False)
-            model.appendRow(item)
+        start = info.start_index - base_offset
+        for cluster in events[start: start + info.count]:
+            model.appendRow(self._buildItem(cluster))
 
         view.setFixedHeight(self._computeListViewHeight(info.count))
         self._contentLayout.addWidget(header)
         self._contentLayout.addWidget(view)
         self._sections.append(_SectionRow(info, header_widget=header,
                                           list_view=view, model=model))
+
+    def _insertSectionAtFront(
+        self,
+        info: SectionInfo,
+        events: List[Cluster],
+        base_offset: int,
+    ) -> None:
+        """Creates one section and inserts it at the very top of the layout.
+
+        Mirror of ``_addSection`` for ``prependEvents`` — used when a
+        backward page fetch introduces clusters earlier than anything
+        currently resident.
+        """
+        header = self._buildSectionHeader(info)
+        model = QStandardItemModel()
+        view = self._buildSectionListView()
+        view.setModel(model)
+
+        start = info.start_index - base_offset
+        for cluster in events[start: start + info.count]:
+            model.appendRow(self._buildItem(cluster))
+
+        view.setFixedHeight(self._computeListViewHeight(info.count))
+        self._contentLayout.insertWidget(0, header)
+        self._contentLayout.insertWidget(1, view)
+        self._sections.insert(0, _SectionRow(info, header_widget=header,
+                                             list_view=view, model=model))
+
+    @property
+    def windowStart(self) -> int:
+        """Global index of the first currently-resident cluster."""
+        return self._sections[0].info.start_index if self._sections else 0
+
+    def _windowEnd(self) -> int:
+        """Global index one past the last currently-resident cluster."""
+        if not self._sections:
+            return 0
+        last = self._sections[-1].info
+        return last.start_index + last.count
 
     def _setAllNavigationStates(self) -> None:
         """Set prev/next button states on all section headers."""
@@ -618,12 +701,211 @@ class EventGridWidget(QWidget):
     # Click handling                                                       #
     # ------------------------------------------------------------------ #
 
-    def _onSectionItemClicked(
-        self, section_index: int, index: QModelIndex,
+    def _onItemClicked(
+        self, view: QListView, index: QModelIndex,
     ) -> None:
         """Translates a per-section click into a flat-index signal."""
+        section_index = self._indexOfListView(view)
+        if section_index < 0:
+            return
         for i, row in enumerate(self._sections):
             if i != section_index:
                 row.list_view.clearSelection()
         flat = self._sections[section_index].info.start_index + index.row()
         self.eventSelected.emit(flat)
+
+    # ------------------------------------------------------------------ #
+    # Sliding-window paging: append / prepend / evict                      #
+    # ------------------------------------------------------------------ #
+
+    def appendEvents(self, new_events: List[Cluster]) -> None:
+        """Appends a newly-fetched page to the tail of the grid.
+
+        Does not rebuild existing sections — preserves scroll position
+        and already-rendered thumbnails. No scroll compensation is
+        needed since content is added below the viewport.
+
+        Args:
+            new_events: The newly fetched chunk only (not the full
+                list of currently-resident events).
+        """
+        if not new_events:
+            return
+        window_end = self._windowEnd()
+        existing_infos = [row.info for row in self._sections]
+        merged = merge_or_append_sections(existing_infos, new_events, window_end)
+        self._applyAppendDiff(merged, new_events, window_end)
+        self._setAllNavigationStates()
+        self._updateStickyOverlay()
+        QTimer.singleShot(0, self._afterLayout)
+        self._scheduleVisibilityCheck()
+
+    def _applyAppendDiff(
+        self,
+        merged: List[SectionInfo],
+        new_events: List[Cluster],
+        window_end: int,
+    ) -> None:
+        """Updates widgets/models to match a freshly append-merged section list."""
+        old_count = len(self._sections)
+        if old_count > 0:
+            old_info = self._sections[-1].info
+            new_info = merged[old_count - 1]
+            if new_info.count > old_info.count:
+                added = new_info.count - old_info.count
+                row = self._sections[-1]
+                for cluster in new_events[:added]:
+                    row.model.appendRow(self._buildItem(cluster))
+                row.info = new_info
+                row.list_view.setFixedHeight(
+                    self._computeListViewHeight(new_info.count),
+                )
+
+        for section_index in range(old_count, len(merged)):
+            self._addSection(merged[section_index], new_events, base_offset=window_end)
+
+    def prependEvents(self, new_events: List[Cluster]) -> None:
+        """Prepends a newly-fetched page to the head of the grid.
+
+        Inserts above the current viewport and compensates the
+        scrollbar immediately (heights here are pure functions of
+        stored width/row-count, not a Qt ``sizeHint()``, so no
+        layout-pass deferral is needed before adjusting it) so the
+        user's visual position doesn't jump.
+
+        Args:
+            new_events: The newly fetched chunk only (not the full
+                list of currently-resident events).
+        """
+        if not new_events:
+            return
+        window_start = self.windowStart
+        chunk_offset = window_start - len(new_events)
+        existing_infos = [row.info for row in self._sections]
+        merged = merge_or_prepend_sections(existing_infos, new_events, chunk_offset)
+        added_height = self._applyPrependDiff(merged, new_events, chunk_offset)
+        self._setAllNavigationStates()
+        scrollbar = self._scrollArea.verticalScrollBar()
+        scrollbar.setValue(scrollbar.value() + added_height)
+        QTimer.singleShot(0, self._afterLayout)
+        self._scheduleVisibilityCheck()
+
+    def _applyPrependDiff(
+        self,
+        merged: List[SectionInfo],
+        new_events: List[Cluster],
+        chunk_offset: int,
+    ) -> int:
+        """Updates widgets/models for a freshly prepend-merged section list.
+
+        Returns:
+            Total pixel height added above the previously-first
+            section, for scrollbar compensation.
+        """
+        old_count = len(self._sections)
+        new_section_count = len(merged) - old_count
+        added_height = 0
+
+        if old_count > 0:
+            old_info = self._sections[0].info
+            new_info = merged[new_section_count]
+            if new_info.count > old_info.count:
+                added = new_info.count - old_info.count
+                row = self._sections[0]
+                old_height = row.list_view.height()
+                prepended = new_events[len(new_events) - added:]
+                for offset, cluster in enumerate(prepended):
+                    row.model.insertRow(offset, self._buildItem(cluster))
+                row.info = new_info
+                new_height = self._computeListViewHeight(new_info.count)
+                row.list_view.setFixedHeight(new_height)
+                added_height += new_height - old_height
+
+        for i in range(new_section_count - 1, -1, -1):
+            info = merged[i]
+            self._insertSectionAtFront(info, new_events, chunk_offset)
+            added_height += self._header_height + self._computeListViewHeight(info.count)
+
+        return added_height
+
+    def evictFront(self, global_offset: int, global_count: int) -> None:
+        """Removes leading rows in ``[global_offset, global_offset + global_count)``.
+
+        Compensates the scrollbar so content does not visually jump
+        upward — eviction only follows a forward page append, so the
+        evicted range is always above (or starting at) the viewport.
+
+        Args:
+            global_offset: Global start of the evicted range.
+            global_count: Row count of the evicted range.
+        """
+        if not self._sections or global_count <= 0:
+            return
+        existing_infos = [row.info for row in self._sections]
+        result = evict_front_sections(existing_infos, global_count)
+        removed_height = self._removeLeadingRows(result)
+        self._setAllNavigationStates()
+        self._updateStickyOverlay()
+        scrollbar = self._scrollArea.verticalScrollBar()
+        scrollbar.setValue(max(0, scrollbar.value() - removed_height))
+
+    def _removeLeadingRows(self, result: EvictionResult) -> int:
+        """Applies a front-eviction result; returns removed pixel height."""
+        removed_height = 0
+        for _ in range(result.removed_section_count):
+            row = self._sections.pop(0)
+            removed_height += self._header_height + row.list_view.height()
+            row.header_widget.setParent(None)
+            row.list_view.setParent(None)
+            row.header_widget.deleteLater()
+            row.list_view.deleteLater()
+
+        if result.boundary_partially_trimmed and self._sections:
+            row = self._sections[0]
+            old_height = row.list_view.height()
+            new_info = result.sections[0]
+            trimmed = row.info.count - new_info.count
+            row.model.removeRows(0, trimmed)
+            row.info = new_info
+            new_height = self._computeListViewHeight(new_info.count)
+            row.list_view.setFixedHeight(new_height)
+            removed_height += old_height - new_height
+
+        return removed_height
+
+    def evictBack(self, global_offset: int, global_count: int) -> None:
+        """Removes trailing rows in ``[global_offset, global_offset + global_count)``.
+
+        No scrollbar compensation: eviction-back only follows a
+        backward page fetch, which only triggers once the user has
+        scrolled toward the front — the evicted range is always below
+        the viewport.
+
+        Args:
+            global_offset: Global start of the evicted range.
+            global_count: Row count of the evicted range.
+        """
+        if not self._sections or global_count <= 0:
+            return
+        existing_infos = [row.info for row in self._sections]
+        result = evict_back_sections(existing_infos, global_count)
+        self._removeTrailingRows(result)
+        self._setAllNavigationStates()
+        self._updateStickyOverlay()
+
+    def _removeTrailingRows(self, result: EvictionResult) -> None:
+        """Applies a back-eviction result."""
+        for _ in range(result.removed_section_count):
+            row = self._sections.pop()
+            row.header_widget.setParent(None)
+            row.list_view.setParent(None)
+            row.header_widget.deleteLater()
+            row.list_view.deleteLater()
+
+        if result.boundary_partially_trimmed and self._sections:
+            row = self._sections[-1]
+            new_info = result.sections[-1]
+            trimmed = row.info.count - new_info.count
+            row.model.removeRows(new_info.count, trimmed)
+            row.info = new_info
+            row.list_view.setFixedHeight(self._computeListViewHeight(new_info.count))

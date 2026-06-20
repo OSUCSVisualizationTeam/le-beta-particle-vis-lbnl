@@ -30,6 +30,9 @@ class SlowRepository(EventRepository):
         self.fetch_count = 0
 
     def fetch_events(self, callback, on_error):
+        self.fetch_clusters(None, None, 0, callback, on_error)
+
+    def fetch_clusters(self, query_filter, limit, offset, callback, on_error):
         self.fetch_count += 1
 
         def _complete_later() -> None:
@@ -38,9 +41,6 @@ class SlowRepository(EventRepository):
             callback([])
 
         threading.Thread(target=_complete_later, daemon=True).start()
-
-    def query_clusters(self, query_filter, callback, on_error):
-        self.fetch_events(callback, on_error)
 
     def store_cluster(self, request):
         return None
@@ -64,7 +64,7 @@ class FailingRepository(EventRepository):
     def fetch_events(self, callback, on_error):
         on_error("ZMQ socket timeout")
 
-    def query_clusters(self, query_filter, callback, on_error):
+    def fetch_clusters(self, query_filter, limit, offset, callback, on_error):
         on_error("ZMQ socket timeout")
 
     def store_cluster(self, request):

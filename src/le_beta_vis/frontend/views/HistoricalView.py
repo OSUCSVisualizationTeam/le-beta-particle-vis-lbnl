@@ -33,7 +33,7 @@ import numpy as np
 import collections
 import logging
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 from le_beta_vis.common.Cluster import Cluster
 
@@ -73,6 +73,9 @@ class HistoricalView(QWidget):
         self._pendingLoadError: Optional[str] = None
         self._thumbnailQueue: collections.deque = collections.deque()
         self._pendingClusterData: Optional[np.ndarray] = None
+        self._pendingAppendedEvents: Optional[List[Cluster]] = None
+        self._pendingPrependedEvents: Optional[List[Cluster]] = None
+        self._pendingEviction: Optional[tuple] = None
         self._progressToken: Optional[str] = None
         self._exportVM: Optional[HistoricalExportViewModel] = None
         self._initUI()
@@ -209,10 +212,19 @@ class HistoricalView(QWidget):
         self._gridWidget.visibleRangeChanged.connect(
             self.viewModel.request_thumbnails_for_range,
         )
+        self._gridWidget.visibleRangeChanged.connect(
+            self.viewModel.request_next_page_if_needed,
+        )
+        self._gridWidget.visibleRangeChanged.connect(
+            self.viewModel.request_previous_page_if_needed,
+        )
         self._gridWidget.prefetchRequested.connect(
             self.viewModel.prefetch_thumbnails,
         )
         self.viewModel.add_thumbnail_ready_callback(self._enqueueThumbnail)
+        self.viewModel.add_events_appended_callback(self._onEventsAppended)
+        self.viewModel.add_events_prepended_callback(self._onEventsPrepended)
+        self.viewModel.add_events_evicted_callback(self._onEventsEvicted)
 
     def _configureInspector(self) -> None:
         """Applies view-level settings to the inspector.
@@ -244,14 +256,64 @@ class HistoricalView(QWidget):
     def _updateEvents(self) -> None:
         events = self.viewModel.events
         self._gridWidget.setEvents(events)
-        count = len(events)
+        self._updateCountLabel()
+
+    def _updateCountLabel(self) -> None:
+        count = len(self.viewModel.events)
         lbl = self._filterBar.countLabel
         if count == 0:
             lbl.setText(self.tr("No events"))
         elif count == 1:
-            lbl.setText(self.tr("1 event"))
+            lbl.setText(self.tr("1 loaded"))
         else:
-            lbl.setText(self.tr("{count} events").format(count=count))
+            # "Loaded" rather than a total match count: the grid holds a
+            # bounded sliding window of pages, not the full filtered
+            # result set, so this reflects what is currently resident.
+            lbl.setText(self.tr("{count} loaded").format(count=count))
+
+    def _onEventsAppended(self, new_events: List[Cluster]) -> None:
+        """Receives a newly-paged-in chunk — may arrive on a bg thread."""
+        self._pendingAppendedEvents = new_events
+        QMetaObject.invokeMethod(self, "_applyAppendedEvents", Qt.AutoConnection)
+
+    @Slot()
+    def _applyAppendedEvents(self) -> None:
+        events = self._pendingAppendedEvents
+        self._pendingAppendedEvents = None
+        if events:
+            self._gridWidget.appendEvents(events)
+            self._updateCountLabel()
+
+    def _onEventsPrepended(self, new_events: List[Cluster]) -> None:
+        """Receives a newly-paged-in earlier chunk — may arrive on a bg thread."""
+        self._pendingPrependedEvents = new_events
+        QMetaObject.invokeMethod(self, "_applyPrependedEvents", Qt.AutoConnection)
+
+    @Slot()
+    def _applyPrependedEvents(self) -> None:
+        events = self._pendingPrependedEvents
+        self._pendingPrependedEvents = None
+        if events:
+            self._gridWidget.prependEvents(events)
+            self._updateCountLabel()
+
+    def _onEventsEvicted(self, offset: int, count: int) -> None:
+        """Receives a window-eviction notice — may arrive on a bg thread."""
+        self._pendingEviction = (offset, count)
+        QMetaObject.invokeMethod(self, "_applyEviction", Qt.AutoConnection)
+
+    @Slot()
+    def _applyEviction(self) -> None:
+        eviction = self._pendingEviction
+        self._pendingEviction = None
+        if eviction is None:
+            return
+        offset, count = eviction
+        if offset == self._gridWidget.windowStart:
+            self._gridWidget.evictFront(offset, count)
+        else:
+            self._gridWidget.evictBack(offset, count)
+        self._updateCountLabel()
 
     @Slot()
     def _updateSelection(self) -> None:

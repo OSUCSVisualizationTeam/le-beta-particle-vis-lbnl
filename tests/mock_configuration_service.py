@@ -68,6 +68,8 @@ class MockConfigurationService(ConfigurationService):
             "eps:fits_ipc": "ipc:///tmp/EPCFits.ipc",
             "eps:command_ipc": "ipc:///tmp/EPCCommand.ipc",
             "eps:timeout_ms": 5000,
+            "eps:retrieval_limit_default": 500,
+            "eps:retrieval_limit_max": 2000,
         }
 
     def get(self, key: str, default: Any = None) -> Any:
