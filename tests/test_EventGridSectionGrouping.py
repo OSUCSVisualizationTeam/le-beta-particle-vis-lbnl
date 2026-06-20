@@ -5,7 +5,7 @@ import pytest
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.frontend.widgets._EventGridSectionGrouping import (
+from le_beta_vis.frontend.widgets.event_grid._EventGridSectionGrouping import (
     SectionInfo,
     evict_back_sections,
     evict_front_sections,

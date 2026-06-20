@@ -5,16 +5,15 @@ headless CI via ``--ignore`` in the GitHub Actions workflow.
 Run locally with: ``uv run pytest tests/test_SectionHeaderFormatting.py -v``
 """
 
+from le_beta_vis.frontend.widgets.event_grid._EventGridSectionHeaderWidget import (
+    EventGridSectionHeaderWidget,
+)
 import sys
 
 from PySide6.QtCore import QDate, QLocale
 from PySide6.QtWidgets import QApplication
 
 app = QApplication.instance() or QApplication(sys.argv)
-
-from le_beta_vis.frontend.widgets._EventGridSectionHeaderWidget import (
-    EventGridSectionHeaderWidget,
-)
 
 
 class TestSetDateText:

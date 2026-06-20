@@ -4,7 +4,6 @@ from typing import List, Optional
 
 from PySide6.QtCore import (
     QEvent,
-    QMetaObject,
     QModelIndex,
     QObject,
     QPoint,
@@ -32,23 +31,27 @@ from PySide6.QtWidgets import (
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.frontend.theme import COLOR_BACKGROUND_SURFACE
-from le_beta_vis.frontend.widgets._EventItemDelegate import (
+from le_beta_vis.frontend.widgets.event_grid._EventItemDelegate import (
     CLUSTER_ROLE,
     THUMBNAIL_ROLE,
     _EventItemDelegate,
 )
-from le_beta_vis.frontend.widgets._EventGridSectionGrouping import (
-    EvictionResult,
+from le_beta_vis.frontend.widgets.event_grid._EventGridSectionGrouping import (
     SectionInfo,
-    evict_back_sections,
-    evict_front_sections,
     flat_index_to_section,
     group_clusters,
-    merge_or_append_sections,
-    merge_or_prepend_sections,
 )
-from le_beta_vis.frontend.widgets._EventGridSectionHeaderWidget import (
+from le_beta_vis.frontend.widgets.event_grid._EventGridSectionHeaderWidget import (
     EventGridSectionHeaderWidget,
+)
+from le_beta_vis.frontend.widgets.event_grid._SlidingWindowPager import (
+    _SlidingWindowPager,
+)
+from le_beta_vis.frontend.widgets.event_grid._StickyHeaderOverlay import (
+    _StickyHeaderOverlay,
+)
+from le_beta_vis.frontend.widgets.event_grid._VisibleRangeTracker import (
+    _VisibleRangeTracker,
 )
 
 
@@ -93,9 +96,6 @@ class EventGridWidget(QWidget):
         self._prefetch_count: int = 30
         self._sections: List[_SectionRow] = []
         self._delegate = _EventItemDelegate(item_width, item_height, self)
-        self._overlayPrevConn: Optional[QMetaObject.Connection] = None
-        self._overlayNextConn: Optional[QMetaObject.Connection] = None
-        self._overlaySelfConn: Optional[QMetaObject.Connection] = None
         self._initUI()
 
     # ------------------------------------------------------------------ #
@@ -107,20 +107,36 @@ class EventGridWidget(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        self._visibilityTimer = QTimer(self)
-        self._visibilityTimer.setSingleShot(True)
-        self._visibilityTimer.setInterval(50)
-        self._visibilityTimer.timeout.connect(self._emitVisibleRange)
-
-        self._trailingTimer = QTimer(self)
-        self._trailingTimer.setSingleShot(True)
-        self._trailingTimer.setInterval(50)
-        self._trailingTimer.timeout.connect(self._emitVisibleRange)
-
         self._scrollArea = self._buildScrollArea()
         root.addWidget(self._scrollArea)
 
-        self._stickyOverlay = self._buildStickyOverlay()
+        self._stickyOverlay = _StickyHeaderOverlay(
+            parent=self,
+            sections=self._sections,
+            content_widget=self._contentWidget,
+            scroll_area=self._scrollArea,
+            header_height_getter=lambda: self._header_height,
+            on_navigate=self._scrollToSection,
+        )
+        self._visibleRangeTracker = _VisibleRangeTracker(
+            parent=self,
+            sections=self._sections,
+            content_widget=self._contentWidget,
+            scroll_area=self._scrollArea,
+            item_width_getter=lambda: self._item_width,
+            item_height_getter=lambda: self._item_height,
+            max_cols_getter=lambda: self._max_cols,
+            header_height_getter=lambda: self._header_height,
+            on_range_changed=self.visibleRangeChanged.emit,
+        )
+        self._pager = _SlidingWindowPager(
+            sections=self._sections,
+            header_height_getter=lambda: self._header_height,
+            compute_list_view_height=self._computeListViewHeight,
+            build_item=self._buildItem,
+            add_section=self._addSection,
+            insert_section_at_front=self._insertSectionAtFront,
+        )
         self._configureKineticScrolling(self._scrollArea.viewport())
         self._scrollArea.viewport().installEventFilter(self)
         self._scrollArea.verticalScrollBar().valueChanged.connect(
@@ -145,13 +161,6 @@ class EventGridWidget(QWidget):
             "QScrollBar:vertical { width: 0px; max-width: 0px; }"
         )
         return area
-
-    def _buildStickyOverlay(self) -> EventGridSectionHeaderWidget:
-        """Creates the floating header that pins above the scroll area."""
-        overlay = EventGridSectionHeaderWidget(parent=self)
-        overlay.hide()
-        overlay.raise_()
-        return overlay
 
     def _buildSectionHeader(self, info: SectionInfo) -> EventGridSectionHeaderWidget:
         """Creates a section header widget for *info* with navigation.
@@ -340,7 +349,7 @@ class EventGridWidget(QWidget):
             self._addSection(info, events)
         self._setAllNavigationStates()
         QTimer.singleShot(0, self._afterLayout)
-        self._scheduleVisibilityCheck()
+        self._visibleRangeTracker.scheduleCheck()
         self.prefetchRequested.emit(self._prefetch_count)
 
     def _clearSections(self) -> None:
@@ -424,13 +433,6 @@ class EventGridWidget(QWidget):
         """Global index of the first currently-resident cluster."""
         return self._sections[0].info.start_index if self._sections else 0
 
-    def _windowEnd(self) -> int:
-        """Global index one past the last currently-resident cluster."""
-        if not self._sections:
-            return 0
-        last = self._sections[-1].info
-        return last.start_index + last.count
-
     def _setAllNavigationStates(self) -> None:
         """Set prev/next button states on all section headers."""
         total = len(self._sections)
@@ -448,30 +450,6 @@ class EventGridWidget(QWidget):
         header_y = header.mapTo(self._contentWidget, QPoint(0, 0)).y()
         self._scrollArea.verticalScrollBar().setValue(header_y)
 
-    def _reconnectOverlaySignals(self, active_idx: int) -> None:
-        """Disconnect and reconnect sticky overlay navigation signals."""
-        if self._overlayPrevConn is not None:
-            self._stickyOverlay.navigatePrevious.disconnect(
-                self._overlayPrevConn,
-            )
-        if self._overlayNextConn is not None:
-            self._stickyOverlay.navigateNext.disconnect(
-                self._overlayNextConn,
-            )
-        if self._overlaySelfConn is not None:
-            self._stickyOverlay.navigateToSelf.disconnect(
-                self._overlaySelfConn,
-            )
-        self._overlayPrevConn = self._stickyOverlay.navigatePrevious.connect(
-            lambda: self._scrollToSection(active_idx - 1),
-        )
-        self._overlayNextConn = self._stickyOverlay.navigateNext.connect(
-            lambda: self._scrollToSection(active_idx + 1),
-        )
-        self._overlaySelfConn = self._stickyOverlay.navigateToSelf.connect(
-            lambda: self._scrollToSection(active_idx),
-        )
-
     def _afterLayout(self) -> None:
         """Deferred call after Qt finishes laying out sections."""
         if self._sections:
@@ -480,8 +458,8 @@ class EventGridWidget(QWidget):
                 self._header_height = hint
             self._stickyOverlay.setFixedHeight(self._header_height)
         self._recomputeAllHeights()
-        self._updateStickyOverlay()
-        self._scheduleVisibilityCheck()
+        self._stickyOverlay.update()
+        self._visibleRangeTracker.scheduleCheck()
 
     def updateThumbnail(self, index: int, pixmap: QPixmap) -> None:
         """Update a single cell's thumbnail and trigger repaint.
@@ -563,8 +541,8 @@ class EventGridWidget(QWidget):
         super().resizeEvent(event)
         self._recomputeAllHeights()
         self._stickyOverlay.setFixedWidth(self.width())
-        self._updateStickyOverlay()
-        self._scheduleVisibilityCheck()
+        self._stickyOverlay.update()
+        self._visibleRangeTracker.scheduleCheck()
 
     # ------------------------------------------------------------------ #
     # Sticky header overlay                                                #
@@ -572,76 +550,12 @@ class EventGridWidget(QWidget):
 
     def _onScrollChanged(self) -> None:
         """Handles scroll bar value changes."""
-        self._updateStickyOverlay()
-        self._scheduleVisibilityCheck()
-
-    def _updateStickyOverlay(self) -> None:
-        """Position the sticky overlay based on the current scroll offset."""
-        if not self._sections:
-            self._stickyOverlay.hide()
-            return
-
-        vp_h = self._scrollArea.viewport().height()
-        content_h = self._contentWidget.height()
-        if content_h <= vp_h:
-            self._stickyOverlay.hide()
-            return
-
-        scroll_y = self._scrollArea.verticalScrollBar().value()
-        active_idx = self._findActiveSectionIndex(scroll_y)
-        if active_idx < 0:
-            self._stickyOverlay.hide()
-            return
-
-        self._positionOverlay(active_idx, scroll_y)
-
-    def _findActiveSectionIndex(self, scroll_y: int) -> int:
-        """Return the index of the section whose header has scrolled past the top."""
-        active = -1
-        for i, row in enumerate(self._sections):
-            header_y = row.header_widget.mapTo(self._contentWidget, QPoint(0, 0)).y()
-            if header_y <= scroll_y:
-                active = i
-            else:
-                break
-        return active
-
-    def _positionOverlay(self, active_idx: int, scroll_y: int) -> None:
-        """Set the overlay text, geometry, navigation state, and visibility."""
-        row = self._sections[active_idx]
-        date = row.info.date_part if row.info.date_part else self.tr("Unknown Date")
-        file = row.info.file_part if row.info.file_part else self.tr("Unknown File")
-        self._stickyOverlay.setDateText(date)
-        self._stickyOverlay.setFileText(file)
-        self._stickyOverlay.setFixedWidth(self.width())
-
-        self._reconnectOverlaySignals(active_idx)
-        self._stickyOverlay.setNavigationState(
-            has_previous=active_idx > 0,
-            has_next=active_idx < len(self._sections) - 1,
-        )
-
-        y_pos = 0
-        if active_idx + 1 < len(self._sections):
-            next_header = self._sections[active_idx + 1].header_widget
-            next_y = next_header.mapTo(self._contentWidget, QPoint(0, 0)).y()
-            push = next_y - scroll_y - self._header_height
-            if push < 0:
-                y_pos = push
-
-        self._stickyOverlay.move(0, max(-self._header_height, y_pos))
-        self._stickyOverlay.raise_()
-        self._stickyOverlay.show()
+        self._stickyOverlay.update()
+        self._visibleRangeTracker.scheduleCheck()
 
     # ------------------------------------------------------------------ #
     # Visible range detection                                              #
     # ------------------------------------------------------------------ #
-
-    def _scheduleVisibilityCheck(self) -> None:
-        """Schedule visible-range emission with leading + trailing edge debounce."""
-        if not self._visibilityTimer.isActive():
-            self._visibilityTimer.start()
-        self._trailingTimer.start()
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         """Detect scroll, resize, show and paint on the viewport."""
@@ -652,50 +566,8 @@ class EventGridWidget(QWidget):
             QEvent.Type.Paint,
             QEvent.Type.Scroll,
         ):
-            self._scheduleVisibilityCheck()
+            self._visibleRangeTracker.scheduleCheck()
         return super().eventFilter(obj, event)
-
-    def _emitVisibleRange(self) -> None:
-        """Calculate the visible item range and emit visibleRangeChanged."""
-        if not self._sections:
-            return
-        vp_h = self._scrollArea.viewport().height()
-        if vp_h <= 0:
-            return
-
-        scroll_y = self._scrollArea.verticalScrollBar().value()
-        first = self._flatIndexAtY(scroll_y)
-        last = self._flatIndexAtY(scroll_y + vp_h)
-        self.visibleRangeChanged.emit(first, last)
-
-    def _flatIndexAtY(self, y: int) -> int:
-        """Map a content-widget Y coordinate to the closest flat event index."""
-        if not self._sections:
-            return 0
-
-        grid_w = self._item_width
-        grid_h = self._item_height
-        content_w = self._contentWidget.width()
-        cols = min(max(1, content_w // grid_w), self._max_cols) if content_w > 0 else 1
-        total = self._sections[-1].info.start_index + self._sections[-1].info.count
-
-        for i, row in enumerate(self._sections):
-            header_y = row.header_widget.mapTo(
-                self._contentWidget, QPoint(0, 0),
-            ).y()
-            section_top = header_y + self._header_height
-            section_h = row.list_view.height()
-            section_bottom = section_top + section_h
-
-            if y < section_top:
-                return row.info.start_index
-            if y < section_bottom:
-                local_y = y - section_top
-                local_row = min(local_y // grid_h, math.ceil(row.info.count / cols) - 1)
-                local_idx = min(int(local_row * cols), row.info.count - 1)
-                return row.info.start_index + local_idx
-
-        return max(0, total - 1)
 
     # ------------------------------------------------------------------ #
     # Click handling                                                       #
@@ -731,38 +603,11 @@ class EventGridWidget(QWidget):
         """
         if not new_events:
             return
-        window_end = self._windowEnd()
-        existing_infos = [row.info for row in self._sections]
-        merged = merge_or_append_sections(existing_infos, new_events, window_end)
-        self._applyAppendDiff(merged, new_events, window_end)
+        self._pager.append(new_events)
         self._setAllNavigationStates()
-        self._updateStickyOverlay()
+        self._stickyOverlay.update()
         QTimer.singleShot(0, self._afterLayout)
-        self._scheduleVisibilityCheck()
-
-    def _applyAppendDiff(
-        self,
-        merged: List[SectionInfo],
-        new_events: List[Cluster],
-        window_end: int,
-    ) -> None:
-        """Updates widgets/models to match a freshly append-merged section list."""
-        old_count = len(self._sections)
-        if old_count > 0:
-            old_info = self._sections[-1].info
-            new_info = merged[old_count - 1]
-            if new_info.count > old_info.count:
-                added = new_info.count - old_info.count
-                row = self._sections[-1]
-                for cluster in new_events[:added]:
-                    row.model.appendRow(self._buildItem(cluster))
-                row.info = new_info
-                row.list_view.setFixedHeight(
-                    self._computeListViewHeight(new_info.count),
-                )
-
-        for section_index in range(old_count, len(merged)):
-            self._addSection(merged[section_index], new_events, base_offset=window_end)
+        self._visibleRangeTracker.scheduleCheck()
 
     def prependEvents(self, new_events: List[Cluster]) -> None:
         """Prepends a newly-fetched page to the head of the grid.
@@ -779,54 +624,12 @@ class EventGridWidget(QWidget):
         """
         if not new_events:
             return
-        window_start = self.windowStart
-        chunk_offset = window_start - len(new_events)
-        existing_infos = [row.info for row in self._sections]
-        merged = merge_or_prepend_sections(existing_infos, new_events, chunk_offset)
-        added_height = self._applyPrependDiff(merged, new_events, chunk_offset)
+        added_height = self._pager.prepend(new_events)
         self._setAllNavigationStates()
         scrollbar = self._scrollArea.verticalScrollBar()
         scrollbar.setValue(scrollbar.value() + added_height)
         QTimer.singleShot(0, self._afterLayout)
-        self._scheduleVisibilityCheck()
-
-    def _applyPrependDiff(
-        self,
-        merged: List[SectionInfo],
-        new_events: List[Cluster],
-        chunk_offset: int,
-    ) -> int:
-        """Updates widgets/models for a freshly prepend-merged section list.
-
-        Returns:
-            Total pixel height added above the previously-first
-            section, for scrollbar compensation.
-        """
-        old_count = len(self._sections)
-        new_section_count = len(merged) - old_count
-        added_height = 0
-
-        if old_count > 0:
-            old_info = self._sections[0].info
-            new_info = merged[new_section_count]
-            if new_info.count > old_info.count:
-                added = new_info.count - old_info.count
-                row = self._sections[0]
-                old_height = row.list_view.height()
-                prepended = new_events[len(new_events) - added:]
-                for offset, cluster in enumerate(prepended):
-                    row.model.insertRow(offset, self._buildItem(cluster))
-                row.info = new_info
-                new_height = self._computeListViewHeight(new_info.count)
-                row.list_view.setFixedHeight(new_height)
-                added_height += new_height - old_height
-
-        for i in range(new_section_count - 1, -1, -1):
-            info = merged[i]
-            self._insertSectionAtFront(info, new_events, chunk_offset)
-            added_height += self._header_height + self._computeListViewHeight(info.count)
-
-        return added_height
+        self._visibleRangeTracker.scheduleCheck()
 
     def evictFront(self, global_offset: int, global_count: int) -> None:
         """Removes leading rows in ``[global_offset, global_offset + global_count)``.
@@ -841,37 +644,11 @@ class EventGridWidget(QWidget):
         """
         if not self._sections or global_count <= 0:
             return
-        existing_infos = [row.info for row in self._sections]
-        result = evict_front_sections(existing_infos, global_count)
-        removed_height = self._removeLeadingRows(result)
+        removed_height = self._pager.evictFront(global_count)
         self._setAllNavigationStates()
-        self._updateStickyOverlay()
+        self._stickyOverlay.update()
         scrollbar = self._scrollArea.verticalScrollBar()
         scrollbar.setValue(max(0, scrollbar.value() - removed_height))
-
-    def _removeLeadingRows(self, result: EvictionResult) -> int:
-        """Applies a front-eviction result; returns removed pixel height."""
-        removed_height = 0
-        for _ in range(result.removed_section_count):
-            row = self._sections.pop(0)
-            removed_height += self._header_height + row.list_view.height()
-            row.header_widget.setParent(None)
-            row.list_view.setParent(None)
-            row.header_widget.deleteLater()
-            row.list_view.deleteLater()
-
-        if result.boundary_partially_trimmed and self._sections:
-            row = self._sections[0]
-            old_height = row.list_view.height()
-            new_info = result.sections[0]
-            trimmed = row.info.count - new_info.count
-            row.model.removeRows(0, trimmed)
-            row.info = new_info
-            new_height = self._computeListViewHeight(new_info.count)
-            row.list_view.setFixedHeight(new_height)
-            removed_height += old_height - new_height
-
-        return removed_height
 
     def evictBack(self, global_offset: int, global_count: int) -> None:
         """Removes trailing rows in ``[global_offset, global_offset + global_count)``.
@@ -887,25 +664,6 @@ class EventGridWidget(QWidget):
         """
         if not self._sections or global_count <= 0:
             return
-        existing_infos = [row.info for row in self._sections]
-        result = evict_back_sections(existing_infos, global_count)
-        self._removeTrailingRows(result)
+        self._pager.evictBack(global_count)
         self._setAllNavigationStates()
-        self._updateStickyOverlay()
-
-    def _removeTrailingRows(self, result: EvictionResult) -> None:
-        """Applies a back-eviction result."""
-        for _ in range(result.removed_section_count):
-            row = self._sections.pop()
-            row.header_widget.setParent(None)
-            row.list_view.setParent(None)
-            row.header_widget.deleteLater()
-            row.list_view.deleteLater()
-
-        if result.boundary_partially_trimmed and self._sections:
-            row = self._sections[-1]
-            new_info = result.sections[-1]
-            trimmed = row.info.count - new_info.count
-            row.model.removeRows(new_info.count, trimmed)
-            row.info = new_info
-            row.list_view.setFixedHeight(self._computeListViewHeight(new_info.count))
+        self._stickyOverlay.update()

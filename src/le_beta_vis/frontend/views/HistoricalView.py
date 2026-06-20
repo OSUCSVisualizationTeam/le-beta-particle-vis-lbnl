@@ -1,7 +1,7 @@
 from ..widgets.ExportOptionsDialog import ExportOptionsDialog
 from ..widgets.ProgressOverlay import ProgressOverlay
 from ..widgets.HistoricalFilterBar import HistoricalFilterBar
-from ..widgets.EventGridWidget import EventGridWidget
+from ..widgets.event_grid.EventGridWidget import EventGridWidget
 from ..views.HistoricalEventInspector import (
     HistoricalEventInspector,
 )
