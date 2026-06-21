@@ -363,6 +363,7 @@ class HistoricalView(QWidget):
     def _updateLoading(self) -> None:
         loading = self.viewModel.isLoading
         self._filterBar._applyBtn.setEnabled(not loading)
+        self._gridWidget.setLoading(loading)
         if loading:
             self._filterBar._applyBtn.setText(self.tr("Loading..."))
             self._loadingOverlay.showOverlay()

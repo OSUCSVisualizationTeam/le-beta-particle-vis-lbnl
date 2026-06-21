@@ -13,7 +13,9 @@ from le_beta_vis.frontend.widgets.event_grid._EventGridSectionGrouping import (
 )
 
 if TYPE_CHECKING:
-    from le_beta_vis.frontend.widgets.event_grid.EventGridWidget import _SectionRow
+    from le_beta_vis.frontend.widgets.event_grid._EventGridSectionRow import (
+        _SectionRow,
+    )
 
 
 class _SlidingWindowPager:

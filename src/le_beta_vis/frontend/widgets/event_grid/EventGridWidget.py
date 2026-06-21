@@ -1,26 +1,15 @@
-import math
-from dataclasses import dataclass
 from typing import List, Optional
 
 from PySide6.QtCore import (
     QEvent,
-    QModelIndex,
     QObject,
     QPoint,
-    QSize,
     Qt,
     QTimer,
     Signal,
 )
-from PySide6.QtGui import (
-    QPixmap,
-    QResizeEvent,
-    QStandardItem,
-    QStandardItemModel,
-)
+from PySide6.QtGui import QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QListView,
     QScrollArea,
     QScroller,
     QScrollerProperties,
@@ -32,17 +21,18 @@ from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
 from le_beta_vis.frontend.theme import COLOR_BACKGROUND_SURFACE
 from le_beta_vis.frontend.widgets.event_grid._EventItemDelegate import (
-    CLUSTER_ROLE,
     THUMBNAIL_ROLE,
     _EventItemDelegate,
 )
+from le_beta_vis.frontend.widgets.event_grid._EventGridSectionController import (
+    _EventGridSectionController,
+)
 from le_beta_vis.frontend.widgets.event_grid._EventGridSectionGrouping import (
-    SectionInfo,
     flat_index_to_section,
     group_clusters,
 )
-from le_beta_vis.frontend.widgets.event_grid._EventGridSectionHeaderWidget import (
-    EventGridSectionHeaderWidget,
+from le_beta_vis.frontend.widgets.event_grid._EventGridSectionRow import (
+    _SectionRow,
 )
 from le_beta_vis.frontend.widgets.event_grid._SlidingWindowPager import (
     _SlidingWindowPager,
@@ -53,16 +43,6 @@ from le_beta_vis.frontend.widgets.event_grid._StickyHeaderOverlay import (
 from le_beta_vis.frontend.widgets.event_grid._VisibleRangeTracker import (
     _VisibleRangeTracker,
 )
-
-
-@dataclass
-class _SectionRow:
-    """Internal bookkeeping for one section in the grid."""
-
-    info: SectionInfo
-    header_widget: EventGridSectionHeaderWidget
-    list_view: QListView
-    model: QStandardItemModel
 
 
 class EventGridWidget(QWidget):
@@ -100,6 +80,7 @@ class EventGridWidget(QWidget):
         self._prefetch_count: int = 30
         self._has_more_backward: bool = False
         self._has_more_forward: bool = False
+        self._is_loading: bool = False
         self._sections: List[_SectionRow] = []
         self._delegate = _EventItemDelegate(item_width, item_height, self)
         self._initUI()
@@ -126,6 +107,7 @@ class EventGridWidget(QWidget):
             has_more_backward_getter=lambda: self._has_more_backward,
             has_more_forward_getter=lambda: self._has_more_forward,
             on_page_jump=self.pageJumpRequested.emit,
+            is_loading_getter=lambda: self._is_loading,
         )
         self._visibleRangeTracker = _VisibleRangeTracker(
             parent=self,
@@ -138,13 +120,26 @@ class EventGridWidget(QWidget):
             header_height_getter=lambda: self._header_height,
             on_range_changed=self.visibleRangeChanged.emit,
         )
+        self._sectionController = _EventGridSectionController(
+            sections=self._sections,
+            content_layout=self._contentLayout,
+            content_widget=self._contentWidget,
+            delegate=self._delegate,
+            item_width_getter=lambda: self._item_width,
+            item_height_getter=lambda: self._item_height,
+            max_cols_getter=lambda: self._max_cols,
+            widget_width_getter=lambda: self.width(),
+            on_page_jump=self.pageJumpRequested.emit,
+            on_navigate_to_self=self._scrollToSection,
+            on_item_selected=self.eventSelected.emit,
+        )
         self._pager = _SlidingWindowPager(
             sections=self._sections,
             header_height_getter=lambda: self._header_height,
-            compute_list_view_height=self._computeListViewHeight,
-            build_item=self._buildItem,
-            add_section=self._addSection,
-            insert_section_at_front=self._insertSectionAtFront,
+            compute_list_view_height=self._sectionController.computeListViewHeight,
+            build_item=self._sectionController.buildItem,
+            add_section=self._sectionController.addSection,
+            insert_section_at_front=self._sectionController.insertSectionAtFront,
         )
         self._configureKineticScrolling(self._scrollArea.viewport())
         self._scrollArea.viewport().installEventFilter(self)
@@ -170,77 +165,6 @@ class EventGridWidget(QWidget):
             "QScrollBar:vertical { width: 0px; max-width: 0px; }"
         )
         return area
-
-    def _buildSectionHeader(self, info: SectionInfo) -> EventGridSectionHeaderWidget:
-        """Creates a section header widget for *info* with navigation.
-
-        Navigation looks up the header's *current* position in
-        ``self._sections`` at click time (via ``_indexOfHeader``)
-        rather than capturing a fixed index — sections can be
-        inserted/removed by ``appendEvents``/``prependEvents``/
-        ``evictFront``/``evictBack`` after this header is built, which
-        would make a captured index stale.
-        """
-        header = EventGridSectionHeaderWidget()
-        date = info.date_part if info.date_part else self.tr("Unknown Date")
-        file = info.file_part if info.file_part else self.tr("Unknown File")
-        header.setDateText(date)
-        header.setFileText(file)
-        header.navigatePrevious.connect(
-            lambda h=header: self._emitPageJump(h, -1),
-        )
-        header.navigateNext.connect(
-            lambda h=header: self._emitPageJump(h, 1),
-        )
-        header.navigateToSelf.connect(
-            lambda h=header: self._scrollToSection(self._indexOfHeader(h)),
-        )
-        return header
-
-    def _indexOfHeader(self, header: EventGridSectionHeaderWidget) -> int:
-        """Returns *header*'s current position in ``self._sections``, or -1."""
-        for i, row in enumerate(self._sections):
-            if row.header_widget is header:
-                return i
-        return -1
-
-    def _emitPageJump(self, header: EventGridSectionHeaderWidget, direction: int) -> None:
-        """Emits ``pageJumpRequested`` anchored on *header*'s section."""
-        idx = self._indexOfHeader(header)
-        if idx < 0:
-            return
-        self.pageJumpRequested.emit(self._sections[idx].info.start_index, direction)
-
-    def _buildSectionListView(self) -> QListView:
-        """Creates a per-section QListView with shared delegate.
-
-        Click handling looks up the view's *current* section index at
-        click time (via ``_indexOfListView``) for the same reason
-        navigation does — see ``_buildSectionHeader``.
-        """
-        view = QListView()
-        view.setItemDelegate(self._delegate)
-        view.setViewMode(QListView.ViewMode.IconMode)
-        view.setResizeMode(QListView.ResizeMode.Adjust)
-        view.setMovement(QListView.Movement.Static)
-        view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        view.setGridSize(QSize(self._item_width, self._item_height))
-        view.setUniformItemSizes(True)
-        view.setSpacing(4)
-        view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        view.setStyleSheet(f"background-color: {COLOR_BACKGROUND_SURFACE};")
-        view.clicked.connect(
-            lambda idx, v=view: self._onItemClicked(v, idx)
-        )
-        return view
-
-    def _indexOfListView(self, view: QListView) -> int:
-        """Returns *view*'s current position in ``self._sections``, or -1."""
-        for i, row in enumerate(self._sections):
-            if row.list_view is view:
-                return i
-        return -1
 
     def _configureKineticScrolling(self, viewport: QWidget) -> None:
         """Sets up touch-style kinetic scrolling on *viewport*."""
@@ -275,10 +199,7 @@ class EventGridWidget(QWidget):
         self._item_width = width
         self._item_height = height
         self._delegate.setItemSize(width, height)
-        grid_size = QSize(width, height)
-        for row in self._sections:
-            row.list_view.setGridSize(grid_size)
-        self._recomputeAllHeights()
+        self._sectionController.applyGridSize(width, height)
 
     def setHeaderHeight(self, height: int) -> None:
         """Advisory hint for the section header height.
@@ -365,91 +286,16 @@ class EventGridWidget(QWidget):
                 callers like ``flat_index_to_section`` and the
                 section-header skip buttons key off it directly.
         """
-        self._clearSections()
+        self._stickyOverlay.hide()
+        self._sectionController.clearAll()
         sections = group_clusters(events)
         for info in sections:
             info.start_index += window_start
-            self._addSection(info, events, base_offset=window_start)
-        self._setAllNavigationStates()
+            self._sectionController.addSection(info, events, base_offset=window_start)
+        self._refreshNavigationStates()
         QTimer.singleShot(0, self._afterLayout)
         self._visibleRangeTracker.scheduleCheck()
         self.prefetchRequested.emit(self._prefetch_count)
-
-    def _clearSections(self) -> None:
-        """Removes all section widgets from the content layout."""
-        self._stickyOverlay.hide()
-        for row in self._sections:
-            row.header_widget.setParent(None)
-            row.list_view.setParent(None)
-            row.header_widget.deleteLater()
-            row.list_view.deleteLater()
-        self._sections.clear()
-
-    def _buildItem(self, cluster: Cluster) -> QStandardItem:
-        """Builds one non-editable grid item carrying its source cluster."""
-        item = QStandardItem()
-        item.setData(cluster, CLUSTER_ROLE)
-        item.setEditable(False)
-        return item
-
-    def _addSection(
-        self,
-        info: SectionInfo,
-        events: List[Cluster],
-        base_offset: int = 0,
-    ) -> None:
-        """Creates and appends one section (header + list view) to the layout.
-
-        Args:
-            info: Section descriptor with a global ``start_index``.
-            events: Cluster list to slice rows from.
-            base_offset: Subtracted from ``info.start_index`` to get
-                the local slice position into *events* — 0 when
-                *events* is the full resident list (``setEvents``),
-                or the window's prior end when *events* is a freshly
-                appended chunk (``appendEvents``).
-        """
-        header = self._buildSectionHeader(info)
-        model = QStandardItemModel()
-        view = self._buildSectionListView()
-        view.setModel(model)
-
-        start = info.start_index - base_offset
-        for cluster in events[start: start + info.count]:
-            model.appendRow(self._buildItem(cluster))
-
-        view.setFixedHeight(self._computeListViewHeight(info.count))
-        self._contentLayout.addWidget(header)
-        self._contentLayout.addWidget(view)
-        self._sections.append(_SectionRow(info, header_widget=header,
-                                          list_view=view, model=model))
-
-    def _insertSectionAtFront(
-        self,
-        info: SectionInfo,
-        events: List[Cluster],
-        base_offset: int,
-    ) -> None:
-        """Creates one section and inserts it at the very top of the layout.
-
-        Mirror of ``_addSection`` for ``prependEvents`` — used when a
-        backward page fetch introduces clusters earlier than anything
-        currently resident.
-        """
-        header = self._buildSectionHeader(info)
-        model = QStandardItemModel()
-        view = self._buildSectionListView()
-        view.setModel(model)
-
-        start = info.start_index - base_offset
-        for cluster in events[start: start + info.count]:
-            model.appendRow(self._buildItem(cluster))
-
-        view.setFixedHeight(self._computeListViewHeight(info.count))
-        self._contentLayout.insertWidget(0, header)
-        self._contentLayout.insertWidget(1, view)
-        self._sections.insert(0, _SectionRow(info, header_widget=header,
-                                             list_view=view, model=model))
 
     @property
     def windowStart(self) -> int:
@@ -467,22 +313,28 @@ class EventGridWidget(QWidget):
         """
         self._has_more_backward = has_more_backward
         self._has_more_forward = has_more_forward
-        self._setAllNavigationStates()
+        self._refreshNavigationStates()
 
-    def _setAllNavigationStates(self) -> None:
-        """Set prev/next button states on all section headers.
+    def setLoading(self, loading: bool) -> None:
+        """Disables every section's skip button while a fetch is in flight.
 
-        A section's own skip button is enabled either when an
-        adjacent resident section exists, or — at the window's edges —
-        when the ViewModel has reported a further page exists there
-        (``setGlobalPagingState``).
+        A spam-clicked skip button can otherwise fire a second
+        full-grid rebuild before the first one's fetch and layout
+        pass have finished, churning through Qt widget construction/
+        ``deleteLater()`` cycles fast enough to crash PySide6.
+
+        Args:
+            loading: True to disable all skip-navigation buttons.
         """
-        total = len(self._sections)
-        for i, row in enumerate(self._sections):
-            row.header_widget.setNavigationState(
-                has_previous=i > 0 or self._has_more_backward,
-                has_next=i < total - 1 or self._has_more_forward,
-            )
+        self._is_loading = loading
+        self._refreshNavigationStates()
+        self._stickyOverlay.update()
+
+    def _refreshNavigationStates(self) -> None:
+        """Pushes the current paging/loading state to all section headers."""
+        self._sectionController.refreshNavigationStates(
+            self._has_more_backward, self._has_more_forward, self._is_loading,
+        )
 
     def _scrollToSection(self, section_index: int) -> None:
         """Scroll so the target section's header is at the top."""
@@ -499,7 +351,7 @@ class EventGridWidget(QWidget):
             if hint > 0:
                 self._header_height = hint
             self._stickyOverlay.setFixedHeight(self._header_height)
-        self._recomputeAllHeights()
+        self._sectionController.recomputeAllHeights()
         self._stickyOverlay.update()
         self._visibleRangeTracker.scheduleCheck()
 
@@ -546,42 +398,13 @@ class EventGridWidget(QWidget):
         model_index = self._sections[sec_idx].model.index(local_idx, 0)
         self._sections[sec_idx].list_view.setCurrentIndex(model_index)
 
-    def clear(self) -> None:
-        """Removes all items from the grid."""
-        self._clearSections()
-
     # ------------------------------------------------------------------ #
     # Layout & height computation                                          #
     # ------------------------------------------------------------------ #
 
-    def _computeListViewHeight(self, count: int) -> int:
-        """Calculate the pixel height needed to display *count* items.
-
-        Qt's icon-mode layout with ``setGridSize`` places items at
-        exact grid-size intervals — the ``spacing`` value only adds
-        visual padding inside the cell, not to the stride.
-        """
-        if count == 0:
-            return 0
-        content_w = self._contentWidget.width()
-        if content_w <= 0:
-            content_w = self.width()
-        grid_w = self._item_width
-        grid_h = self._item_height
-        cols = min(max(1, content_w // grid_w), self._max_cols)
-        rows = math.ceil(count / cols)
-        return rows * grid_h
-
-    def _recomputeAllHeights(self) -> None:
-        """Recalculate fixed heights for every section list view."""
-        for row in self._sections:
-            row.list_view.setFixedHeight(
-                self._computeListViewHeight(row.info.count),
-            )
-
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        self._recomputeAllHeights()
+        self._sectionController.recomputeAllHeights()
         self._stickyOverlay.setFixedWidth(self.width())
         self._stickyOverlay.update()
         self._visibleRangeTracker.scheduleCheck()
@@ -612,23 +435,6 @@ class EventGridWidget(QWidget):
         return super().eventFilter(obj, event)
 
     # ------------------------------------------------------------------ #
-    # Click handling                                                       #
-    # ------------------------------------------------------------------ #
-
-    def _onItemClicked(
-        self, view: QListView, index: QModelIndex,
-    ) -> None:
-        """Translates a per-section click into a flat-index signal."""
-        section_index = self._indexOfListView(view)
-        if section_index < 0:
-            return
-        for i, row in enumerate(self._sections):
-            if i != section_index:
-                row.list_view.clearSelection()
-        flat = self._sections[section_index].info.start_index + index.row()
-        self.eventSelected.emit(flat)
-
-    # ------------------------------------------------------------------ #
     # Sliding-window paging: append / prepend / evict                      #
     # ------------------------------------------------------------------ #
 
@@ -646,7 +452,7 @@ class EventGridWidget(QWidget):
         if not new_events:
             return
         self._pager.append(new_events)
-        self._setAllNavigationStates()
+        self._refreshNavigationStates()
         self._stickyOverlay.update()
         QTimer.singleShot(0, self._afterLayout)
         self._visibleRangeTracker.scheduleCheck()
@@ -667,7 +473,7 @@ class EventGridWidget(QWidget):
         if not new_events:
             return
         added_height = self._pager.prepend(new_events)
-        self._setAllNavigationStates()
+        self._refreshNavigationStates()
         scrollbar = self._scrollArea.verticalScrollBar()
         scrollbar.setValue(scrollbar.value() + added_height)
         QTimer.singleShot(0, self._afterLayout)
@@ -687,7 +493,7 @@ class EventGridWidget(QWidget):
         if not self._sections or global_count <= 0:
             return
         removed_height = self._pager.evictFront(global_count)
-        self._setAllNavigationStates()
+        self._refreshNavigationStates()
         self._stickyOverlay.update()
         scrollbar = self._scrollArea.verticalScrollBar()
         scrollbar.setValue(max(0, scrollbar.value() - removed_height))
@@ -707,5 +513,5 @@ class EventGridWidget(QWidget):
         if not self._sections or global_count <= 0:
             return
         self._pager.evictBack(global_count)
-        self._setAllNavigationStates()
+        self._refreshNavigationStates()
         self._stickyOverlay.update()

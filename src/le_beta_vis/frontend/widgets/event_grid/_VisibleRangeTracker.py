@@ -5,7 +5,9 @@ from PySide6.QtCore import QObject, QPoint, QTimer
 from PySide6.QtWidgets import QScrollArea, QWidget
 
 if TYPE_CHECKING:
-    from le_beta_vis.frontend.widgets.event_grid.EventGridWidget import _SectionRow
+    from le_beta_vis.frontend.widgets.event_grid._EventGridSectionRow import (
+        _SectionRow,
+    )
 
 _DEBOUNCE_INTERVAL_MS = 50
 

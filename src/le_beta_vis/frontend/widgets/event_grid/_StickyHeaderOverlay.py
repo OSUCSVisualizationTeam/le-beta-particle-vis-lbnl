@@ -8,7 +8,9 @@ from le_beta_vis.frontend.widgets.event_grid._EventGridSectionHeaderWidget impor
 )
 
 if TYPE_CHECKING:
-    from le_beta_vis.frontend.widgets.event_grid.EventGridWidget import _SectionRow
+    from le_beta_vis.frontend.widgets.event_grid._EventGridSectionRow import (
+        _SectionRow,
+    )
 
 
 class _StickyHeaderOverlay:
@@ -30,6 +32,7 @@ class _StickyHeaderOverlay:
         has_more_backward_getter: Callable[[], bool],
         has_more_forward_getter: Callable[[], bool],
         on_page_jump: Callable[[int, int], None],
+        is_loading_getter: Callable[[], bool],
     ) -> None:
         self._parent = parent
         self._sections = sections
@@ -40,6 +43,7 @@ class _StickyHeaderOverlay:
         self._has_more_backward_getter = has_more_backward_getter
         self._has_more_forward_getter = has_more_forward_getter
         self._on_page_jump = on_page_jump
+        self._is_loading_getter = is_loading_getter
 
         self._widget = EventGridSectionHeaderWidget(parent=parent)
         self._widget.hide()
@@ -99,9 +103,14 @@ class _StickyHeaderOverlay:
         self._widget.setFixedWidth(self._parent.width())
 
         self._reconnectSignals(active_idx)
+        is_loading = self._is_loading_getter()
         self._widget.setNavigationState(
-            has_previous=active_idx > 0 or self._has_more_backward_getter(),
-            has_next=active_idx < len(self._sections) - 1 or self._has_more_forward_getter(),
+            has_previous=not is_loading and (
+                active_idx > 0 or self._has_more_backward_getter()
+            ),
+            has_next=not is_loading and (
+                active_idx < len(self._sections) - 1 or self._has_more_forward_getter()
+            ),
         )
 
         header_height = self._header_height_getter()
