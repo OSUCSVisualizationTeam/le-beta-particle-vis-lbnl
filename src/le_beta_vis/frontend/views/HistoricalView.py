@@ -221,6 +221,9 @@ class HistoricalView(QWidget):
         self._gridWidget.prefetchRequested.connect(
             self.viewModel.prefetch_thumbnails,
         )
+        self._gridWidget.pageJumpRequested.connect(
+            self._onPageJumpRequested,
+        )
         self.viewModel.add_thumbnail_ready_callback(self._enqueueThumbnail)
         self.viewModel.add_events_appended_callback(self._onEventsAppended)
         self.viewModel.add_events_prepended_callback(self._onEventsPrepended)
@@ -252,10 +255,21 @@ class HistoricalView(QWidget):
 
     # --- Slots ---
 
+    def _onPageJumpRequested(self, anchor_global_index: int, direction: int) -> None:
+        """Handles a section header's skip button click."""
+        self.viewModel.jump_to_page(anchor_global_index, direction)
+
+    def _pushGlobalPagingState(self) -> None:
+        """Syncs the grid's edge-of-window skip-button state from the ViewModel."""
+        self._gridWidget.setGlobalPagingState(
+            self.viewModel.hasMoreBackward, self.viewModel.hasMoreForward,
+        )
+
     @Slot()
     def _updateEvents(self) -> None:
         events = self.viewModel.events
-        self._gridWidget.setEvents(events)
+        self._gridWidget.setEvents(events, window_start=self.viewModel.windowStart)
+        self._pushGlobalPagingState()
         self._updateCountLabel()
 
     def _updateCountLabel(self) -> None:
@@ -282,6 +296,7 @@ class HistoricalView(QWidget):
         self._pendingAppendedEvents = None
         if events:
             self._gridWidget.appendEvents(events)
+            self._pushGlobalPagingState()
             self._updateCountLabel()
 
     def _onEventsPrepended(self, new_events: List[Cluster]) -> None:
@@ -295,6 +310,7 @@ class HistoricalView(QWidget):
         self._pendingPrependedEvents = None
         if events:
             self._gridWidget.prependEvents(events)
+            self._pushGlobalPagingState()
             self._updateCountLabel()
 
     def _onEventsEvicted(self, offset: int, count: int) -> None:
@@ -313,6 +329,7 @@ class HistoricalView(QWidget):
             self._gridWidget.evictFront(offset, count)
         else:
             self._gridWidget.evictBack(offset, count)
+        self._pushGlobalPagingState()
         self._updateCountLabel()
 
     @Slot()

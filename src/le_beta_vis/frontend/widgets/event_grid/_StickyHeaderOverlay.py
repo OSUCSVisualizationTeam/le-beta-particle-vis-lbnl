@@ -27,6 +27,9 @@ class _StickyHeaderOverlay:
         scroll_area: QScrollArea,
         header_height_getter: Callable[[], int],
         on_navigate: Callable[[int], None],
+        has_more_backward_getter: Callable[[], bool],
+        has_more_forward_getter: Callable[[], bool],
+        on_page_jump: Callable[[int, int], None],
     ) -> None:
         self._parent = parent
         self._sections = sections
@@ -34,6 +37,9 @@ class _StickyHeaderOverlay:
         self._scroll_area = scroll_area
         self._header_height_getter = header_height_getter
         self._on_navigate = on_navigate
+        self._has_more_backward_getter = has_more_backward_getter
+        self._has_more_forward_getter = has_more_forward_getter
+        self._on_page_jump = on_page_jump
 
         self._widget = EventGridSectionHeaderWidget(parent=parent)
         self._widget.hide()
@@ -94,8 +100,8 @@ class _StickyHeaderOverlay:
 
         self._reconnectSignals(active_idx)
         self._widget.setNavigationState(
-            has_previous=active_idx > 0,
-            has_next=active_idx < len(self._sections) - 1,
+            has_previous=active_idx > 0 or self._has_more_backward_getter(),
+            has_next=active_idx < len(self._sections) - 1 or self._has_more_forward_getter(),
         )
 
         header_height = self._header_height_getter()
@@ -121,10 +127,10 @@ class _StickyHeaderOverlay:
             self._widget.navigateToSelf.disconnect(self._self_conn)
 
         self._prev_conn = self._widget.navigatePrevious.connect(
-            lambda: self._on_navigate(active_idx - 1),
+            lambda: self._on_page_jump(self._sections[active_idx].info.start_index, -1),
         )
         self._next_conn = self._widget.navigateNext.connect(
-            lambda: self._on_navigate(active_idx + 1),
+            lambda: self._on_page_jump(self._sections[active_idx].info.start_index, 1),
         )
         self._self_conn = self._widget.navigateToSelf.connect(
             lambda: self._on_navigate(active_idx),

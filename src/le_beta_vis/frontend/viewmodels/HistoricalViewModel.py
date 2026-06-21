@@ -113,6 +113,11 @@ class HistoricalViewModel:
         return self._events
 
     @property
+    def windowStart(self) -> int:
+        """Global index of the first currently-resident cluster."""
+        return self._window_start
+
+    @property
     def selectedIndex(self) -> int:
         """Global index of the selected event, or -1 if none."""
         return self._selectedIndex
@@ -134,6 +139,16 @@ class HistoricalViewModel:
     def isLoading(self) -> bool:
         """True while events are being fetched."""
         return self._loading
+
+    @property
+    def hasMoreForward(self) -> bool:
+        """True if a page exists beyond the resident window's tail."""
+        return self._has_more_forward
+
+    @property
+    def hasMoreBackward(self) -> bool:
+        """True if a page exists before the resident window's head."""
+        return self._has_more_backward
 
     @property
     def physicsManager(self) -> PhysicsConversionManager:
@@ -314,16 +329,23 @@ class HistoricalViewModel:
         for cb in self._on_thumbnail_ready_callbacks:
             cb(key, thumbnail)
 
-    def loadEvents(self) -> None:
+    def loadEvents(self, offset: int = 0) -> None:
         """Starts an asynchronous background fetch from the repository.
 
         No-op if a load is already in flight. Sets loading state
         synchronously on the calling thread, then spawns a daemon
         thread for the repository call. Observers are notified
         from the background thread — Views should marshal back to
-        the main thread via ``Qt.AutoConnection``. Loads the first
-        page only (bounded by ``eps:retrieval_limit_default``);
-        further pages are fetched on demand as the user scrolls.
+        the main thread via ``Qt.AutoConnection``. Loads one page
+        only (bounded by ``eps:retrieval_limit_default``), anchored
+        at ``offset``; further pages are fetched on demand as the
+        user scrolls.
+
+        Args:
+            offset: Global offset of the page to load. Defaults to
+                0 (the start of the result set); a non-zero value is
+                used by ``jump_to_page`` to reset the window onto an
+                arbitrary page-aligned position.
         """
         self._thumbnail_service.clear()
         with self._state_lock:
@@ -347,10 +369,29 @@ class HistoricalViewModel:
         self._repository.fetch_clusters(
             query_filter,
             limit=self._page_limit,
-            offset=0,
-            callback=lambda events: self._on_repository_loaded(request_id, events),
+            offset=offset,
+            callback=lambda events: self._on_repository_loaded(request_id, offset, events),
             on_error=lambda error: self._on_repository_error(request_id, error),
         )
+
+    def jump_to_page(self, anchor_global_index: int, direction: int) -> None:
+        """Resets the window onto the page adjacent to ``anchor_global_index``.
+
+        Used by the grid's section-header skip buttons: rather than
+        scrolling within whatever happens to be resident, this always
+        re-anchors the sliding window onto the previous/next
+        page-aligned chunk and lands on its first element.
+
+        Args:
+            anchor_global_index: Global index belonging to the
+                section the user navigated from.
+            direction: -1 for the previous page, +1 for the next.
+        """
+        current_page_index = anchor_global_index // self._page_limit
+        target_page_index = current_page_index + direction
+        if target_page_index < 0:
+            return
+        self.loadEvents(offset=target_page_index * self._page_limit)
 
     def selectEvent(self, index: int) -> None:
         """Selects an event by global index.
@@ -450,12 +491,14 @@ class HistoricalViewModel:
         self._events = flat
         self._window_start = self._loaded_pages[0].offset if self._loaded_pages else 0
 
-    def _on_repository_loaded(self, request_id: int, events: List[Cluster]) -> None:
+    def _on_repository_loaded(
+        self, request_id: int, offset: int, events: List[Cluster],
+    ) -> None:
         with self._state_lock:
             if self._active_request_id != request_id:
                 return
             self._active_request_id = None
-        self._notify_loaded(events)
+        self._notify_loaded(events, offset)
 
     def _on_repository_error(self, request_id: int, error: str) -> None:
         with self._state_lock:
@@ -525,15 +568,15 @@ class HistoricalViewModel:
             self._loading = loading
         self._notify_loading_changed()
 
-    def _notify_loaded(self, events: List[Cluster]) -> None:
+    def _notify_loaded(self, events: List[Cluster], offset: int = 0) -> None:
         self._setLoading(False)
         with self._state_lock:
-            self._loaded_pages = deque([_LoadedPage(offset=0, clusters=events)])
+            self._loaded_pages = deque([_LoadedPage(offset=offset, clusters=events)])
             self._rebuild_events_cache()
             self._has_more_forward = len(events) == self._page_limit
-            self._has_more_backward = False
+            self._has_more_backward = offset > 0
             if len(self._events) > 0:
-                self._selectedIndex = 0
+                self._selectedIndex = self._window_start
             else:
                 self._selectedIndex = -1
             events_loaded_callbacks = list(self._on_events_loaded_callbacks)

@@ -76,11 +76,15 @@ class EventGridWidget(QWidget):
         eventSelected(int): Emitted with the flat event index on click.
         visibleRangeChanged(int, int): First and last visible flat indices.
         prefetchRequested(int): Emitted on ``setEvents`` with prefetch count.
+        pageJumpRequested(int, int): Emitted when a header's skip
+            button is clicked — (anchor_global_index, direction),
+            where direction is -1 (previous page) or +1 (next page).
     """
 
     eventSelected = Signal(int)
     visibleRangeChanged = Signal(int, int)
     prefetchRequested = Signal(int)
+    pageJumpRequested = Signal(int, int)
 
     def __init__(
         self,
@@ -94,6 +98,8 @@ class EventGridWidget(QWidget):
         self._header_height: int = 28
         self._max_cols: int = 3
         self._prefetch_count: int = 30
+        self._has_more_backward: bool = False
+        self._has_more_forward: bool = False
         self._sections: List[_SectionRow] = []
         self._delegate = _EventItemDelegate(item_width, item_height, self)
         self._initUI()
@@ -117,6 +123,9 @@ class EventGridWidget(QWidget):
             scroll_area=self._scrollArea,
             header_height_getter=lambda: self._header_height,
             on_navigate=self._scrollToSection,
+            has_more_backward_getter=lambda: self._has_more_backward,
+            has_more_forward_getter=lambda: self._has_more_forward,
+            on_page_jump=self.pageJumpRequested.emit,
         )
         self._visibleRangeTracker = _VisibleRangeTracker(
             parent=self,
@@ -178,10 +187,10 @@ class EventGridWidget(QWidget):
         header.setDateText(date)
         header.setFileText(file)
         header.navigatePrevious.connect(
-            lambda h=header: self._scrollToSection(self._indexOfHeader(h) - 1),
+            lambda h=header: self._emitPageJump(h, -1),
         )
         header.navigateNext.connect(
-            lambda h=header: self._scrollToSection(self._indexOfHeader(h) + 1),
+            lambda h=header: self._emitPageJump(h, 1),
         )
         header.navigateToSelf.connect(
             lambda h=header: self._scrollToSection(self._indexOfHeader(h)),
@@ -194,6 +203,13 @@ class EventGridWidget(QWidget):
             if row.header_widget is header:
                 return i
         return -1
+
+    def _emitPageJump(self, header: EventGridSectionHeaderWidget, direction: int) -> None:
+        """Emits ``pageJumpRequested`` anchored on *header*'s section."""
+        idx = self._indexOfHeader(header)
+        if idx < 0:
+            return
+        self.pageJumpRequested.emit(self._sections[idx].info.start_index, direction)
 
     def _buildSectionListView(self) -> QListView:
         """Creates a per-section QListView with shared delegate.
@@ -334,7 +350,7 @@ class EventGridWidget(QWidget):
     # Event data management                                                #
     # ------------------------------------------------------------------ #
 
-    def setEvents(self, events: List[Cluster]) -> None:
+    def setEvents(self, events: List[Cluster], window_start: int = 0) -> None:
         """Populates the grid with lazy placeholder items grouped by section.
 
         Thumbnails are not generated here — they are loaded
@@ -342,11 +358,18 @@ class EventGridWidget(QWidget):
 
         Args:
             events: List of Cluster objects to display.
+            window_start: Global index of ``events[0]``. Defaults to
+                0 for the very first load; a page jump anchors the
+                resident window elsewhere, and every ``SectionInfo``
+                built here must carry a *global* ``start_index`` —
+                callers like ``flat_index_to_section`` and the
+                section-header skip buttons key off it directly.
         """
         self._clearSections()
         sections = group_clusters(events)
         for info in sections:
-            self._addSection(info, events)
+            info.start_index += window_start
+            self._addSection(info, events, base_offset=window_start)
         self._setAllNavigationStates()
         QTimer.singleShot(0, self._afterLayout)
         self._visibleRangeTracker.scheduleCheck()
@@ -433,13 +456,32 @@ class EventGridWidget(QWidget):
         """Global index of the first currently-resident cluster."""
         return self._sections[0].info.start_index if self._sections else 0
 
+    def setGlobalPagingState(self, has_more_backward: bool, has_more_forward: bool) -> None:
+        """Updates whether a page exists beyond the resident window's edges.
+
+        Args:
+            has_more_backward: True if a page exists before the
+                window's head.
+            has_more_forward: True if a page exists beyond the
+                window's tail.
+        """
+        self._has_more_backward = has_more_backward
+        self._has_more_forward = has_more_forward
+        self._setAllNavigationStates()
+
     def _setAllNavigationStates(self) -> None:
-        """Set prev/next button states on all section headers."""
+        """Set prev/next button states on all section headers.
+
+        A section's own skip button is enabled either when an
+        adjacent resident section exists, or — at the window's edges —
+        when the ViewModel has reported a further page exists there
+        (``setGlobalPagingState``).
+        """
         total = len(self._sections)
         for i, row in enumerate(self._sections):
             row.header_widget.setNavigationState(
-                has_previous=i > 0,
-                has_next=i < total - 1,
+                has_previous=i > 0 or self._has_more_backward,
+                has_next=i < total - 1 or self._has_more_forward,
             )
 
     def _scrollToSection(self, section_index: int) -> None:

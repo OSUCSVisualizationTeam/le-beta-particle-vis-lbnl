@@ -319,6 +319,76 @@ def test_safe_max_window_pages_unchanged_at_realistic_config(config):
     assert vm._safe_max_window_pages() == 3
 
 
+# --- loadEvents(offset=...) / jump_to_page ---
+
+
+def test_load_events_with_offset_anchors_window(config):
+    repo = PagedRepository(total=40)
+    vm = HistoricalViewModel(config, _make_physics_mock(), repo, MockThumbnailLoaderService())
+
+    vm.loadEvents(offset=20)
+
+    assert repo.calls[-1] == (10, 20)
+    assert vm._window_start == 20
+    assert vm.selectedIndex == 20
+    assert vm.hasMoreBackward is True
+    assert vm.hasMoreForward is True
+
+
+def test_load_events_offset_zero_has_no_backward(config):
+    repo = PagedRepository(total=40)
+    vm = HistoricalViewModel(config, _make_physics_mock(), repo, MockThumbnailLoaderService())
+
+    vm.loadEvents()
+
+    assert vm.hasMoreBackward is False
+    assert vm.hasMoreForward is True
+
+
+def test_load_events_offset_short_page_has_no_forward(config):
+    repo = PagedRepository(total=25)
+    vm = HistoricalViewModel(config, _make_physics_mock(), repo, MockThumbnailLoaderService())
+
+    vm.loadEvents(offset=20)  # only 5 clusters remain -> short page
+
+    assert vm.hasMoreForward is False
+    assert len(vm.events) == 5
+
+
+def test_jump_to_page_next_advances_one_page_width(config):
+    repo = PagedRepository(total=40)
+    vm = HistoricalViewModel(config, _make_physics_mock(), repo, MockThumbnailLoaderService())
+    vm.loadEvents()  # page [0,10)
+
+    vm.jump_to_page(anchor_global_index=3, direction=1)
+
+    assert repo.calls[-1] == (10, 10)
+    assert vm._window_start == 10
+
+
+def test_jump_to_page_previous_returns_one_page_width(config):
+    repo = PagedRepository(total=40)
+    vm = HistoricalViewModel(config, _make_physics_mock(), repo, MockThumbnailLoaderService())
+    vm.loadEvents(offset=20)
+
+    vm.jump_to_page(anchor_global_index=23, direction=-1)
+
+    assert repo.calls[-1] == (10, 10)
+    assert vm._window_start == 10
+
+
+def test_jump_to_page_previous_noop_at_first_page(config):
+    repo = PagedRepository(total=40)
+    vm = HistoricalViewModel(config, _make_physics_mock(), repo, MockThumbnailLoaderService())
+    vm.loadEvents()  # page [0,10)
+    call_count = len(repo.calls)
+
+    vm.jump_to_page(anchor_global_index=3, direction=-1)
+
+    assert len(repo.calls) == call_count
+    assert vm._window_start == 0
+
+
 # --- Page errors ---
 
 
