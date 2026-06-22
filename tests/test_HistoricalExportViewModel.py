@@ -1,17 +1,14 @@
-# Verify gating (preset=='all' blocks, window>max blocks), export lifecycle,
-# and filter-bar export-lock coordination
+# Verify export lifecycle and filter-bar export-lock coordination
 
 """Tests for HistoricalExportViewModel."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import pytest
 
-from le_beta_vis.common.BoundingBox import BoundingBox
-from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.Colormap import Colormap
 from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
 from le_beta_vis.common.EventRepository import EventRepository
@@ -19,11 +16,7 @@ from le_beta_vis.export.ClusterExportService import (
     ClusterExportService,
     ClusterMetadataLabels,
 )
-from le_beta_vis.export.ExportStorageService import (
-    CancelToken,
-    ExportProvenance,
-    ExportStorageService,
-)
+from le_beta_vis.export.ExportStorageService import ExportStorageService
 from le_beta_vis.export.HistoricalExportService import HistoricalExportService
 from le_beta_vis.common.ThumbnailLoaderService import ThumbnailLoaderService
 from le_beta_vis.frontend.viewmodels.HistoricalExportViewModel import (
@@ -50,6 +43,9 @@ class _FakePhysics:
 class _NoopRepo(EventRepository):
     def fetch_events(self, callback, on_error):
         callback([])
+
+    def fetch_clusters_sync(self, query_filter=None, limit=None, offset=0):
+        return []
 
     def query_clusters(self, query_filter, callback, on_error):
         callback([])
@@ -94,47 +90,15 @@ class _NoopThumbnails(ThumbnailLoaderService):
         pass
 
 
-def _build_vm(
-    max_window_days: Optional[int] = None,
-) -> tuple[HistoricalExportViewModel, HistoricalFilterBarViewModel]:
+def _build_vm() -> tuple[HistoricalExportViewModel, HistoricalFilterBarViewModel]:
     cfg = MockConfigurationService()
-    if max_window_days is not None:
-        cfg.set("gui:export:max_time_window_days", max_window_days)
     physics = _FakePhysics()
     filter_bar = HistoricalFilterBarViewModel(cfg, physics)
-    svc = HistoricalExportService(_NoopRepo(), _NoopStorage(), _NoopPNG(), physics, _NoopThumbnails())
+    svc = HistoricalExportService(
+        _NoopRepo(), _NoopStorage(), _NoopPNG(), physics, _NoopThumbnails(), cfg
+    )
     vm = HistoricalExportViewModel(cfg, physics, svc, filter_bar)
     return vm, filter_bar
-
-
-class TestGating:
-    def test_blocks_when_preset_is_all(self):
-        vm, fb = _build_vm()
-        fb.apply_time_preset("all")
-        ok, reason = vm.gating_reason()
-        assert not ok
-        assert "all" in reason
-
-    def test_allows_for_24h_preset(self):
-        vm, fb = _build_vm()
-        fb.apply_time_preset("24h")
-        assert vm.can_export() is True
-
-    def test_blocks_custom_window_exceeding_max_days(self):
-        vm, fb = _build_vm(max_window_days=30)
-        fb.time_preset = "custom"
-        fb.start_datetime = datetime(2026, 1, 1)
-        fb.end_datetime = datetime(2026, 3, 1)  # ~59 days
-        ok, reason = vm.gating_reason()
-        assert not ok
-        assert "30" in reason
-
-    def test_allows_custom_window_within_max_days(self):
-        vm, fb = _build_vm(max_window_days=30)
-        fb.time_preset = "custom"
-        fb.start_datetime = datetime(2026, 4, 1)
-        fb.end_datetime = datetime(2026, 4, 20)
-        assert vm.can_export() is True
 
 
 class TestExportLifecycle:
@@ -339,7 +303,7 @@ def _build_weighted_vm(
     physics = _FakePhysics()
     filter_bar = HistoricalFilterBarViewModel(cfg, physics)
     svc = HistoricalExportService(
-        _NoopRepo(), _NoopStorage(), _NoopPNG(), physics, _NoopThumbnails()
+        _NoopRepo(), _NoopStorage(), _NoopPNG(), physics, _NoopThumbnails(), cfg
     )
     return HistoricalExportViewModel(cfg, physics, svc, filter_bar)
 

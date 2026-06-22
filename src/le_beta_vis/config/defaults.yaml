@@ -427,15 +427,6 @@ gui:export:image_format:
   description: >-
     Preferred file format for exporting plots and images.
 
-gui:export:max_time_window_days:
-  type: int
-  default: 30
-  description: >-
-    Maximum time-range window (in days) allowed for an export when the
-    Historical filter time preset is not 'all'. Exports exceeding this
-    window are blocked to protect scientists from accidentally pulling
-    multi-month result sets. See issue #56.
-
 gui:export:cluster_png_colormap:
   type: str
   default: "viridis"
