@@ -1,9 +1,10 @@
 """Threaded orchestrator for Historical result exports (issue #56).
 
-Pulls clusters via ``EventRepository.query_clusters``, hands them to
-an ``ExportStorageService`` for the `.h5` file. When the user opts in
-via ``ExportRequest.include_pngs``, a ZIP archive is produced instead:
-it contains the HDF5 file and a ``cluster_cards/`` directory of PNGs.
+Pulls clusters via paged calls to ``EventRepository.fetch_clusters_sync``,
+hands them to an ``ExportStorageService`` for the `.h5` file. When the
+user opts in via ``ExportRequest.include_pngs``, a ZIP archive is
+produced instead: it contains the HDF5 file and a ``cluster_cards/``
+directory of PNGs.
 
 Runs on a ``threading.Thread(daemon=True)`` — the UI layer must not
 block on it. Progress is reported via a callback; cancel is cooperative
@@ -21,6 +22,7 @@ from typing import Callable, List, Optional, Tuple
 
 from ..common.Cluster import Cluster
 from ..common.Colormap import Colormap
+from ..common.ConfigurationService import ConfigurationService
 from ..common.EPSDataClasses import ClusterQueryFilter
 from ..common.EventRepository import EventRepository
 from ..common.PhysicsConversionManager import PhysicsConversionManager
@@ -87,6 +89,7 @@ class HistoricalExportService:
         png_renderer: ClusterExportService,
         physics: PhysicsConversionManager,
         thumbnail_service: ThumbnailLoaderService,
+        config: ConfigurationService,
         png_render_workers: int = 4,
         logger_: Optional[logging.Logger] = None,
     ) -> None:
@@ -97,6 +100,9 @@ class HistoricalExportService:
         self._physics = physics
         self._thumbnails = thumbnail_service
         self._logger = logger_ or logger
+        self._page_limit = config.get_int(
+            "eps:retrieval_limit_max", 2000, minimum=1
+        )
         self._card_pipeline = ClusterCardRenderPipeline(
             png_renderer=png_renderer,
             workers=png_render_workers,
@@ -355,29 +361,23 @@ class HistoricalExportService:
     def _collect_clusters(
         self, query_filter: Optional[ClusterQueryFilter]
     ) -> List[Cluster]:
-        """Bridge the callback-based ``EventRepository.query_clusters`` API to a blocking
-        return value using a ``threading.Event`` latch. Raises ``RuntimeError`` if the
-        repository reports an error.
+        """Fetch every cluster matching ``query_filter`` by looping paged requests.
+
+        Runs on the export's own worker thread, so it calls
+        ``fetch_clusters_sync`` directly rather than bridging the
+        callback-based API. A page shorter than ``self._page_limit``
+        signals the result set is exhausted.
         """
-        # query_clusters is callback-based; bridge to a synchronous list
-        # via an Event. The repository is expected to fire exactly one
-        # terminal callback (either success or error) per call.
         result: List[Cluster] = []
-        error_msg: List[str] = []
-        done = threading.Event()
-
-        def on_success(clusters: List[Cluster]) -> None:
-            result.extend(clusters)
-            done.set()
-
-        def on_error(msg: str) -> None:
-            error_msg.append(msg)
-            done.set()
-
-        self._repo.query_clusters(query_filter, on_success, on_error)
-        done.wait()
-        if error_msg:
-            raise RuntimeError(f"query_clusters failed: {error_msg[0]}")
+        offset = 0
+        while True:
+            page = self._repo.fetch_clusters_sync(
+                query_filter, limit=self._page_limit, offset=offset
+            )
+            result.extend(page)
+            if len(page) < self._page_limit:
+                break
+            offset += len(page)
         return result
 
     @staticmethod
