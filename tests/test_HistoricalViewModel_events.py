@@ -7,6 +7,7 @@
 
 Pure Python tests — no QApplication instantiation.
 """
+import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
@@ -14,11 +15,10 @@ from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.MockEventRepository import (
     MockEventRepository,
 )
+from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.EventRepository import EventRepository
 from le_beta_vis.common.EPSDataClasses import (
     ClassificationUpdateRequest,
-    ClusterQueryFilter,
-    EPSFitsRecord,
 )
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.frontend.viewmodels.HistoricalViewModel import (
@@ -122,6 +122,77 @@ def test_load_events_loading_flag(vm):
     vm.loadEvents()
     _wait_for_load(vm)
     assert states == [True, False]
+
+
+class _PagedRepository(EventRepository):
+    """Synthetic multi-page repository for paging tests."""
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+        self.calls: list = []
+
+    def fetch_events(self, callback, on_error):
+        callback(self._slice(None, 0))
+
+    def fetch_clusters(self, query_filter, limit, offset, callback, on_error):
+        self.calls.append((limit, offset))
+        callback(self._slice(limit, offset))
+
+    def fetch_clusters_sync(self, query_filter=None, limit=None, offset=0):
+        return self._slice(limit, offset)
+
+    def _slice(self, limit, offset):
+        end = self.total if limit is None else min(self.total, offset + limit)
+        return [
+            Cluster(
+                boundingBox=BoundingBox(top=0, left=0, bottom=1, right=1),
+                data=np.zeros((1, 1), dtype=np.float64),
+                centerX=0,
+                centerY=0,
+                clusterId=i,
+            )
+            for i in range(offset, max(offset, end))
+        ]
+
+    def store_cluster(self, request):
+        return None
+
+    def update_classification(self, request, callback, on_error):
+        callback(False)
+
+    def query_fits(self, fits_id, callback, on_error):
+        callback([])
+
+
+def test_load_events_requests_configured_page_limit():
+    """loadEvents should request exactly the configured page limit, not everything."""
+    cfg = MockConfigurationService()
+    cfg.set("eps:retrieval_limit_default", 5)
+    repo = _PagedRepository(total=20)
+    vm = HistoricalViewModel(cfg, _make_physics_mock(), repo, MockThumbnailLoaderService())
+    vm.loadEvents()
+    assert repo.calls == [(5, 0)]
+    assert len(vm.events) == 5
+
+
+def test_load_events_has_more_forward_true_on_full_page():
+    """A full first page implies more data may exist forward."""
+    cfg = MockConfigurationService()
+    cfg.set("eps:retrieval_limit_default", 5)
+    repo = _PagedRepository(total=20)
+    vm = HistoricalViewModel(cfg, _make_physics_mock(), repo, MockThumbnailLoaderService())
+    vm.loadEvents()
+    assert vm._has_more_forward is True
+
+
+def test_load_events_has_more_forward_false_on_short_page():
+    """A short first page is the authoritative end-of-data signal."""
+    cfg = MockConfigurationService()
+    cfg.set("eps:retrieval_limit_default", 50)
+    repo = _PagedRepository(total=20)
+    vm = HistoricalViewModel(cfg, _make_physics_mock(), repo, MockThumbnailLoaderService())
+    vm.loadEvents()
+    assert vm._has_more_forward is False
 
 
 # --- selectEvent ---
@@ -243,7 +314,7 @@ def test_empty_repository():
         def fetch_events(self, callback, on_error):
             callback([])
 
-        def query_clusters(self, query_filter: ClusterQueryFilter, callback, on_error):
+        def fetch_clusters(self, query_filter, limit, offset, callback, on_error):
             callback([])
 
         def store_cluster(self, request):
@@ -274,7 +345,7 @@ def test_load_events_error_callback_path():
         def fetch_events(self, callback, on_error):
             on_error("boom")
 
-        def query_clusters(self, query_filter: ClusterQueryFilter, callback, on_error):
+        def fetch_clusters(self, query_filter, limit, offset, callback, on_error):
             on_error("boom")
 
         def store_cluster(self, request):

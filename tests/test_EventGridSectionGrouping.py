@@ -5,10 +5,14 @@ import pytest
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.frontend.widgets._EventGridSectionGrouping import (
+from le_beta_vis.frontend.widgets.event_grid._EventGridSectionGrouping import (
     SectionInfo,
+    evict_back_sections,
+    evict_front_sections,
     flat_index_to_section,
     group_clusters,
+    merge_or_append_sections,
+    merge_or_prepend_sections,
 )
 
 
@@ -166,3 +170,199 @@ class TestFlatIndexToSection:
     def test_empty_sections_raises(self) -> None:
         with pytest.raises(IndexError):
             flat_index_to_section([], 0)
+
+
+# ------------------------------------------------------------------ #
+# merge_or_append_sections / merge_or_prepend_sections                 #
+# ------------------------------------------------------------------ #
+
+
+class TestMergeOrAppendSections:
+    def test_merges_into_last_section_when_keys_match(self) -> None:
+        existing = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        new_clusters = [_make_cluster("2026-03-15T10:00:00", "a.fits")]
+        result = merge_or_append_sections(existing, new_clusters, new_chunk_offset=2)
+        assert result == [SectionInfo("2026-03-15", "a.fits", start_index=0, count=3)]
+
+    def test_does_not_mutate_existing_list(self) -> None:
+        existing = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        new_clusters = [_make_cluster("2026-03-15T10:00:00", "a.fits")]
+        merge_or_append_sections(existing, new_clusters, new_chunk_offset=2)
+        assert existing == [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+
+    def test_creates_new_section_when_key_differs(self) -> None:
+        existing = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        new_clusters = [_make_cluster("2026-03-16T10:00:00", "b.fits")]
+        result = merge_or_append_sections(existing, new_clusters, new_chunk_offset=2)
+        assert len(result) == 2
+        assert result[0] == SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)
+        assert result[1] == SectionInfo("2026-03-16", "b.fits", start_index=2, count=1)
+
+    def test_empty_existing_list(self) -> None:
+        new_clusters = [_make_cluster("2026-03-15T10:00:00", "a.fits")]
+        result = merge_or_append_sections([], new_clusters, new_chunk_offset=0)
+        assert result == [SectionInfo("2026-03-15", "a.fits", start_index=0, count=1)]
+
+    def test_empty_new_chunk_returns_existing_unchanged(self) -> None:
+        existing = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        result = merge_or_append_sections(existing, [], new_chunk_offset=2)
+        assert result == existing
+
+    def test_multi_section_new_chunk(self) -> None:
+        existing = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        new_clusters = [
+            _make_cluster("2026-03-15T10:00:00", "a.fits"),
+            _make_cluster("2026-03-16T10:00:00", "b.fits"),
+        ]
+        result = merge_or_append_sections(existing, new_clusters, new_chunk_offset=2)
+        assert len(result) == 2
+        assert result[0] == SectionInfo("2026-03-15", "a.fits", start_index=0, count=3)
+        assert result[1] == SectionInfo("2026-03-16", "b.fits", start_index=3, count=1)
+
+
+class TestMergeOrPrependSections:
+    def test_merges_into_first_section_when_keys_match(self) -> None:
+        existing = [SectionInfo("2026-03-16", "b.fits", start_index=1, count=2)]
+        new_clusters = [_make_cluster("2026-03-16T08:00:00", "b.fits")]
+        result = merge_or_prepend_sections(existing, new_clusters, new_chunk_offset=0)
+        assert result == [SectionInfo("2026-03-16", "b.fits", start_index=0, count=3)]
+
+    def test_does_not_mutate_existing_list(self) -> None:
+        existing = [SectionInfo("2026-03-16", "b.fits", start_index=1, count=2)]
+        new_clusters = [_make_cluster("2026-03-16T08:00:00", "b.fits")]
+        merge_or_prepend_sections(existing, new_clusters, new_chunk_offset=0)
+        assert existing == [SectionInfo("2026-03-16", "b.fits", start_index=1, count=2)]
+
+    def test_creates_new_section_when_key_differs(self) -> None:
+        existing = [SectionInfo("2026-03-16", "b.fits", start_index=1, count=2)]
+        new_clusters = [_make_cluster("2026-03-15T10:00:00", "a.fits")]
+        result = merge_or_prepend_sections(existing, new_clusters, new_chunk_offset=0)
+        assert len(result) == 2
+        assert result[0] == SectionInfo("2026-03-15", "a.fits", start_index=0, count=1)
+        assert result[1] == SectionInfo("2026-03-16", "b.fits", start_index=1, count=2)
+
+    def test_empty_existing_list(self) -> None:
+        new_clusters = [_make_cluster("2026-03-15T10:00:00", "a.fits")]
+        result = merge_or_prepend_sections([], new_clusters, new_chunk_offset=0)
+        assert result == [SectionInfo("2026-03-15", "a.fits", start_index=0, count=1)]
+
+    def test_empty_new_chunk_returns_existing_unchanged(self) -> None:
+        existing = [SectionInfo("2026-03-16", "b.fits", start_index=1, count=2)]
+        result = merge_or_prepend_sections(existing, [], new_chunk_offset=0)
+        assert result == existing
+
+    def test_multi_section_new_chunk(self) -> None:
+        existing = [SectionInfo("2026-03-17", "c.fits", start_index=2, count=1)]
+        new_clusters = [
+            _make_cluster("2026-03-15T10:00:00", "a.fits"),
+            _make_cluster("2026-03-17T08:00:00", "c.fits"),
+        ]
+        result = merge_or_prepend_sections(existing, new_clusters, new_chunk_offset=0)
+        assert len(result) == 2
+        assert result[0] == SectionInfo("2026-03-15", "a.fits", start_index=0, count=1)
+        assert result[1] == SectionInfo("2026-03-17", "c.fits", start_index=1, count=2)
+
+
+# ------------------------------------------------------------------ #
+# evict_front_sections / evict_back_sections                          #
+# ------------------------------------------------------------------ #
+
+
+class TestEvictFrontSections:
+    def test_removes_whole_section(self) -> None:
+        sections = [
+            SectionInfo("2026-03-15", "a.fits", start_index=0, count=2),
+            SectionInfo("2026-03-16", "b.fits", start_index=2, count=3),
+        ]
+        result = evict_front_sections(sections, global_count=2)
+        assert result.sections == [SectionInfo("2026-03-16", "b.fits", start_index=2, count=3)]
+        assert result.removed_section_count == 1
+        assert result.removed_row_count == 2
+        assert result.boundary_partially_trimmed is False
+
+    def test_partial_trim_of_straddling_section(self) -> None:
+        sections = [
+            SectionInfo("2026-03-15", "a.fits", start_index=0, count=2),
+            SectionInfo("2026-03-16", "b.fits", start_index=2, count=5),
+        ]
+        result = evict_front_sections(sections, global_count=4)
+        assert result.sections == [
+            SectionInfo("2026-03-16", "b.fits", start_index=4, count=3),
+        ]
+        assert result.removed_section_count == 1
+        assert result.removed_row_count == 4
+        assert result.boundary_partially_trimmed is True
+
+    def test_evict_everything(self) -> None:
+        sections = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        result = evict_front_sections(sections, global_count=2)
+        assert result.sections == []
+        assert result.removed_section_count == 1
+        assert result.removed_row_count == 2
+        assert result.boundary_partially_trimmed is False
+
+    def test_zero_count_is_noop(self) -> None:
+        sections = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        result = evict_front_sections(sections, global_count=0)
+        assert result.sections == sections
+        assert result.removed_section_count == 0
+        assert result.removed_row_count == 0
+
+    def test_does_not_mutate_input(self) -> None:
+        sections = [
+            SectionInfo("2026-03-15", "a.fits", start_index=0, count=2),
+            SectionInfo("2026-03-16", "b.fits", start_index=2, count=3),
+        ]
+        evict_front_sections(sections, global_count=4)
+        assert sections[1].start_index == 2
+        assert sections[1].count == 3
+
+
+class TestEvictBackSections:
+    def test_removes_whole_section(self) -> None:
+        sections = [
+            SectionInfo("2026-03-15", "a.fits", start_index=0, count=2),
+            SectionInfo("2026-03-16", "b.fits", start_index=2, count=3),
+        ]
+        result = evict_back_sections(sections, global_count=3)
+        assert result.sections == [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        assert result.removed_section_count == 1
+        assert result.removed_row_count == 3
+        assert result.boundary_partially_trimmed is False
+
+    def test_partial_trim_of_straddling_section(self) -> None:
+        sections = [
+            SectionInfo("2026-03-15", "a.fits", start_index=0, count=5),
+            SectionInfo("2026-03-16", "b.fits", start_index=5, count=2),
+        ]
+        result = evict_back_sections(sections, global_count=4)
+        assert result.sections == [
+            SectionInfo("2026-03-15", "a.fits", start_index=0, count=3),
+        ]
+        assert result.removed_section_count == 1
+        assert result.removed_row_count == 4
+        assert result.boundary_partially_trimmed is True
+
+    def test_evict_everything(self) -> None:
+        sections = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        result = evict_back_sections(sections, global_count=2)
+        assert result.sections == []
+        assert result.removed_section_count == 1
+        assert result.removed_row_count == 2
+        assert result.boundary_partially_trimmed is False
+
+    def test_zero_count_is_noop(self) -> None:
+        sections = [SectionInfo("2026-03-15", "a.fits", start_index=0, count=2)]
+        result = evict_back_sections(sections, global_count=0)
+        assert result.sections == sections
+        assert result.removed_section_count == 0
+        assert result.removed_row_count == 0
+
+    def test_does_not_mutate_input(self) -> None:
+        sections = [
+            SectionInfo("2026-03-15", "a.fits", start_index=0, count=5),
+            SectionInfo("2026-03-16", "b.fits", start_index=5, count=2),
+        ]
+        evict_back_sections(sections, global_count=4)
+        assert sections[0].start_index == 0
+        assert sections[0].count == 5

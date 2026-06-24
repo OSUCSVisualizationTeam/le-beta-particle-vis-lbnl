@@ -1,7 +1,7 @@
 from ..widgets.ExportOptionsDialog import ExportOptionsDialog
 from ..widgets.ProgressOverlay import ProgressOverlay
 from ..widgets.HistoricalFilterBar import HistoricalFilterBar
-from ..widgets.EventGridWidget import EventGridWidget
+from ..widgets.event_grid.EventGridWidget import EventGridWidget
 from ..views.HistoricalEventInspector import (
     HistoricalEventInspector,
 )
@@ -33,7 +33,7 @@ import numpy as np
 import collections
 import logging
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 from le_beta_vis.common.Cluster import Cluster
 
@@ -73,6 +73,9 @@ class HistoricalView(QWidget):
         self._pendingLoadError: Optional[str] = None
         self._thumbnailQueue: collections.deque = collections.deque()
         self._pendingClusterData: Optional[np.ndarray] = None
+        self._pendingAppendedEvents: Optional[List[Cluster]] = None
+        self._pendingPrependedEvents: Optional[List[Cluster]] = None
+        self._pendingEviction: Optional[tuple] = None
         self._progressToken: Optional[str] = None
         self._exportVM: Optional[HistoricalExportViewModel] = None
         self._initUI()
@@ -106,7 +109,6 @@ class HistoricalView(QWidget):
         self._buildExportViewModel()
         self._filterBar.saveClicked.connect(self._onSaveClicked)
         self._filterBar.cancelClicked.connect(self._onCancelClicked)
-        self._refreshSaveGating()
         return self._filterBar
 
     def _buildExportViewModel(self) -> None:
@@ -121,6 +123,7 @@ class HistoricalView(QWidget):
             png_renderer=png,
             physics=physics,
             thumbnail_service=self.viewModel.thumbnail_service,
+            config=self.viewModel._config,
             png_render_workers=n_workers,
         )
         self._exportVM = HistoricalExportViewModel(
@@ -137,11 +140,6 @@ class HistoricalView(QWidget):
         self._exportVM.add_error_callback(self._exportErrorReceived.emit)
         self._exportVM.add_progress_callback(self._exportProgressReceived.emit)
         self._exportVM.add_cancelled_callback(self._exportCancelledReceived.emit)
-        self._exportVM.add_gating_changed_callback(self._onExportGatingChanged)
-        self._filterBarVM.add_filter_applied_callback(
-            lambda _: self._refreshSaveGating()
-        )
-        self._filterBarVM.add_filter_reset_callback(self._refreshSaveGating)
 
     def _buildSplitter(self) -> QSplitter:
         """Creates the horizontal splitter with grid and inspector."""
@@ -209,10 +207,22 @@ class HistoricalView(QWidget):
         self._gridWidget.visibleRangeChanged.connect(
             self.viewModel.request_thumbnails_for_range,
         )
+        self._gridWidget.visibleRangeChanged.connect(
+            self.viewModel.request_next_page_if_needed,
+        )
+        self._gridWidget.visibleRangeChanged.connect(
+            self.viewModel.request_previous_page_if_needed,
+        )
         self._gridWidget.prefetchRequested.connect(
             self.viewModel.prefetch_thumbnails,
         )
+        self._gridWidget.pageJumpRequested.connect(
+            self._onPageJumpRequested,
+        )
         self.viewModel.add_thumbnail_ready_callback(self._enqueueThumbnail)
+        self.viewModel.add_events_appended_callback(self._onEventsAppended)
+        self.viewModel.add_events_prepended_callback(self._onEventsPrepended)
+        self.viewModel.add_events_evicted_callback(self._onEventsEvicted)
 
     def _configureInspector(self) -> None:
         """Applies view-level settings to the inspector.
@@ -240,18 +250,82 @@ class HistoricalView(QWidget):
 
     # --- Slots ---
 
+    def _onPageJumpRequested(self, anchor_global_index: int, direction: int) -> None:
+        """Handles a section header's skip button click."""
+        self.viewModel.jump_to_page(anchor_global_index, direction)
+
+    def _pushGlobalPagingState(self) -> None:
+        """Syncs the grid's edge-of-window skip-button state from the ViewModel."""
+        self._gridWidget.setGlobalPagingState(
+            self.viewModel.hasMoreBackward, self.viewModel.hasMoreForward,
+        )
+
     @Slot()
     def _updateEvents(self) -> None:
         events = self.viewModel.events
-        self._gridWidget.setEvents(events)
-        count = len(events)
+        self._gridWidget.setEvents(events, window_start=self.viewModel.windowStart)
+        self._pushGlobalPagingState()
+        self._updateCountLabel()
+
+    def _updateCountLabel(self) -> None:
+        count = len(self.viewModel.events)
         lbl = self._filterBar.countLabel
         if count == 0:
             lbl.setText(self.tr("No events"))
         elif count == 1:
-            lbl.setText(self.tr("1 event"))
+            lbl.setText(self.tr("1 loaded"))
         else:
-            lbl.setText(self.tr("{count} events").format(count=count))
+            # "Loaded" rather than a total match count: the grid holds a
+            # bounded sliding window of pages, not the full filtered
+            # result set, so this reflects what is currently resident.
+            lbl.setText(self.tr("{count} loaded").format(count=count))
+
+    def _onEventsAppended(self, new_events: List[Cluster]) -> None:
+        """Receives a newly-paged-in chunk — may arrive on a bg thread."""
+        self._pendingAppendedEvents = new_events
+        QMetaObject.invokeMethod(self, "_applyAppendedEvents", Qt.AutoConnection)
+
+    @Slot()
+    def _applyAppendedEvents(self) -> None:
+        events = self._pendingAppendedEvents
+        self._pendingAppendedEvents = None
+        if events:
+            self._gridWidget.appendEvents(events)
+            self._pushGlobalPagingState()
+            self._updateCountLabel()
+
+    def _onEventsPrepended(self, new_events: List[Cluster]) -> None:
+        """Receives a newly-paged-in earlier chunk — may arrive on a bg thread."""
+        self._pendingPrependedEvents = new_events
+        QMetaObject.invokeMethod(self, "_applyPrependedEvents", Qt.AutoConnection)
+
+    @Slot()
+    def _applyPrependedEvents(self) -> None:
+        events = self._pendingPrependedEvents
+        self._pendingPrependedEvents = None
+        if events:
+            self._gridWidget.prependEvents(events)
+            self._pushGlobalPagingState()
+            self._updateCountLabel()
+
+    def _onEventsEvicted(self, offset: int, count: int) -> None:
+        """Receives a window-eviction notice — may arrive on a bg thread."""
+        self._pendingEviction = (offset, count)
+        QMetaObject.invokeMethod(self, "_applyEviction", Qt.AutoConnection)
+
+    @Slot()
+    def _applyEviction(self) -> None:
+        eviction = self._pendingEviction
+        self._pendingEviction = None
+        if eviction is None:
+            return
+        offset, count = eviction
+        if offset == self._gridWidget.windowStart:
+            self._gridWidget.evictFront(offset, count)
+        else:
+            self._gridWidget.evictBack(offset, count)
+        self._pushGlobalPagingState()
+        self._updateCountLabel()
 
     @Slot()
     def _updateSelection(self) -> None:
@@ -284,6 +358,7 @@ class HistoricalView(QWidget):
     def _updateLoading(self) -> None:
         loading = self.viewModel.isLoading
         self._filterBar._applyBtn.setEnabled(not loading)
+        self._gridWidget.setLoading(loading)
         if loading:
             self._filterBar._applyBtn.setText(self.tr("Loading..."))
             self._loadingOverlay.showOverlay()
@@ -292,12 +367,6 @@ class HistoricalView(QWidget):
             self._loadingOverlay.hideOverlay()
 
     # --- Export slots (issue #56) ---
-
-    def _refreshSaveGating(self) -> None:
-        if self._exportVM is None:
-            return
-        ok, reason = self._exportVM.gating_reason()
-        self._filterBar.setSaveEnabled(ok, self.tr(reason) if reason else "")
 
     def _onSaveClicked(self) -> None:
         if self._exportVM is None:
@@ -396,9 +465,6 @@ class HistoricalView(QWidget):
         self._endProgress()
         self._pendingExportError = message
         self._showExportError()
-
-    def _onExportGatingChanged(self, enabled: bool, reason: str) -> None:
-        self._filterBar.setSaveEnabled(enabled, self.tr(reason) if reason else "")
 
     def _endProgress(self) -> None:
         if self._statusVM is not None and self._progressToken is not None:

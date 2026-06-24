@@ -2,8 +2,6 @@
 
 Pure Python — no Qt imports — so it runs in headless CI. Owns:
 
-  * Gating logic (time preset must not be 'all'; window must not
-    exceed ``gui:export:max_time_window_days``).
   * The export lifecycle (begin / progress / complete / cancel / error)
     surfaced as plain callbacks the View binds to.
   * Coordination with the filter-bar ViewModel's export lock so filter
@@ -62,19 +60,12 @@ class HistoricalExportViewModel:
         self._on_complete: List[Callable[[Path], None]] = []
         self._on_error: List[Callable[[str], None]] = []
         self._on_cancelled: List[Callable[[], None]] = []
-        self._on_gating_changed: List[Callable[[bool, str], None]] = []
 
     # --- Properties ---
 
     @property
     def is_exporting(self) -> bool:
         return self._is_exporting
-
-    @property
-    def max_window_days(self) -> int:
-        return self._config.get_int(
-            "gui:export:max_time_window_days", 30, minimum=1
-        )
 
     @property
     def colormap(self) -> Colormap:
@@ -97,41 +88,6 @@ class HistoricalExportViewModel:
         base_dir = str(self._config.get("gui:export:default_path", "~"))
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return str(Path(base_dir).expanduser() / f"mlccd-export-{timestamp}")
-
-    # --- Gating ---
-
-    def can_export(self) -> bool:
-        ok, _ = self.gating_reason()
-        return ok
-
-    def gating_reason(self) -> tuple[bool, str]:
-        """Returns ``(enabled, reason_if_disabled)``.
-
-        Reason string is user-facing (no tr() here — the View wraps it
-        with ``tr()`` when building the tooltip).
-        """
-        preset = self._filter_bar.time_preset
-        if preset == "all":
-            return False, (
-                "Export is disabled while the time preset is set to 'all'. "
-                "Pick a time window first."
-            )
-        start = self._filter_bar.start_datetime
-        end = self._filter_bar.end_datetime
-        if start is not None and end is not None:
-            window_days = (end - start).total_seconds() / 86400.0
-            if window_days > self.max_window_days:
-                return False, (
-                    f"Export is disabled because the selected window "
-                    f"({window_days:.1f} days) exceeds the configured "
-                    f"maximum ({self.max_window_days} days)."
-                )
-        return True, ""
-
-    def notify_gating_changed(self) -> None:
-        ok, reason = self.gating_reason()
-        for cb in self._on_gating_changed:
-            cb(ok, reason)
 
     # --- Commands ---
 
@@ -204,11 +160,6 @@ class HistoricalExportViewModel:
 
     def add_cancelled_callback(self, cb: Callable[[], None]) -> None:
         self._on_cancelled.append(cb)
-
-    def add_gating_changed_callback(
-        self, cb: Callable[[bool, str], None]
-    ) -> None:
-        self._on_gating_changed.append(cb)
 
     # --- Progress aggregation ---
 

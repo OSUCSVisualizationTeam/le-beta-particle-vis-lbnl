@@ -158,6 +158,13 @@ class HistoricalFilterBar(QFrame):
     saveClicked = Signal()
     cancelClicked = Signal()
 
+    # Mirrors the filter-bar VM's export-lock state across threads. The
+    # VM's export-running callback can fire from the export worker thread
+    # (issue #56) — registering this signal's .emit as the callback (rather
+    # than _onExportLockChanged directly) lets Qt queue the cross-thread
+    # case instead of mutating widgets off the main thread.
+    _exportRunningChanged = Signal(bool)
+
     def __init__(
         self,
         viewModel: HistoricalFilterBarViewModel,
@@ -242,8 +249,7 @@ class HistoricalFilterBar(QFrame):
         layout.addWidget(self._applyBtn)
 
         # Save button (issue #56). Toggles to Cancel while an export is
-        # running; disabled when the ExportViewModel reports the current
-        # filter fails the gating check (all preset / window > max).
+        # running.
         self._saveBtn = QPushButton(self.tr("Save"))
         self._saveBtn.setStyleSheet(_Style.SAVE_BTN)
         self._saveBtn.clicked.connect(self._onSaveClicked)
@@ -263,7 +269,8 @@ class HistoricalFilterBar(QFrame):
 
     def _bindViewModel(self) -> None:
         self._vm.add_filter_reset_callback(self._syncFromViewModel)
-        self._vm.add_export_running_callback(self._onExportLockChanged)
+        self._exportRunningChanged.connect(self._onExportLockChanged)
+        self._vm.add_export_running_callback(self._exportRunningChanged.emit)
 
     # --- Export lock (issue #56) ---
 
@@ -292,19 +299,6 @@ class HistoricalFilterBar(QFrame):
             self._applyBtn,
         ):
             widget.setEnabled(enabled)
-
-    def setSaveEnabled(self, enabled: bool, reason: str = "") -> None:
-        """Owner view uses this to reflect the export gating state.
-
-        ``reason`` populates the tooltip when disabled so scientists see
-        why (time preset is 'all', window too large, etc.).
-        """
-        # During an export the button is the Cancel action — keep it
-        # enabled regardless of gating.
-        if self._vm.is_export_running:
-            return
-        self._saveBtn.setEnabled(enabled)
-        self._saveBtn.setToolTip(reason if not enabled else "")
 
     def _syncFromViewModel(self) -> None:
         """Pulls current VM state into all widgets."""
