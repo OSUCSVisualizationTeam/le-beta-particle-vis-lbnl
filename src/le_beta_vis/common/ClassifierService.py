@@ -7,10 +7,12 @@ from le_beta_vis.common.ClassifierDataClasses import (
 )
 from le_beta_vis.common.ParticleType import ParticleType
 
+
 @dataclass
 class ClassificationScore:
     particle_type: ParticleType   # existing enum
     confidence: float             # 0.0–1.0
+
 
 @dataclass
 class ClassificationResult:
@@ -18,14 +20,29 @@ class ClassificationResult:
     model: str                            # "cnn" | "nrg" | "bdt"
     score: Optional[ClassificationScore]  # None if this cluster failed to classify
 
+
 @dataclass
 class ClassificationBatchResult:
     results: list[ClassificationResult]  # order guaranteed to match input clusters
     total: int
     failed: int
 
-ErrorCallback      = Callable[[Exception], None]
+
+ErrorCallback = Callable[[Exception], None]
 CompletionCallback = Callable[[ClassificationBatchResult], None]
+
+
+@dataclass(frozen=True)
+class ClusterScores:
+    """Per-cluster ML confidence scores, one value per model.
+
+    None for a model means that model failed for this cluster.
+    """
+
+    cnn: Optional[float]
+    nrg: Optional[float]
+    bdt: Optional[float]
+
 
 class ClassifierService(ABC):
     """

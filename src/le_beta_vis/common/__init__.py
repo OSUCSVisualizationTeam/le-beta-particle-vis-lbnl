@@ -69,5 +69,12 @@ from .ClassifierDataClasses import (
     ClassificationRequestCluster
 )
 from .ClassifierService import (
+    ClassificationBatchResult,
+    ClassificationResult,
+    ClassificationScore,
     ClassifierService,
+    ClusterScores,
+    CompletionCallback,
+    ErrorCallback,
 )
+from .MockClassifierService import MockClassifierService
