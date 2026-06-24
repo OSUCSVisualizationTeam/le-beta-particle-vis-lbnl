@@ -237,11 +237,15 @@ class HistoricalViewModel:
                     on_error=lambda error: self._on_repository_error(request_id, error),
                 )
             except NotImplementedError:
+                # TODO(#151): migrate to fetch_clusters() with paging once
+                # the Historical grid supports paged loading.
                 self._repository.fetch_events(
                     callback=lambda events: self._on_repository_loaded(request_id, events),
                     on_error=lambda error: self._on_repository_error(request_id, error),
                 )
         else:
+            # TODO(#151): migrate to fetch_clusters() with paging once
+            # the Historical grid supports paged loading.
             self._repository.fetch_events(
                 callback=lambda events: self._on_repository_loaded(request_id, events),
                 on_error=lambda error: self._on_repository_error(request_id, error),

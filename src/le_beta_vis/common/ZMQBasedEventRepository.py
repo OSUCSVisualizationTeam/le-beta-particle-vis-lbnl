@@ -8,6 +8,7 @@ is down — they return empty/default values and log warnings.
 import json
 import logging
 import math
+import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 import threading
@@ -21,6 +22,7 @@ from .ConfigurationService import ConfigurationService
 from .CCDCaptureModel import CCDCaptureModel
 from .EPSDataClasses import (
     ClassificationUpdateRequest,
+    ClusterPagedQueryFilter,
     ClusterQueryFilter,
     ClusterRecentQueryFilter,
     ClusterStoreRequest,
@@ -29,6 +31,7 @@ from .EPSDataClasses import (
     FitsClusterQueryFilter,
     FitsQueryFilter,
     FitsStoreRequest,
+    PagedRetrieveClustersResponse,
 )
 from .EventRepository import EventRepository, onCluster, onError, onFits, onUpdate
 
@@ -79,12 +82,85 @@ class ZMQBasedEventRepository(EventRepository):
             callback: onCluster,
             on_error: onError
     ) -> None:
-        """Returns all cluster events from the EPS asynchronously."""
+        """Returns all cluster events from the EPS asynchronously.
+
+        .. deprecated::
+            Sends an unbounded ``{"Action": "Retrieval"}`` request — the
+            EPS may return its entire `clusters` table in one reply. Use
+            :meth:`fetch_clusters` instead, which sends a bounded
+            ``PagedRetrieval`` request.
+        """
+        warnings.warn(
+            "fetch_events sends an unbounded request; use fetch_clusters instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._run_async(
             function=lambda: self.query_clusters_sync(query_filter=None),
             callback=callback,
             on_error=on_error
         )
+
+    def fetch_clusters(
+        self,
+        query_filter: Optional[ClusterQueryFilter],
+        limit: Optional[int],
+        offset: int,
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
+        """Initiates a bounded PagedRetrieval request asynchronously."""
+        self._run_async(
+            function=lambda: self.fetch_clusters_sync(query_filter, limit, offset),
+            callback=callback,
+            on_error=on_error,
+        )
+
+    def fetch_clusters_sync(
+        self,
+        query_filter: Optional[ClusterQueryFilter] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[Cluster]:
+        """Sends a bounded PagedRetrieval request to the EPS Cluster socket.
+
+        ``limit`` defaults to ``eps:retrieval_limit_default`` when not
+        supplied. Callers may override it (e.g. for a smaller page size),
+        but the EPS enforces ``eps:retrieval_limit_max`` regardless.
+        """
+        if limit is None:
+            limit = int(self._config.get("eps:retrieval_limit_default", 500))
+
+        paged_filter = ClusterPagedQueryFilter(
+            filters=query_filter or ClusterQueryFilter(),
+            limit=limit,
+            offset=offset,
+        )
+
+        response = self._send_cluster(paged_filter.to_eps_dict())
+        if response is None:
+            return []
+
+        paged = PagedRetrieveClustersResponse(
+            result=response.get("result", "failure"),
+            clusters=response.get("clusters"),
+            limit=response.get("limit", 0),
+            offset=response.get("offset", 0),
+            error=response.get("error"),
+        )
+        if not paged.is_success:
+            logger.warning(
+                "EPS paged cluster query returned failure: %s", paged.error
+            )
+            raise Exception(f"EPS paged cluster query failed: {paged.error}")
+
+        clusters: List[Cluster] = []
+        for raw in (paged.clusters or []):
+            record = EPSClusterRecord.from_eps_dict(raw)
+            cluster = self._map_to_cluster(record, record.filename, record.date)
+            if cluster is not None:
+                clusters.append(cluster)
+        return clusters
 
     def query_clusters(
         self,

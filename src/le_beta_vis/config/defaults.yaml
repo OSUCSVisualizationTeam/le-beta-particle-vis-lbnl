@@ -477,6 +477,22 @@ eps:timeout_ms:
     Timeout in milliseconds for ZMQ send/receive operations
     against the EPS.
 
+eps:retrieval_limit_default:
+  type: int
+  default: 500
+  description: >-
+    Default `limit` applied to PagedRetrieval cluster queries when the
+    client does not supply one. Should be injected by every paged
+    cluster-retrieval call site (overridable per call).
+
+eps:retrieval_limit_max:
+  type: int
+  default: 2000
+  description: >-
+    Server-side hard cap for PagedRetrieval cluster queries. Requests
+    with a `limit` <= 0 or > this value are rejected, closing the
+    unbounded-result crash path regardless of client input.
+
 # ---------------------------------------------------------------------------
 # Event Handler (pub/sub bus)
 # ---------------------------------------------------------------------------

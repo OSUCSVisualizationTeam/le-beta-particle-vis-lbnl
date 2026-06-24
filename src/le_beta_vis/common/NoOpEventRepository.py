@@ -34,6 +34,30 @@ class NoOpEventRepository(EventRepository):
         logger.warning("NoOpEventRepository: fetch_events called but EPS is unavailable")
         callback([])
 
+    def fetch_clusters(
+        self,
+        query_filter: Optional[ClusterQueryFilter],
+        limit: Optional[int],
+        offset: int,
+        callback: onCluster,
+        on_error: onError,
+    ) -> None:
+        """Invokes ``callback`` with an empty list — EPS is unavailable."""
+        logger.warning("NoOpEventRepository: fetch_clusters called but EPS is unavailable")
+        callback([])
+
+    def fetch_clusters_sync(
+        self,
+        query_filter: Optional[ClusterQueryFilter] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[Cluster]:
+        """Returns an empty list — EPS is unavailable."""
+        logger.warning(
+            "NoOpEventRepository: fetch_clusters_sync called but EPS is unavailable"
+        )
+        return []
+
     def query_clusters(
         self,
         query_filter: Optional[ClusterQueryFilter],

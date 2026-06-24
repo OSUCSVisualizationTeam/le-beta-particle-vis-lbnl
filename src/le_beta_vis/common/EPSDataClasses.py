@@ -5,7 +5,7 @@ sockets.  All classes are frozen dataclasses with conversion helpers
 (``to_eps_dict`` for requests, ``from_eps_dict`` for responses).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -103,19 +103,60 @@ class ClusterQueryFilter:
         """Parses one ClusterQueryFilter request."""
         date = d.get("date", None)
         return ClusterQueryFilter(
-            cluster_id = d.get("cluster_id", None),
-            fits_id = d.get("fits_id", None),
-            fits_list = d.get("fits_list", None),
-            hdu_id = d.get("hdu_id", None),
-            bounding_box = d.get("bounding_box", None),
-            date_start = datetime.strptime(date.get("start", None), _DATE_FILTER_FORMAT) if date else None,
-            date_end = datetime.strptime(date.get("end", None), _DATE_FILTER_FORMAT) if date else None,
-            min_sigma_x = d.get("sigmaX", None),
-            min_sigma_y = d.get("sigmaY", None),
-            min_total_energy = d.get("total_energy", None),
-            min_total_pixels = d.get("total_pixels", None),
-            classification = d.get("classification", None),
+            cluster_id=d.get("cluster_id", None),
+            fits_id=d.get("fits_id", None),
+            fits_list=d.get("fits_list", None),
+            hdu_id=d.get("hdu_id", None),
+            bounding_box=d.get("bounding_box", None),
+            date_start=datetime.strptime(date.get("start", None), _DATE_FILTER_FORMAT) if date else None,
+            date_end=datetime.strptime(date.get("end", None), _DATE_FILTER_FORMAT) if date else None,
+            min_sigma_x=d.get("sigmaX", None),
+            min_sigma_y=d.get("sigmaY", None),
+            min_total_energy=d.get("total_energy", None),
+            min_total_pixels=d.get("total_pixels", None),
+            classification=d.get("classification", None),
         )
+
+
+@dataclass(frozen=True)
+class ClusterPagedQueryFilter:
+    """Request for the EPS PagedRetrieval action.
+
+    Wraps a ``ClusterQueryFilter`` for filter criteria and adds
+    ``limit``/``offset`` pagination fields. ``limit`` of ``None`` means
+    the EPS should apply its configured server-side default.
+    """
+
+    filters: ClusterQueryFilter = field(default_factory=ClusterQueryFilter)
+    limit: Optional[int] = None
+    offset: int = 0
+
+    def __post_init__(self) -> None:
+        if self.limit is not None and (
+            not isinstance(self.limit, int) or self.limit <= 0
+        ):
+            raise ValueError("limit must be a positive int or None")
+        if not isinstance(self.offset, int) or self.offset < 0:
+            raise ValueError("offset must be a non-negative int")
+
+    def to_eps_dict(self) -> Dict[str, Any]:
+        """Builds the JSON dict for the PagedRetrieval action."""
+        d = self.filters.to_eps_dict()
+        d["Action"] = "PagedRetrieval"
+        if self.limit is not None:
+            d["limit"] = self.limit
+        d["offset"] = self.offset
+        return d
+
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "ClusterPagedQueryFilter":
+        """Parses one ClusterPagedQueryFilter request."""
+        return ClusterPagedQueryFilter(
+            filters=ClusterQueryFilter.from_eps_dict(d),
+            limit=d.get("limit"),
+            offset=d.get("offset", 0),
+        )
+
 
 @dataclass(frozen=True)
 class ClusterRecentQueryFilter:
@@ -150,6 +191,7 @@ class ClusterRecentQueryFilter:
             limit=(d.get("limit")),
             offset=(d.get("offset", 0))
         )
+
 
 @dataclass(frozen=True)
 class FitsQueryFilter:
@@ -191,14 +233,15 @@ class FitsQueryFilter:
         """Parses one FitsQueryFilter request"""
         date = d.get("date", None)
         return FitsQueryFilter(
-            fits_id = d.get("fits_id", None),
-            filename = d.get("filename", None),
-            date_start = datetime.strptime(date.get("start", None), _DATE_FILTER_FORMAT) if date else None,
-            date_end = datetime.strptime(date.get("end", None), _DATE_FILTER_FORMAT) if date else None,
-            minimum = d.get("minimum", None),
-            maximum = d.get("maximum", None),
-            exposure_time = d.get("exposure_time", None),
+            fits_id=d.get("fits_id", None),
+            filename=d.get("filename", None),
+            date_start=datetime.strptime(date.get("start", None), _DATE_FILTER_FORMAT) if date else None,
+            date_end=datetime.strptime(date.get("end", None), _DATE_FILTER_FORMAT) if date else None,
+            minimum=d.get("minimum", None),
+            maximum=d.get("maximum", None),
+            exposure_time=d.get("exposure_time", None),
         )
+
 
 @dataclass(frozen=True)
 class FitsClusterQueryFilter:
@@ -235,6 +278,7 @@ class FitsClusterQueryFilter:
             d["exposure_time"] = self.exposure_time
         return d
 
+
 @dataclass(frozen=True)
 class FitsStoreRequest:
     """Payload for an EPS Fits Storage request"""
@@ -265,7 +309,6 @@ class FitsStoreRequest:
             max=d.get("max", 0.0),
             exposure_time=d.get("exposure_time", 0.0),
         )
-
 
 
 @dataclass(frozen=True)
@@ -334,7 +377,7 @@ class ClassificationUpdateRequest:
         return ClassificationUpdateRequest(
             cluster_id=(d.get("cluster_id", 0)),
             classification=(d.get("classification", ""))
-         )
+        )
 
 # ---------------------------------------------------------------------------
 # Response DTOs
@@ -377,6 +420,74 @@ class EPSClusterRecord:
             filename=str(d.get("filename", "")),
             date=str(d.get("date", "")),
         )
+
+    @staticmethod
+    def from_db_row(row: Dict[str, Any]) -> "EPSClusterRecord":
+        """Parses one ``clusters``/``fits_files`` join row from a dictionary cursor.
+
+        Unlike :meth:`from_eps_dict`, the source keys are database column
+        names (``fitsFile``, ``clusterID``, ``box_top``, ``totalEnergy``,
+        ``pixelCount``, ...) rather than the EPS wire-format keys. Pixel
+        data is never hydrated from the database — ``data`` is always
+        ``None``.
+        """
+        return EPSClusterRecord(
+            fits_id=row["fitsFile"],
+            fits_list=None,
+            hdu_id=row["hdu_id"],
+            cluster_id=row["clusterID"],
+            bounding_box={
+                "top": row["box_top"],
+                "left": row["box_left"],
+                "bottom": row["box_bottom"],
+                "right": row["box_right"],
+            },
+            data=None,
+            total_energy=row["totalEnergy"],
+            sigma_x=row["sigmaX"],
+            sigma_y=row["sigmaY"],
+            classification=row["classification"],
+            total_pixels=row["pixelCount"],
+            filename=row["filename"],
+            date=str(row["date"]),
+        )
+
+    def to_response_dict(self) -> Dict[str, Any]:
+        """Builds the EPS wire-format dict for a single cluster response entry."""
+        return {
+            "fits_id": self.fits_id,
+            "cluster_id": self.cluster_id,
+            "hdu_id": self.hdu_id,
+            "bounding_box": self.bounding_box,
+            "data": self.data,
+            "total_energy": self.total_energy,
+            "sigmaX": self.sigma_x,
+            "sigmaY": self.sigma_y,
+            "classification": self.classification,
+            "total_pixels": self.total_pixels,
+            "filename": self.filename,
+            "date": self.date,
+        }
+
+
+@dataclass(frozen=True)
+class PagedRetrieveClustersResponse:
+    """Typed envelope for a PagedRetrieval EPS response.
+
+    ``clusters`` holds the pre-serialized cluster dicts produced by
+    ``_format_cluster_rows`` so that ``dataclasses.asdict()`` round-trips
+    to JSON without any custom serialization logic.
+    """
+
+    result: str
+    clusters: Optional[List[dict]]
+    limit: int
+    offset: int
+    error: Optional[str] = None
+
+    @property
+    def is_success(self) -> bool:
+        return self.result == "success"
 
 
 @dataclass(frozen=True)

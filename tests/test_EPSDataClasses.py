@@ -10,6 +10,7 @@ import pytest
 
 from le_beta_vis.common.EPSDataClasses import (
     ClassificationUpdateRequest,
+    ClusterPagedQueryFilter,
     ClusterQueryFilter,
     ClusterStoreRequest,
     EPSClusterRecord,
@@ -135,6 +136,70 @@ class TestClusterQueryFilter:
     #                 }
     #             }
     #         )
+
+
+# -------------------------------------------------------------------
+# ClusterPagedQueryFilter
+# -------------------------------------------------------------------
+
+class TestClusterPagedQueryFilter:
+
+    def test_default_to_eps_dict(self):
+        """No filters/limit produces just Action + offset."""
+        pf = ClusterPagedQueryFilter()
+        d = pf.to_eps_dict()
+        assert d["Action"] == "PagedRetrieval"
+        assert d["offset"] == 0
+        assert "limit" not in d
+
+    def test_limit_and_offset_included(self):
+        pf = ClusterPagedQueryFilter(limit=50, offset=100)
+        d = pf.to_eps_dict()
+        assert d["limit"] == 50
+        assert d["offset"] == 100
+
+    def test_filters_merged_into_dict(self):
+        pf = ClusterPagedQueryFilter(
+            filters=ClusterQueryFilter(fits_id=7, classification="tritium"),
+            limit=10,
+        )
+        d = pf.to_eps_dict()
+        assert d["Action"] == "PagedRetrieval"
+        assert d["fits_id"] == 7
+        assert d["classification"] == "tritium"
+        assert d["limit"] == 10
+
+    def test_negative_limit_raises(self):
+        with pytest.raises(ValueError):
+            ClusterPagedQueryFilter(limit=-1)
+
+    def test_zero_limit_raises(self):
+        with pytest.raises(ValueError):
+            ClusterPagedQueryFilter(limit=0)
+
+    def test_negative_offset_raises(self):
+        with pytest.raises(ValueError):
+            ClusterPagedQueryFilter(offset=-1)
+
+    def test_from_eps_dict_round_trip(self):
+        original = ClusterPagedQueryFilter(
+            filters=ClusterQueryFilter(fits_id=3), limit=25, offset=50,
+        )
+        parsed = ClusterPagedQueryFilter.from_eps_dict(original.to_eps_dict())
+        assert parsed == original
+
+    def test_from_eps_dict_defaults_offset_to_zero(self):
+        parsed = ClusterPagedQueryFilter.from_eps_dict({"Action": "PagedRetrieval"})
+        assert parsed.limit is None
+        assert parsed.offset == 0
+
+    def test_frozen(self):
+        pf = ClusterPagedQueryFilter(limit=10)
+        try:
+            pf.limit = 20
+            assert False, "Should have raised"
+        except AttributeError:
+            pass
 
 
 # -------------------------------------------------------------------
@@ -343,6 +408,72 @@ class TestEPSClusterRecord:
         assert rec.fits_id == 99
         assert rec.total_energy == 42.0
         assert rec.hdu_id == 0
+
+    def test_from_db_row_maps_column_names(self):
+        row = {
+            "fitsFile": 1,
+            "clusterID": 10,
+            "hdu_id": 0,
+            "box_top": 1,
+            "box_left": 2,
+            "box_bottom": 3,
+            "box_right": 4,
+            "data": b"raw bytes",
+            "totalEnergy": 500.0,
+            "sigmaX": 1.5,
+            "sigmaY": 2.0,
+            "classification": "tritium",
+            "pixelCount": 20,
+            "filename": "test.fits",
+            "date": "2026-01-01",
+        }
+        rec = EPSClusterRecord.from_db_row(row)
+        assert rec.fits_id == 1
+        assert rec.cluster_id == 10
+        assert rec.bounding_box == {"top": 1, "left": 2, "bottom": 3, "right": 4}
+        assert rec.data is None
+        assert rec.total_energy == 500.0
+        assert rec.sigma_x == 1.5
+        assert rec.sigma_y == 2.0
+        assert rec.classification == "tritium"
+        assert rec.total_pixels == 20
+        assert rec.filename == "test.fits"
+        assert rec.date == "2026-01-01"
+
+    def test_from_db_row_stringifies_date(self):
+        row = {
+            "fitsFile": 1, "clusterID": 10, "hdu_id": 0,
+            "box_top": 1, "box_left": 2, "box_bottom": 3, "box_right": 4,
+            "data": None, "totalEnergy": 0.0, "sigmaX": 0.0, "sigmaY": 0.0,
+            "classification": "", "pixelCount": 0, "filename": "f.fits",
+            "date": datetime(2026, 1, 1),
+        }
+        rec = EPSClusterRecord.from_db_row(row)
+        assert rec.date == "2026-01-01 00:00:00"
+
+    def test_to_response_dict_round_trip_from_db_row(self):
+        row = {
+            "fitsFile": 1, "clusterID": 10, "hdu_id": 2,
+            "box_top": 1, "box_left": 2, "box_bottom": 3, "box_right": 4,
+            "data": None, "totalEnergy": 500.0, "sigmaX": 1.5, "sigmaY": 2.0,
+            "classification": "tritium", "pixelCount": 20, "filename": "test.fits",
+            "date": "2026-01-01",
+        }
+        d = EPSClusterRecord.from_db_row(row).to_response_dict()
+        assert d == {
+            "fits_id": 1,
+            "cluster_id": 10,
+            "hdu_id": 2,
+            "bounding_box": {"top": 1, "left": 2, "bottom": 3, "right": 4},
+            "data": None,
+            "total_energy": 500.0,
+            "sigmaX": 1.5,
+            "sigmaY": 2.0,
+            "classification": "tritium",
+            "total_pixels": 20,
+            "filename": "test.fits",
+            "date": "2026-01-01",
+        }
 
 
 # -------------------------------------------------------------------
