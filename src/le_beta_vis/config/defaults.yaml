@@ -145,6 +145,13 @@ gui:raw_analysis:magnifier_factor_step:
     Increment/decrement step when adjusting magnification
     via scroll wheel or keyboard.
 
+gui:raw_analysis:magnifier_info_label_font_size:
+  type: float
+  default: 1.0
+  description: >-
+    Multiplier applied to the magnifier info label's font size
+    (Min/Max/Val/Zoom panel and hint text). Range: 0.5-2.0.
+
 gui:raw_analysis:magnifier_move_step:
   type: int
   default: 1

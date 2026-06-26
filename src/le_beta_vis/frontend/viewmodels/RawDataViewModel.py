@@ -508,6 +508,16 @@ class RawDataViewModel:
         return self._config.get("gui:raw_analysis:show_tool_hints", True)
 
     @property
+    def magnifierInfoLabelFontSize(self) -> float:
+        """Font-size multiplier for the magnifier info label (0.5-2.0)."""
+        return self._config.get_float(
+            "gui:raw_analysis:magnifier_info_label_font_size",
+            1.0,
+            minimum=0.5,
+            maximum=2.0,
+        )
+
+    @property
     def autoRangeOnLoad(self) -> bool:
         """Whether to auto-set the visualization range on load."""
         return self._config.get("gui:raw_analysis:auto_range_on_load", False)

@@ -49,6 +49,28 @@ def test_initial_colormap_from_config():
     assert vm.colormap == "plasma"
 
 
+def test_magnifier_info_label_font_size_default():
+    """Test the font-size multiplier defaults to 1.0 when unset."""
+    config = MockConfigurationService()
+    physics_manager = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics_manager)
+    assert vm.magnifierInfoLabelFontSize == 1.0
+
+
+def test_magnifier_info_label_font_size_clamps_to_range():
+    """Test the font-size multiplier is clamped to [0.5, 2.0]."""
+    config = MockConfigurationService()
+    physics_manager = PhysicsConversionManagerImpl(config)
+
+    config.set("gui:raw_analysis:magnifier_info_label_font_size", 3.0)
+    vm = RawDataViewModel(config, physics_manager)
+    assert vm.magnifierInfoLabelFontSize == 2.0
+
+    config.set("gui:raw_analysis:magnifier_info_label_font_size", 0.1)
+    vm = RawDataViewModel(config, physics_manager)
+    assert vm.magnifierInfoLabelFontSize == 0.5
+
+
 def test_initial_state(view_model):
     """Test the initial state of the ViewModel."""
     assert view_model.activeIndex == -1

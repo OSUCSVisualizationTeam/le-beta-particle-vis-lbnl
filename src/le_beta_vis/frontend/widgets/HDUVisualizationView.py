@@ -125,7 +125,8 @@ class HDUVisualizationView(QWidget):
         self.graphicsView.setGeometry(self._stackHost.rect())
 
         self._hudWidget = HDUVisualizationHUDWidget(
-            self.graphicsView, self._stackHost
+            self.graphicsView, self._stackHost,
+            fontScale=self._vm.magnifierInfoLabelFontSize,
         )
         self._hudWidget.setGeometry(self._stackHost.rect())
         self._hudWidget.raise_()
