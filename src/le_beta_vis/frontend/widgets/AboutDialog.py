@@ -20,12 +20,7 @@ from PySide6.QtWidgets import (
 
 from ..viewmodels.AboutViewModel import AboutViewModel
 from ..viewmodels.LicensesViewModel import LicensesViewModel
-from ..theme import (
-    COLOR_BACKGROUND_SURFACE,
-    COLOR_TEXT_PRIMARY,
-    COLOR_ACCENT_LINK,
-    LicensesTabColors,
-)
+from ..theme import COLOR_ACCENT_LINK
 
 _ICON_SIZE = 80
 
@@ -54,10 +49,6 @@ class AboutDialog(QDialog):
 
         self.setWindowTitle(self.tr("About {0}").format(self._vm.app_name))
         self.setFixedSize(480, 440)
-        self.setStyleSheet(
-            f"background-color: {COLOR_BACKGROUND_SURFACE};"
-            f" color: {COLOR_TEXT_PRIMARY};"
-        )
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowContextHelpButtonHint
         )
@@ -99,13 +90,6 @@ class AboutDialog(QDialog):
         # this browser ever renders is external — safe to hand off to
         # QDesktopServices rather than navigating within the dialog.
         browser.setOpenExternalLinks(True)
-        browser.setStyleSheet(
-            f"QTextBrowser {{"
-            f"  background-color: {LicensesTabColors.BACKGROUND};"
-            f"  color: {LicensesTabColors.TEXT};"
-            f"  border: 1px solid {LicensesTabColors.BORDER};"
-            f"}}"
-        )
         browser.setMarkdown(self._composeLicensesMarkdown())
         return browser
 
@@ -146,17 +130,11 @@ class AboutDialog(QDialog):
         titleStack.setSpacing(4)
 
         nameLabel = QLabel(self._vm.app_name)
-        nameLabel.setStyleSheet(
-            f"color: {COLOR_TEXT_PRIMARY};"
-            " font-size: 18px;"
-            " font-weight: bold;"
-        )
+        nameLabel.setObjectName("aboutNameLabel")
         titleStack.addWidget(nameLabel)
 
         versionLabel = QLabel(self._vm.formatted_version())
-        versionLabel.setStyleSheet(
-            f"color: {COLOR_TEXT_PRIMARY}; font-size: 13px;"
-        )
+        versionLabel.setObjectName("aboutVersionLabel")
         titleStack.addWidget(versionLabel)
         self._buildLicenseLink(titleStack)
         titleStack.addStretch()
@@ -168,7 +146,6 @@ class AboutDialog(QDialog):
     def _buildSeparator(self, layout: QVBoxLayout) -> None:
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #555555;")
         layout.addWidget(sep)
 
     def _buildDetails(self, layout: QVBoxLayout) -> None:
@@ -185,21 +162,13 @@ class AboutDialog(QDialog):
         ]
         for label_text, value_text in entries:
             label = QLabel(label_text)
-            label.setStyleSheet(
-                f"color: {COLOR_TEXT_PRIMARY};"
-                " font-weight: bold;"
-                " font-size: 12px;"
-            )
+            label.setProperty("class", "aboutFieldName")
             value = QLabel(value_text)
-            value.setStyleSheet(
-                f"color: {COLOR_TEXT_PRIMARY}; font-size: 12px;"
-            )
+            value.setProperty("class", "aboutFieldValue")
             form.addRow(label, value)
 
         copyright_label = QLabel(self._vm.copyright_line())
-        copyright_label.setStyleSheet(
-            f"color: {COLOR_TEXT_PRIMARY}; font-size: 11px;"
-        )
+        copyright_label.setObjectName("aboutCopyrightLabel")
         copyright_label.setAlignment(Qt.AlignCenter)
         form.addRow(copyright_label)
 
@@ -212,7 +181,7 @@ class AboutDialog(QDialog):
             f'{self.tr("View License")}</a>'
         )
         link.setOpenExternalLinks(True)
-        link.setStyleSheet("font-size: 11px;")
+        link.setObjectName("aboutLicenseLink")
         layout.addWidget(link)
 
     def _buildRepoLink(self, layout: QVBoxLayout) -> None:
@@ -222,22 +191,10 @@ class AboutDialog(QDialog):
         )
         link.setOpenExternalLinks(True)
         link.setAlignment(Qt.AlignCenter)
-        link.setStyleSheet("font-size: 11px;")
+        link.setObjectName("aboutRepoLink")
         layout.addWidget(link)
 
     def _buildButtonBox(self, layout: QVBoxLayout) -> None:
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
-        buttons.setStyleSheet(
-            "QPushButton {"
-            f"  background-color: #3d3d3d;"
-            f"  color: {COLOR_TEXT_PRIMARY};"
-            "  border: 1px solid #555555;"
-            "  border-radius: 4px;"
-            "  padding: 6px 16px;"
-            "}"
-            "QPushButton:hover {"
-            "  background-color: #505050;"
-            "}"
-        )
         layout.addWidget(buttons)

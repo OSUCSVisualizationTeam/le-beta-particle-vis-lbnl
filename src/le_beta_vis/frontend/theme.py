@@ -114,33 +114,10 @@ class ExportButtonColors:
     CANCEL_FOREGROUND = "#FFFFFF"
 
 
-class ExportOptionsDialogColors:
-    """Colors for ExportOptionsDialog (cluster card export options)."""
-
-    BACKGROUND = "#2d2d2d"
-    TEXT_NOTE = "#aaaaaa"
-    RADIO_FOREGROUND = "#eeeeee"
-    EXPORT_BUTTON_BACKGROUND = "#0078d7"
-    EXPORT_BUTTON_FOREGROUND = "#ffffff"
-    EXPORT_BUTTON_HOVER = "#005fa3"
-    CANCEL_BUTTON_BACKGROUND = "#3d3d3d"
-    CANCEL_BUTTON_FOREGROUND = "#cccccc"
-    CANCEL_BUTTON_BORDER = "#555555"
-    CANCEL_BUTTON_HOVER = "#505050"
-
-
 class ClusterLocationMapColors:
     """Colors for ClusterLocationMapWidget."""
 
     BORDER = "#3a3a3a"
-
-
-class LicensesTabColors:
-    """Colors for the About dialog's Licenses tab QTextBrowser."""
-
-    BACKGROUND = COLOR_BACKGROUND_SURFACE
-    TEXT = COLOR_TEXT_PRIMARY
-    BORDER = "#555555"
 
 
 class HUDAnnotationOverlayColors:

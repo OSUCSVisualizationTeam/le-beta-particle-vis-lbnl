@@ -32,3 +32,36 @@ SettingsDialog QLabel[class="settingSubgroupHeader"] {
 }
 SettingsDialog QLabel[class="settingFieldName"] { color: #cccccc; font-size: 12px; }
 SettingsDialog QLabel[class="settingFieldDesc"] { color: #888888; font-size: 10px; }
+
+/* ExportOptionsDialog */
+ExportOptionsDialog { background-color: #2d2d2d; color: #eeeeee; }
+ExportOptionsDialog QRadioButton { color: #eeeeee; }
+ExportOptionsDialog QLabel#exportOptionsNote {
+    color: #aaaaaa;
+    font-size: 11px;
+    margin-left: 20px;
+}
+
+/* AboutDialog */
+AboutDialog { background-color: #2d2d2d; color: #eeeeee; }
+AboutDialog QLabel#aboutNameLabel { color: #eeeeee; font-size: 18px; font-weight: bold; }
+AboutDialog QLabel#aboutVersionLabel { color: #eeeeee; font-size: 13px; }
+AboutDialog QLabel[class="aboutFieldName"] { color: #eeeeee; font-weight: bold; font-size: 12px; }
+AboutDialog QLabel[class="aboutFieldValue"] { color: #eeeeee; font-size: 12px; }
+AboutDialog QLabel#aboutCopyrightLabel { color: #eeeeee; font-size: 11px; }
+AboutDialog QLabel#aboutRepoLink { font-size: 11px; }
+AboutDialog QLabel#aboutLicenseLink { font-size: 11px; }
+AboutDialog QFrame { color: #555555; }
+AboutDialog QDialogButtonBox QPushButton {
+    background-color: #3d3d3d;
+    color: #eeeeee;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 16px;
+}
+AboutDialog QDialogButtonBox QPushButton:hover { background-color: #505050; }
+AboutDialog QTextBrowser {
+    background-color: #2d2d2d;
+    color: #eeeeee;
+    border: 1px solid #555555;
+}
