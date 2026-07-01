@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from le_beta_vis.common.HistogramDataModel import HistogramDataModel
 from le_beta_vis.common.ROIStatistics import ROIStatistics
+from le_beta_vis.frontend.theme import COLOR_BACKGROUND_DEEP, COLOR_TEXT_PRIMARY
 from le_beta_vis.frontend.widgets.InteractiveHistogramWidget import (
     InteractiveHistogramWidget,
 )
@@ -38,11 +39,11 @@ _HISTOGRAM_BINS = 50
 
 
 class _Style:
-    HEADER = "font-weight: bold; font-size: 13px; color: #333333;"
+    HEADER = "font-weight: bold; font-size: 13px; color: #eeeeee;"
     STAT_LABEL = (
-        "font-weight: bold; font-size: 11px; color: #555555; border: none;"
+        "font-weight: bold; font-size: 11px; color: #999999; border: none;"
     )
-    STAT_VALUE = "font-size: 11px; color: #222222; border: none;"
+    STAT_VALUE = "font-size: 11px; color: #eeeeee; border: none;"
 
 
 class _ROIInfoWidget(QWidget):
@@ -135,6 +136,7 @@ class _ROIInfoWidget(QWidget):
         parent_layout.addWidget(header)
 
         self._histogram = InteractiveHistogramWidget()
+        self._histogram.setTheme(COLOR_BACKGROUND_DEEP, COLOR_TEXT_PRIMARY)
         self._histogram.setPlaceholderText(
             self.tr("Draw an ROI to see energy distribution")
         )
