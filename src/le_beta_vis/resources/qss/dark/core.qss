@@ -1,0 +1,32 @@
+/* Right sidebar chrome, ported from _RawDataViewStyle._Style.RIGHT_SIDEBAR
+   and scoped under objectName selectors assigned in _RightSidebarView. */
+QFrame#rightSidebar {
+    background-color: #2d2d2d;
+    border-left: 1px solid #1e1e1e;
+}
+QFrame#rightSidebar QWidget { background-color: #2d2d2d; }
+QTabWidget#rightSidebarTabs::pane {
+    background-color: #2d2d2d;
+    border: 1px solid #1e1e1e;
+    border-top: none;
+}
+QFrame#rightSidebar QTabBar::tab {
+    background-color: #1e1e1e;
+    color: #eeeeee;
+    padding: 6px 12px;
+    border: 1px solid #1e1e1e;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+QFrame#rightSidebar QTabBar::tab:selected { background-color: #2d2d2d; }
+QFrame#rightSidebar QGroupBox { color: #eeeeee; background-color: #2d2d2d; }
+QFrame#rightSidebar QGroupBox::title { color: #eeeeee; }
+QFrame#rightSidebar QLabel { color: #eeeeee; background: transparent; border: none; }
+QFrame#rightSidebar QPushButton { color: #eeeeee; }
+QFrame#rightSidebar QListWidget {
+    color: #eeeeee;
+    background-color: #1e1e1e;
+    alternate-background-color: #2d2d2d;
+}
+QFrame#rightSidebar QListWidget::item:selected { background-color: #094771; }
