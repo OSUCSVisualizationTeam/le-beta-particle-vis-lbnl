@@ -45,6 +45,9 @@ packaging = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[project.urls]
+Repository = "https://github.com/OSUCSVisualizationTeam/le-beta-particle-vis-lbnl"
+
 [project.scripts]
 lbnlvis = "le_beta_vis.app:main"
 
@@ -61,8 +64,10 @@ le_beta_vis = [
     "backend/SAMPLE.env",
     "config/*.yaml",
     "resources/icons/*.png",
-    "common/fonts/*.ttf",
-    "common/fonts/LICENSE_DEJAVU",
+    "resources/icons/*.svg",
+    "resources/icons/LICENSE_MATERIAL_SYMBOLS",
+    "export/fonts/*.ttf",
+    "export/fonts/LICENSE_DEJAVU",
 ]
 
 [tool.pytest.ini_options]

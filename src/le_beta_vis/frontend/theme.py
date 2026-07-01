@@ -135,6 +135,14 @@ class ClusterLocationMapColors:
     BORDER = "#3a3a3a"
 
 
+class LicensesTabColors:
+    """Colors for the About dialog's Licenses tab QTextBrowser."""
+
+    BACKGROUND = COLOR_BACKGROUND_SURFACE
+    TEXT = COLOR_TEXT_PRIMARY
+    BORDER = "#555555"
+
+
 class HUDAnnotationOverlayColors:
     """Colors for AnnotationOverlay rectangles on HDUVisualizationHUDWidget."""
 

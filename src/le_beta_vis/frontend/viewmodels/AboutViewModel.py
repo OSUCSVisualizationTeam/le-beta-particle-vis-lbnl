@@ -1,6 +1,11 @@
 """ViewModel for the About dialog — pure Python, no Qt dependencies."""
 
-from le_beta_vis.common import APP_NAME, APP_VERSION
+from le_beta_vis.common import (
+    APP_NAME,
+    APP_REPOSITORY_BLOB_BASE_URL,
+    APP_REPOSITORY_URL,
+    APP_VERSION,
+)
 
 
 class AboutViewModel:
@@ -39,7 +44,17 @@ class AboutViewModel:
     @property
     def repository_url(self) -> str:
         """Return the source repository URL."""
-        return "https://github.com/OSUCSVisualizationTeam/le-beta-particle-vis-lbnl"
+        return APP_REPOSITORY_URL
+
+    @property
+    def repository_blob_base_url(self) -> str:
+        """Return the base URL for viewing repo files at the default branch."""
+        return APP_REPOSITORY_BLOB_BASE_URL
+
+    @property
+    def license_url(self) -> str:
+        """Return the URL of the LICENSE file in the source repository."""
+        return f"{self.repository_blob_base_url}LICENSE"
 
     def formatted_version(self) -> str:
         """Return a human-readable version label."""

@@ -1,7 +1,7 @@
 """Tests for AboutViewModel — pure Python, no QApplication required."""
 
 from le_beta_vis.frontend.viewmodels.AboutViewModel import AboutViewModel
-from le_beta_vis.common import APP_VERSION
+from le_beta_vis.common import APP_REPOSITORY_URL, APP_VERSION
 
 
 class TestAboutViewModel:
@@ -28,6 +28,15 @@ class TestAboutViewModel:
 
     def test_repository_url(self) -> None:
         assert "github.com" in self.vm.repository_url
+
+    def test_repository_url_matches_common(self) -> None:
+        assert self.vm.repository_url == APP_REPOSITORY_URL
+
+    def test_repository_blob_base_url(self) -> None:
+        assert self.vm.repository_blob_base_url == f"{APP_REPOSITORY_URL}/blob/main/"
+
+    def test_license_url_points_at_license_file(self) -> None:
+        assert self.vm.license_url == f"{APP_REPOSITORY_URL}/blob/main/LICENSE"
 
     def test_formatted_version_contains_version(self) -> None:
         result = self.vm.formatted_version()
