@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
-from le_beta_vis.common import APP_VERSION
+from le_beta_vis.common import APP_VERSION, ThemeManager
 from le_beta_vis.frontend.MainWindow import MainWindow
 from le_beta_vis.backend.ServicesManager import ServicesManager
 
@@ -33,6 +33,7 @@ def _resolve_resource_path(relative: str) -> Path:
 ICON_PATH = _resolve_resource_path(
     os.path.join("resources", "icons", "lbnl-logo.png")
 )
+QSS_DIR = _resolve_resource_path(os.path.join("resources", "qss"))
 
 XDG_DATA_HOME = Path(
     os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
@@ -121,6 +122,7 @@ def main() -> None:
     app.setApplicationName(_APPLICATION_DISPLAY_NAME)
     app.setApplicationDisplayName(_APPLICATION_DISPLAY_NAME)
     app.setApplicationVersion(APP_VERSION)
+    app.setStyleSheet(ThemeManager().load_stylesheet(QSS_DIR))
 
     # In the future, we would load a QTranslator here:
     # translator = QTranslator()
