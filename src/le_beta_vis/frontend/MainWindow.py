@@ -162,9 +162,7 @@ class MainWindow(QMainWindow):
                 self.tr("+{n} more").format(n=len(overflow)),
                 self._progressHost,
             )
-            more.setStyleSheet(
-                f"color: {theme.MainWindowStatusBarColors.PROGRESS_LABEL};"
-            )
+            more.setProperty("class", "mainWindowProgressLabel")
             more.setToolTip("\n".join(s.label for s in overflow))
             self._progressHostLayout.addWidget(more)
 
@@ -175,16 +173,12 @@ class MainWindow(QMainWindow):
         layout.setSpacing(4)
 
         label = QLabel(snap.label, row)
-        label.setStyleSheet(
-            f"color: {theme.MainWindowStatusBarColors.PROGRESS_LABEL};"
-        )
+        label.setProperty("class", "mainWindowProgressLabel")
         layout.addWidget(label)
 
         if snap.message:
             sub = QLabel(f"— {snap.message}", row)
-            sub.setStyleSheet(
-                f"color: {theme.MainWindowStatusBarColors.PROGRESS_LABEL};"
-            )
+            sub.setProperty("class", "mainWindowProgressLabel")
             layout.addWidget(sub)
 
         bar = QProgressBar(row)
@@ -195,13 +189,6 @@ class MainWindow(QMainWindow):
         else:
             bar.setRange(0, 1000)
             bar.setValue(int(max(0.0, min(1.0, snap.fraction)) * 1000))
-        bar.setStyleSheet(
-            "QProgressBar {{ background: {bg}; border: none; }}"
-            "QProgressBar::chunk {{ background: {chunk}; }}".format(
-                bg=theme.MainWindowStatusBarColors.PROGRESS_BACKGROUND,
-                chunk=theme.MainWindowStatusBarColors.PROGRESS_CHUNK,
-            )
-        )
         layout.addWidget(bar)
 
         if snap.cancelable:

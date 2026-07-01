@@ -1,0 +1,6 @@
+/* MainWindow status bar progress rows, light theme variant. See
+   dark/app_shell.qss for why the status message label stays an inline
+   setStyleSheet call rather than a QSS property selector. */
+MainWindow QLabel[class="mainWindowProgressLabel"] { color: #555555; }
+MainWindow QProgressBar { background: rgba(0, 0, 0, 20); border: none; }
+MainWindow QProgressBar::chunk { background: #3daee9; }

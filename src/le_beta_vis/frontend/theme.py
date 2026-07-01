@@ -94,9 +94,6 @@ class MainWindowStatusBarColors:
     TEXT_INFO = "#d0d0d0"
     TEXT_WARNING = "#f0b000"
     TEXT_ERROR = "#ff5a5a"
-    PROGRESS_LABEL = "#bbbbbb"
-    PROGRESS_CHUNK = "#3daee9"
-    PROGRESS_BACKGROUND = "rgba(0, 0, 0, 40)"
 
 
 class ExportButtonColors:
