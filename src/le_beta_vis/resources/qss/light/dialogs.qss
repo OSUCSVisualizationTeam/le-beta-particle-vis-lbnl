@@ -1,0 +1,34 @@
+/* SettingsDialog */
+SettingsDialog { background-color: #f0f0f0; color: #000000; }
+
+SettingsDialog QLineEdit#settingsFilterEdit { padding: 5px; font-size: 12px; }
+
+SettingsDialog QPushButton#settingsClearButton,
+SettingsDialog QPushButton#settingsBrowseButton { padding: 5px 10px; }
+
+SettingsDialog QGroupBox {
+    color: #000000;
+    font-weight: bold;
+    font-size: 13px;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    margin-top: 12px;
+    padding-top: 16px;
+}
+SettingsDialog QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+
+SettingsDialog QCheckBox { color: #000000; spacing: 6px; }
+SettingsDialog QCheckBox::indicator { width: 16px; height: 16px; }
+
+SettingsDialog QLabel[class="settingSubgroupHeader"] {
+    color: #0078d7;
+    font-weight: bold;
+    font-size: 12px;
+    padding-top: 6px;
+}
+SettingsDialog QLabel[class="settingFieldName"] { color: #333333; font-size: 12px; }
+SettingsDialog QLabel[class="settingFieldDesc"] { color: #777777; font-size: 10px; }
