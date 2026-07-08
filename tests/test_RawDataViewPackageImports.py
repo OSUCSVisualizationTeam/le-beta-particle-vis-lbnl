@@ -17,7 +17,6 @@ _PACKAGE_MODULES = [
     "le_beta_vis.frontend.views.raw_data_view._RightSidebarView",
     "le_beta_vis.frontend.views.raw_data_view._ROIInfoWidget",
     "le_beta_vis.frontend.views.raw_data_view._RawDataManipulationToolbar",
-    "le_beta_vis.frontend.views.raw_data_view._RawDataViewStyle",
 ]
 
 

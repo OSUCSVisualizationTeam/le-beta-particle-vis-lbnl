@@ -1,0 +1,100 @@
+/* MosaicView — see dark/raw_data_view.qss: thumbnail strip stays a fixed
+   dark image-viewing surface regardless of OS theme, so values here are
+   identical to the dark variant. */
+MosaicView QScrollArea {
+    background-color: #1e1e1e;
+    border: none;
+}
+MosaicView QWidget#mosaicContainer { background-color: #1e1e1e; }
+
+/* Horizontal scrollbar — see dark/raw_data_view.qss: shared with
+   HDUVisualizationView's CaptureGraphicsView. */
+MosaicView QScrollBar:horizontal,
+HDUVisualizationView CaptureGraphicsView QScrollBar:horizontal {
+    height: 12px;
+    background: transparent;
+    margin: 0px;
+}
+MosaicView QScrollBar::handle:horizontal,
+HDUVisualizationView CaptureGraphicsView QScrollBar::handle:horizontal {
+    background: rgba(100, 100, 100, 165);
+    min-width: 30px;
+    border-radius: 6px;
+    margin: 2px;
+}
+MosaicView QScrollBar::handle:horizontal:hover,
+HDUVisualizationView CaptureGraphicsView QScrollBar::handle:horizontal:hover {
+    background: rgba(150, 150, 150, 200);
+}
+MosaicView QScrollBar::add-line:horizontal,
+MosaicView QScrollBar::sub-line:horizontal,
+HDUVisualizationView CaptureGraphicsView QScrollBar::add-line:horizontal,
+HDUVisualizationView CaptureGraphicsView QScrollBar::sub-line:horizontal { width: 0px; }
+MosaicView QScrollBar::add-page:horizontal,
+MosaicView QScrollBar::sub-page:horizontal,
+HDUVisualizationView CaptureGraphicsView QScrollBar::add-page:horizontal,
+HDUVisualizationView CaptureGraphicsView QScrollBar::sub-page:horizontal { background: transparent; }
+
+/* ThumbnailButton */
+ThumbnailButton {
+    background-color: #333;
+    color: #ccc;
+    border: 1px solid #555;
+    border-radius: 4px;
+    font-size: 10px;
+}
+ThumbnailButton:checked {
+    background-color: #444;
+    border: 2px solid #0078d7;
+}
+ThumbnailButton:hover { border: 1px solid #888; }
+
+/* _LeftToolbarView, _CenterImageAreaView, _RawDataManipulationToolbar — see
+   dark/raw_data_view.qss: fixed-dark chrome regardless of OS theme (toolbar
+   icons/text are hardcoded white ink), so values here are identical to the
+   dark variant. */
+_LeftToolbarView { background-color: #2d2d2d; border-right: 1px solid #3d3d3d; }
+
+_CenterImageAreaView QWidget#rawDataStatusBar {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-size: 12px;
+    padding-left: 8px;
+}
+_CenterImageAreaView QLabel#rawDataToolHintLabel { padding-right: 8px; }
+
+_RawDataManipulationToolbar {
+    background-color: #2d2d2d;
+    border-bottom: 1px solid #3d3d3d;
+}
+_RawDataManipulationToolbar QToolButton { font-weight: bold; color: #ffffff; }
+_RawDataManipulationToolbar QToolButton[class="zoomButton"] { font-size: 20px; }
+_RawDataManipulationToolbar QFrame#toolbarDivider { background-color: #555555; }
+_RawDataManipulationToolbar QLabel#rawDataToolbarHduLabel {
+    color: #aaaaaa;
+    font-size: 11px;
+    padding-left: 8px;
+    font-weight: bold;
+}
+
+/* VerticalRangeControl, InteractiveHistogramWidget — see
+   dark/raw_data_view.qss: fixed-dark regardless of OS theme, so values
+   here are identical to the dark variant. */
+VerticalRangeControl QLabel[class="rangeAbsLabel"] {
+    color: #eeeeee;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+InteractiveHistogramWidget QLabel[class="placeholder"] {
+    color: #999999;
+    font-style: italic;
+    padding: 20px;
+}
+InteractiveHistogramWidget QLabel[class="histogramTooltip"] {
+    background-color: rgba(44, 62, 80, 220);
+    color: #ffffff;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+}

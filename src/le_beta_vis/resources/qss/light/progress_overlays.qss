@@ -1,0 +1,35 @@
+/* ProgressOverlay — see dark/progress_overlays.qss: theme-invariant by design
+   (always dims to black via paintEvent, translucent white card on top), so
+   values here are identical to the dark variant. */
+ProgressOverlay QWidget#progressOverlayCard {
+    background-color: rgba(255, 255, 255, 64);
+    border-radius: 12px;
+}
+ProgressOverlay QLabel#progressOverlayHeaderLabel {
+    background: transparent;
+    color: #000000;
+    font-size: 16px;
+}
+ProgressOverlay QProgressBar {
+    background: rgba(0, 0, 0, 40);
+    border-radius: 4px;
+    text-align: center;
+    color: #000000;
+}
+ProgressOverlay QProgressBar::chunk {
+    background: #3daee9;
+    border-radius: 4px;
+}
+ProgressOverlay QLabel#progressOverlayMessageLabel {
+    background: transparent;
+    color: #000000;
+    font-size: 12px;
+}
+
+/* ClusteringProgressOverlay */
+ClusteringProgressOverlay QPushButton {
+    background-color: rgba(0, 0, 0, 180);
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 4px 8px;
+}

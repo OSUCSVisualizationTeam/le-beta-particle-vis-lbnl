@@ -37,17 +37,6 @@ _TOOLTIP_OFFSET_X = 12
 _TOOLTIP_OFFSET_Y = -28
 
 
-class _Style:
-    PLACEHOLDER = "color: #999999; font-style: italic; padding: 20px;"
-    TOOLTIP = (
-        "background-color: rgba(44,62,80,220);"
-        "color: #ffffff;"
-        "padding: 4px 8px;"
-        "border-radius: 3px;"
-        "font-size: 11px;"
-    )
-
-
 _SUPERSCRIPTS = str.maketrans("0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
 
 
@@ -140,7 +129,7 @@ class InteractiveHistogramWidget(QWidget):
 
         # Page 0: placeholder label
         self._placeholder = QLabel(self.tr("Draw an ROI to see energy distribution"))
-        self._placeholder.setStyleSheet(_Style.PLACEHOLDER)
+        self._placeholder.setProperty("class", "placeholder")
         self._placeholder.setAlignment(Qt.AlignCenter)
         self._placeholder.setWordWrap(True)
         self._placeholder.setSizePolicy(
@@ -166,7 +155,7 @@ class InteractiveHistogramWidget(QWidget):
 
         # Hover tooltip overlay
         self._tooltip = QLabel(self._plot)
-        self._tooltip.setStyleSheet(_Style.TOOLTIP)
+        self._tooltip.setProperty("class", "histogramTooltip")
         self._tooltip.setVisible(False)
         self._tooltip.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 

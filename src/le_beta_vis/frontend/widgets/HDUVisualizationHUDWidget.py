@@ -56,7 +56,6 @@ class HDUVisualizationHUDWidget(QGraphicsView):
 
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setStyleSheet("background: transparent; border: 0px;")
         self.setFrameShape(QGraphicsView.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)

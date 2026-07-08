@@ -14,14 +14,10 @@ COLOR_ACCENT_LINK = "#4fc3f7"
 
 
 class ProgressOverlayColors:
-    """Colors for ProgressOverlay and its subclasses."""
+    """Colors for ProgressOverlay's dim-backdrop paintEvent (not
+    QSS-styleable; card/label/button chrome lives in progress_overlays.qss)."""
 
     DIM_RGBA = (0, 0, 0, 80)
-    CARD_BACKGROUND = "rgba(255, 255, 255, 64)"
-    CARD_TEXT = "#000000"
-    PROGRESS_BACKGROUND = "rgba(0, 0, 0, 40)"
-    PROGRESS_CHUNK = "#3daee9"
-    ACTION_BUTTON_BACKGROUND = "rgba(0, 0, 0, 180)"
 
 
 class EventGridSectionHeaderColors:
@@ -123,12 +119,6 @@ class HUDAnnotationOverlayColors:
     BORDER = "#FFFF00"
 
 
-class RawDataManipulationToolbarColors:
-    """Colors for RawDataManipulationToolbar."""
-
-    HDU_LABEL = "#aaaaaa"
-
-
 class MosaicThumbnailColors:
     """Colors for ThumbnailButton paintEvent overlay."""
 
@@ -137,33 +127,10 @@ class MosaicThumbnailColors:
     LABEL_BACKGROUND_RGBA = (0, 0, 0, 140)
 
 
-class RawClusterLabelingDialogColors:
-    """Colors for the raw-data cluster labeling / training export dialog."""
-
-    CALLOUT_BACKGROUND = "#1a3a1a"
-    CALLOUT_BORDER = "#2e7d32"
-    CALLOUT_TEXT = "#c8e6c9"
-    SUBMIT_BUTTON_BACKGROUND = "#0078d7"
-    SUBMIT_BUTTON_FOREGROUND = "#ffffff"
-    SUBMIT_BUTTON_HOVER = "#005fa3"
-    CANCEL_BUTTON_BACKGROUND = "#3d3d3d"
-    CANCEL_BUTTON_FOREGROUND = "#cccccc"
-    CANCEL_BUTTON_BORDER = "#555555"
-    RESULT_TEXT = "#c8e6c9"
-
-
 class RawClusterClassificationDialogColors:
-    """Colors for the ML classification dialog."""
+    """Colors for the ML classification dialog and other tritium-confidence
+    score labels (also consumed by ClusteredEventWidget)."""
 
-    CALLOUT_BACKGROUND = "#1a2a3a"
-    CALLOUT_BORDER = "#1565c0"
-    CALLOUT_TEXT = "#bbdefb"
-    CLASSIFY_BUTTON_BACKGROUND = "#0078d7"
-    CLASSIFY_BUTTON_FOREGROUND = "#ffffff"
-    CLASSIFY_BUTTON_HOVER = "#005fa3"
-    CANCEL_BUTTON_BACKGROUND = "#3d3d3d"
-    CANCEL_BUTTON_FOREGROUND = "#cccccc"
-    CANCEL_BUTTON_BORDER = "#555555"
     SCORE_LABEL_GOOD = "#81c784"
     SCORE_LABEL_MEDIUM = "#ffb74d"
     SCORE_LABEL_LOW = "#e57373"
@@ -174,13 +141,12 @@ class ClusteredEventWidgetColors:
 
 
 class TooltipStyle:
-    """Shared QToolTip stylesheet snippets.
+    """Shared QToolTip stylesheet snippet.
 
-    ``BODY`` is the property body — usable inside a ``QToolTip { ... }``
-    rule embedded in a widget stylesheet, or inside an HTML
-    ``<span style='...'>`` wrapper for ``QToolTip.showText`` calls.
-    ``QSS`` is the convenience full rule for embedding directly into
-    a widget stylesheet.
+    ``BODY`` is the property body, used inside an HTML
+    ``<span style='...'>`` wrapper for ``QToolTip.showText`` calls
+    (mirrored as a global ``QToolTip { ... }`` rule in base.qss for
+    widget-level tooltips).
 
     ``font-weight: normal`` defeats inheritance from any bold parent
     widget so tooltips render with a consistent weight regardless of
@@ -191,7 +157,6 @@ class TooltipStyle:
         "color: black; background-color: white; padding: 2px;"
         " border: 1px solid #ccc; font-weight: normal;"
     )
-    QSS = f"QToolTip {{ {BODY} }}"
 
 
 class FilterPipelinePanelColors:

@@ -1,0 +1,31 @@
+/* HDUVisualizationView — fixed-dark canvas regardless of OS theme (see
+   raw_data_view.qss note on the toolbar framing it); horizontal scrollbar
+   rule is shared with MosaicView in raw_data_view.qss, this file only
+   carries the vertical-only variant. */
+HDUVisualizationView CaptureGraphicsView {
+    background-color: #000;
+    border: none;
+}
+HDUVisualizationView CaptureGraphicsView QScrollBar:vertical {
+    width: 12px;
+    background: transparent;
+    margin: 0px;
+}
+HDUVisualizationView CaptureGraphicsView QScrollBar::handle:vertical {
+    background: rgba(100, 100, 100, 165);
+    min-height: 30px;
+    border-radius: 6px;
+    margin: 2px;
+}
+HDUVisualizationView CaptureGraphicsView QScrollBar::handle:vertical:hover {
+    background: rgba(150, 150, 150, 200);
+}
+HDUVisualizationView CaptureGraphicsView QScrollBar::add-line:vertical,
+HDUVisualizationView CaptureGraphicsView QScrollBar::sub-line:vertical { height: 0px; }
+HDUVisualizationView CaptureGraphicsView QScrollBar::add-page:vertical,
+HDUVisualizationView CaptureGraphicsView QScrollBar::sub-page:vertical { background: transparent; }
+
+/* HDUVisualizationHUDWidget — must stay fully transparent (click-through
+   overlay); WA_TranslucentBackground + setBackgroundBrush(Qt.NoBrush) stay
+   in Python since they're widget attributes, not stylesheet-driven. */
+HDUVisualizationHUDWidget { background: transparent; border: 0px; }

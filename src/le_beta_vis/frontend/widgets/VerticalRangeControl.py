@@ -19,57 +19,30 @@ from le_beta_vis.frontend.theme import TooltipStyle
 logger = logging.getLogger(__name__)
 
 
-# Private namespace for widget styles
-class _Style:
-    SLIDER = """
-        QRangeSlider {
-            background: transparent;
-        }
-        QRangeSlider::groove:vertical {
-            background: transparent;
-            width: 80px;
-        }
-        QRangeSlider::handle:vertical {
-            background: rgba(255, 255, 255, 150);
-            border: 1px solid #ffffff;
-            border-radius: 0px;
-            height: 4px;
-            width: 80px;
-        }
-        QRangeSlider::sub-page:vertical {
-            background: transparent;
-        }
-    """
-    SPINBOX = """
-        QDoubleSpinBox {
-            background-color: #3d3d3d;
-            color: #eeeeee;
-            border: 1px solid #555555;
-            border-radius: 3px;
-            padding: 2px;
-        }
-        QDoubleSpinBox:focus {
-            border: 1px solid #0078d7;
-        }
-    """
-    LABEL = "color: #eeeeee; font-size: 10px; font-weight: bold;"
-    AUTO_RANGE_BUTTON = f"""
-        QPushButton {{
-            background-color: #3d3d3d;
-            color: #eeeeee;
-            border: 1px solid #555555;
-            border-radius: 3px;
-            padding: 3px 6px;
-            font-size: 10px;
-        }}
-        QPushButton:hover {{
-            background-color: #4a4a4a;
-        }}
-        QPushButton:pressed {{
-            background-color: #2d2d2d;
-        }}
-        {TooltipStyle.QSS}
-    """
+# superqt.QRangeSlider pseudo-state styling — sanctioned exception to the
+# QSS-only rule: this groove/handle/sub-page geometry is tightly coupled to
+# this widget's 80px vertical slider-over-gradient layout and isn't reused
+# anywhere else, so it stays a direct setStyleSheet call rather than a QSS
+# rule.
+_SLIDER_STYLESHEET = """
+    QRangeSlider {
+        background: transparent;
+    }
+    QRangeSlider::groove:vertical {
+        background: transparent;
+        width: 80px;
+    }
+    QRangeSlider::handle:vertical {
+        background: rgba(255, 255, 255, 150);
+        border: 1px solid #ffffff;
+        border-radius: 0px;
+        height: 4px;
+        width: 80px;
+    }
+    QRangeSlider::sub-page:vertical {
+        background: transparent;
+    }
+"""
 
 
 class GradientBar(QLabel):
@@ -169,12 +142,12 @@ class VerticalRangeControl(QWidget):
         """Initializes the absolute range labels."""
         self.lblAbsMax = QLabel(f"{self.tr('Max:')} {self._formatLabel(self._abs_max)}")
         self.lblAbsMax.setAlignment(Qt.AlignCenter)
-        self.lblAbsMax.setStyleSheet(_Style.LABEL)
+        self.lblAbsMax.setProperty("class", "rangeAbsLabel")
         self.lblAbsMax.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         self.lblAbsMin = QLabel(f"{self.tr('Min:')} {self._formatLabel(self._abs_min)}")
         self.lblAbsMin.setAlignment(Qt.AlignCenter)
-        self.lblAbsMin.setStyleSheet(_Style.LABEL)
+        self.lblAbsMin.setProperty("class", "rangeAbsLabel")
         self.lblAbsMin.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
     def _setupSpinBoxes(self):
@@ -185,7 +158,6 @@ class VerticalRangeControl(QWidget):
         self.spinMax.setRange(self._abs_min, self._abs_max)
         self.spinMax.setDecimals(2)
         self.spinMax.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        self.spinMax.setStyleSheet(_Style.SPINBOX)
         self.spinMax.editingFinished.connect(self._onSpinBoxChanged)
 
         self.spinMin = QDoubleSpinBox()
@@ -194,7 +166,6 @@ class VerticalRangeControl(QWidget):
         self.spinMin.setRange(self._abs_min, self._abs_max)
         self.spinMin.setDecimals(2)
         self.spinMin.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        self.spinMin.setStyleSheet(_Style.SPINBOX)
         self.spinMin.editingFinished.connect(self._onSpinBoxChanged)
 
     def _setupSliderStack(self):
@@ -211,7 +182,7 @@ class VerticalRangeControl(QWidget):
 
         self.slider = QRangeSlider(Qt.Vertical)
         self.slider.setRange(0, self._steps)
-        self.slider.setStyleSheet(_Style.SLIDER)
+        self.slider.setStyleSheet(_SLIDER_STYLESHEET)
         self.slider.setMouseTracking(True)
         self.slider.installEventFilter(self)
         self.slider.valueChanged.connect(self._onSliderChanged)
@@ -225,7 +196,7 @@ class VerticalRangeControl(QWidget):
         self.btnAutoRange.setToolTip(
             self.tr("Reset range to cover the full data extent")
         )
-        self.btnAutoRange.setStyleSheet(_Style.AUTO_RANGE_BUTTON)
+        self.btnAutoRange.setProperty("styleRole", "secondary")
         self.btnAutoRange.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.btnAutoRange.clicked.connect(self.resetToFullRange)
 
