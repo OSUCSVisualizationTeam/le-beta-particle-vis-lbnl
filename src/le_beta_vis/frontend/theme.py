@@ -24,17 +24,6 @@ class ProgressOverlayColors:
     ACTION_BUTTON_BACKGROUND = "rgba(0, 0, 0, 180)"
 
 
-class EventGridSectionHeaderColors:
-    """Colors for EventGridSectionHeaderWidget."""
-
-    BACKGROUND = "#000000"
-    TEXT = "#bbbbbb"
-    TEXT_FILENAME = "#999999"
-    NAV_TEXT = "#888888"
-    NAV_TEXT_DISABLED = "#555555"
-    NAV_HOVER_BACKGROUND = "#4a4a4a"
-
-
 class LiveModeColors:
     """Colors for the Live Mode screensaver."""
 
@@ -167,10 +156,6 @@ class RawClusterClassificationDialogColors:
     SCORE_LABEL_GOOD = "#81c784"
     SCORE_LABEL_MEDIUM = "#ffb74d"
     SCORE_LABEL_LOW = "#e57373"
-
-
-class ClusteredEventWidgetColors:
-    BUTTON_DISABLED_TEXT = "#a0a0a0"
 
 
 class TooltipStyle:

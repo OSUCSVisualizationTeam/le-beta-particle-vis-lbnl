@@ -1,0 +1,26 @@
+/* HistoricalEventInspector — detail panel for a selected historical event.
+   Adaptive per OS theme, matching the rest of the app (EventGridWidget's
+   browser panel sits right next to this one and is dark in both themes).
+   The histogram's own plot canvas stays white regardless — it's set via
+   pyqtgraph's setBackground(), not QSS, so it's unaffected by this. */
+HistoricalEventInspector { background-color: #2d2d2d; color: #eeeeee; }
+
+HistoricalEventInspector QLabel[class="placeholder"] {
+    color: #999999;
+    font-style: italic;
+    padding: 20px;
+}
+
+HistoricalEventInspector QLabel[class="sectionHeader"] {
+    font-weight: bold;
+    font-size: 13px;
+    color: #eeeeee;
+    padding-top: 8px;
+}
+
+/* ClusterDetailWidget's rich-text QLabel doesn't reliably inherit an
+   ancestor's QSS `color:` for its HTML content, so it needs an explicit
+   rule here rather than relying on cascade. Scoped under
+   HistoricalEventInspector so Live Mode's own dark-panel usage of the
+   same shared widget (FeaturedClusterWidget) is untouched. */
+HistoricalEventInspector ClusterDetailWidget QLabel { color: #eeeeee; }

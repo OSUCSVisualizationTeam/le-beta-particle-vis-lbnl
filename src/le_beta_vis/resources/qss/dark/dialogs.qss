@@ -65,3 +65,8 @@ AboutDialog QTextBrowser {
     color: #eeeeee;
     border: 1px solid #555555;
 }
+
+/* HistoricalAdvancedFilterDialog — pre-migration hardcoded look, not yet
+   adapted for light/dark parity; dark/light copies stay identical here. */
+HistoricalAdvancedFilterDialog { background-color: #2d2d2d; color: #eeeeee; }
+HistoricalAdvancedFilterDialog QLabel { color: #cccccc; font-size: 12px; }

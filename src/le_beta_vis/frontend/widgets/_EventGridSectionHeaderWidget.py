@@ -18,36 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from le_beta_vis.frontend.theme import EventGridSectionHeaderColors as _C
-
 _NAV_BTN_SIZE = 28
-
-_DATE_STYLE = (
-    f"color: {_C.TEXT};"
-    " font-weight: bold; font-size: 12px;"
-    " padding: 4px 8px 0px 8px;"
-)
-
-_FILE_STYLE = (
-    f"color: {_C.TEXT_FILENAME};"
-    " font-size: 10px;"
-    " padding: 0px 8px 4px 8px;"
-)
-
-_NAV_BTN_STYLE = (
-    "QToolButton {{"
-    f"  color: {_C.NAV_TEXT};"
-    "  font-size: 12px;"
-    "  border: none;"
-    f"  background: {_C.BACKGROUND};"
-    "}}"
-    "QToolButton:hover {{"
-    f"  background: {_C.NAV_HOVER_BACKGROUND};"
-    "}}"
-    "QToolButton:disabled {{"
-    f"  color: {_C.NAV_TEXT_DISABLED};"
-    "}}"
-)
 
 
 class EventGridSectionHeaderWidget(QWidget):
@@ -75,9 +46,6 @@ class EventGridSectionHeaderWidget(QWidget):
 
     def _initUI(self) -> None:
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(
-            f"background-color: {_C.BACKGROUND};"
-        )
         self.setMinimumWidth(0)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
@@ -103,7 +71,6 @@ class EventGridSectionHeaderWidget(QWidget):
         btn.setText(symbol)
         btn.setAutoRaise(True)
         btn.setFixedSize(_NAV_BTN_SIZE, _NAV_BTN_SIZE)
-        btn.setStyleSheet(_NAV_BTN_STYLE)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         return btn
 
@@ -117,11 +84,11 @@ class EventGridSectionHeaderWidget(QWidget):
         layout.setSpacing(0)
 
         self._dateLabel = QLabel()
-        self._dateLabel.setStyleSheet(_DATE_STYLE)
+        self._dateLabel.setProperty("class", "dateLabel")
         self._dateLabel.setMinimumWidth(0)
 
         self._fileLabel = QLabel()
-        self._fileLabel.setStyleSheet(_FILE_STYLE)
+        self._fileLabel.setProperty("class", "fileLabel")
         self._fileLabel.setMinimumWidth(0)
         self._fileLabel.setSizePolicy(
             QSizePolicy.Ignored, QSizePolicy.Preferred,

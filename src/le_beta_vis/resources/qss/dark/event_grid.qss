@@ -1,0 +1,41 @@
+/* EventGridWidget — sectioned grid of thumbnails in Historical Event
+   Analysis. Colors below were previously theme.py's dark-only constants
+   with no light-theme counterpart; dark/light copies stay identical here
+   to preserve current behavior. */
+EventGridWidget { background-color: #2d2d2d; }
+EventGridWidget QScrollArea { background-color: #2d2d2d; }
+EventGridWidget QListView { background-color: #2d2d2d; }
+
+/* Hides the scroll area's vertical scrollbar (kinetic scrolling only).
+   Scoped to EventGridWidget — a bare QScrollBar:vertical rule here would
+   zero the width of every vertical scrollbar in the app. */
+EventGridWidget QScrollBar:vertical { width: 0px; max-width: 0px; }
+
+/* EventGridSectionHeaderWidget — per-section + sticky-overlay header,
+   instantiated many times, styled by class name (no per-instance objectName
+   needed). */
+EventGridSectionHeaderWidget { background-color: #000000; }
+EventGridSectionHeaderWidget QLabel[class="dateLabel"] {
+    color: #bbbbbb;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 4px 8px 0px 8px;
+}
+EventGridSectionHeaderWidget QLabel[class="fileLabel"] {
+    color: #999999;
+    font-size: 10px;
+    padding: 0px 8px 4px 8px;
+}
+EventGridSectionHeaderWidget QToolButton {
+    color: #888888;
+    font-size: 12px;
+    border: none;
+    background: #000000;
+}
+EventGridSectionHeaderWidget QToolButton:hover { background: #4a4a4a; }
+EventGridSectionHeaderWidget QToolButton:disabled { color: #555555; }
+
+/* ClusteredEventWidget — standalone list widget reused by both Historical
+   and Raw Data Analysis; grouped here with the grid/browse experience. */
+ClusteredEventWidget QPushButton:disabled { color: #a0a0a0; }
+ClusteredEventWidget QWidget[class="entry"] { background: transparent; border: 0; }
