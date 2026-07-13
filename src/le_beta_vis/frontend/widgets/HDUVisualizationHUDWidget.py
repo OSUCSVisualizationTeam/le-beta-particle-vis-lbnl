@@ -3,6 +3,7 @@ from typing import List, Optional
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QPainter, QShowEvent
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsView, QWidget
+from shiboken6 import isValid
 
 from le_beta_vis.common import AnnotationOverlay
 from .CaptureGraphicsView import CaptureGraphicsView
@@ -31,6 +32,7 @@ class HDUVisualizationHUDWidget(QGraphicsView):
         self,
         sourceView: CaptureGraphicsView,
         parent: Optional[QWidget] = None,
+        fontScale: float = 1.0,
     ) -> None:
         super().__init__(parent)
         self._sourceView = sourceView
@@ -42,7 +44,7 @@ class HDUVisualizationHUDWidget(QGraphicsView):
         self._hudScene.addItem(self._boxSelectionItem)
         self._boxSelectionSceneRect: Optional[QRectF] = None
 
-        self._magnifierBorderItem = _HUDMagnifierBorderItem()
+        self._magnifierBorderItem = _HUDMagnifierBorderItem(fontScale=fontScale)
         self._magnifierBorderItem.setVisible(False)
         self._hudScene.addItem(self._magnifierBorderItem)
         self._magnifierItem: Optional[MagnifierGraphicsItem] = None
@@ -129,6 +131,7 @@ class HDUVisualizationHUDWidget(QGraphicsView):
         if (
             not self._magnifierVisible
             or self._magnifierItem is None
+            or not isValid(self._magnifierItem)
             or not self._magnifierItem.hasSource
         ):
             self._magnifierBorderItem.setState(

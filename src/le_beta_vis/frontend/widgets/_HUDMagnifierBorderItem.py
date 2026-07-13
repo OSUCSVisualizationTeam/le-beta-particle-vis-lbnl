@@ -2,7 +2,7 @@ import math
 from typing import List, Optional, Tuple
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QStyleOptionGraphicsItem,
@@ -26,7 +26,11 @@ class _HUDMagnifierBorderItem(QGraphicsItem):
     _VALUE_FONT_POINT_SIZE = 8
     _HINT_FONT_POINT_SIZE = 7
 
-    def __init__(self, parent: Optional[QGraphicsItem] = None) -> None:
+    def __init__(
+        self,
+        parent: Optional[QGraphicsItem] = None,
+        fontScale: float = 1.0,
+    ) -> None:
         super().__init__(parent)
         self._widgetRect: Optional[QRectF] = None
         self._unit: str = ""
@@ -37,8 +41,18 @@ class _HUDMagnifierBorderItem(QGraphicsItem):
             math.nan,
         )
         self._hintLines: List[str] = []
+        self._fontScale = fontScale
         self.setZValue(100)
         self.setVisible(False)
+
+    def _valueFont(self) -> QFont:
+        return QFont("Arial", round(self._VALUE_FONT_POINT_SIZE * self._fontScale))
+
+    def _hintFont(self) -> QFont:
+        return QFont("Arial", round(self._HINT_FONT_POINT_SIZE * self._fontScale))
+
+    def _scaledLabelWidth(self) -> float:
+        return self._LABEL_WIDTH * self._fontScale
 
     def setState(
         self,
@@ -61,9 +75,10 @@ class _HUDMagnifierBorderItem(QGraphicsItem):
     def boundingRect(self) -> QRectF:
         if self._widgetRect is None:
             return QRectF()
+        lineHeight = QFontMetrics(self._valueFont()).height() + 2
         extraLines = 4 + (len(self._hintLines) + 1 if self._hintLines else 0)
-        labelWidth = self._LABEL_PADDING + self._LABEL_WIDTH + 8
-        labelHeight = extraLines * 16 + 8
+        labelWidth = self._LABEL_PADDING + self._scaledLabelWidth() + 8
+        labelHeight = extraLines * lineHeight + 8
         right = self._widgetRect.right() + labelWidth
         bottom = max(self._widgetRect.bottom(), self._widgetRect.top() + labelHeight)
         margin = self._BORDER_WIDTH + 1
@@ -93,7 +108,7 @@ class _HUDMagnifierBorderItem(QGraphicsItem):
 
     def _drawLabels(self, painter: QPainter) -> None:
         assert self._widgetRect is not None
-        painter.setFont(QFont("Arial", self._VALUE_FONT_POINT_SIZE))
+        painter.setFont(self._valueFont())
         metrics = painter.fontMetrics()
         lineHeight = metrics.height() + 2
 
@@ -104,7 +119,7 @@ class _HUDMagnifierBorderItem(QGraphicsItem):
         labelX = self._widgetRect.right() + self._LABEL_PADDING
         labelY = self._widgetRect.top()
         bgRect = QRectF(
-            labelX - 4, labelY, self._LABEL_WIDTH + 4, bgHeight
+            labelX - 4, labelY, self._scaledLabelWidth() + 4, bgHeight
         )
         painter.fillRect(bgRect, QColor(0, 0, 0, int(255 * 0.8)))
 
@@ -131,7 +146,7 @@ class _HUDMagnifierBorderItem(QGraphicsItem):
     def _drawHints(self, painter: QPainter) -> None:
         if not self._hintLines or self._widgetRect is None:
             return
-        painter.setFont(QFont("Arial", self._HINT_FONT_POINT_SIZE))
+        painter.setFont(self._hintFont())
         metrics = painter.fontMetrics()
         lineHeight = metrics.height() + 2
         labelX = self._widgetRect.right() + self._LABEL_PADDING

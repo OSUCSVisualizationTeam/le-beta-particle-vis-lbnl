@@ -39,3 +39,22 @@ def test_clear_hides():
     )
     item.setState(None, "", 1.0, (math.nan, math.nan, math.nan), [])
     assert not item.isVisible()
+
+
+def test_font_scale_grows_bounding_rect():
+    state_args = (
+        QRectF(5, 6, 127, 127),
+        "keV",
+        3.0,
+        (0.1, 0.9, 0.5),
+        ["tip"],
+    )
+    normal = _HUDMagnifierBorderItem(fontScale=1.0)
+    normal.setState(*state_args)
+    scaled = _HUDMagnifierBorderItem(fontScale=2.0)
+    scaled.setState(*state_args)
+
+    scaledRect = scaled.boundingRect()
+    normalRect = normal.boundingRect()
+    assert scaledRect.height() > normalRect.height()
+    assert scaledRect.width() > normalRect.width()
