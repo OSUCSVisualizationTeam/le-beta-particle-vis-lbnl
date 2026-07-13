@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
 from ...viewmodels.RawDataViewModel import RawDataViewModel
 from ..ClusterAnalysisView import ClusterAnalysisView
 from ._ROIInfoWidget import _ROIInfoWidget
-from ._RawDataViewStyle import _Style
 from .filter_pipeline_panel import FilterPipelinePanelView
 
 
@@ -28,14 +27,15 @@ class _RightSidebarView(QFrame):
         self._initUI()
 
     def _initUI(self) -> None:
+        self.setObjectName("rightSidebar")
         self.setFixedWidth(300)
         self.setStyle(QStyleFactory.create("Fusion"))
-        self.setStyleSheet(_Style.RIGHT_SIDEBAR)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
 
         self._tabs = QTabWidget()
+        self._tabs.setObjectName("rightSidebarTabs")
         self._tabs.addTab(self._buildVisualizationTab(), self.tr("Vis"))
         self._tabs.addTab(self._buildClusteringTab(), self.tr("Clustering"))
         self._roiInfoTabIndex = self._tabs.addTab(

@@ -1,0 +1,8 @@
+/* Mirrors le_beta_vis.frontend.theme.TooltipStyle.BODY */
+QToolTip {
+    color: black;
+    background-color: white;
+    padding: 2px;
+    border: 1px solid #ccc;
+    font-weight: normal;
+}

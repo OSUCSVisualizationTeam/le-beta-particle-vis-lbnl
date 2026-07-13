@@ -19,8 +19,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..theme import ExportOptionsDialogColors as _C
-
 
 class ExportOptionsDialog(QDialog):
     """Modal dialog for choosing whether to embed cluster card PNGs.
@@ -34,9 +32,6 @@ class ExportOptionsDialog(QDialog):
         self._include_pngs: bool = False
         self.setWindowTitle(self.tr("Export Options"))
         self.setMinimumWidth(420)
-        self.setStyleSheet(
-            f"background-color: {_C.BACKGROUND}; color: {_C.RADIO_FOREGROUND};"
-        )
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self._initUI()
 
@@ -54,12 +49,10 @@ class ExportOptionsDialog(QDialog):
 
         self._radioDataOnly = QRadioButton(self.tr("Export data only"))
         self._radioDataOnly.setChecked(True)
-        self._radioDataOnly.setStyleSheet(f"color: {_C.RADIO_FOREGROUND};")
         layout.addWidget(self._radioDataOnly)
         self._btnGroup.addButton(self._radioDataOnly)
 
         self._radioWithCards = QRadioButton(self.tr("Include cluster cards (PNG)"))
-        self._radioWithCards.setStyleSheet(f"color: {_C.RADIO_FOREGROUND};")
         layout.addWidget(self._radioWithCards)
         self._btnGroup.addButton(self._radioWithCards)
 
@@ -70,9 +63,7 @@ class ExportOptionsDialog(QDialog):
             )
         )
         note.setWordWrap(True)
-        note.setStyleSheet(
-            f"color: {_C.TEXT_NOTE}; font-size: 11px; margin-left: 20px;"
-        )
+        note.setObjectName("exportOptionsNote")
         layout.addWidget(note)
 
     def _buildButtonRow(self, layout: QVBoxLayout) -> None:
@@ -80,35 +71,12 @@ class ExportOptionsDialog(QDialog):
         row.addStretch()
 
         cancelBtn = QPushButton(self.tr("Cancel"))
-        cancelBtn.setStyleSheet(
-            "QPushButton {"
-            f"  background-color: {_C.CANCEL_BUTTON_BACKGROUND};"
-            f"  color: {_C.CANCEL_BUTTON_FOREGROUND};"
-            f"  border: 1px solid {_C.CANCEL_BUTTON_BORDER};"
-            "  border-radius: 4px;"
-            "  padding: 6px 16px;"
-            "}"
-            "QPushButton:hover {"
-            f"  background-color: {_C.CANCEL_BUTTON_HOVER};"
-            "}"
-        )
+        cancelBtn.setProperty("styleRole", "secondary")
         cancelBtn.clicked.connect(self.reject)
         row.addWidget(cancelBtn)
 
         exportBtn = QPushButton(self.tr("Export"))
-        exportBtn.setStyleSheet(
-            "QPushButton {"
-            f"  background-color: {_C.EXPORT_BUTTON_BACKGROUND};"
-            f"  color: {_C.EXPORT_BUTTON_FOREGROUND};"
-            "  border: none;"
-            "  border-radius: 4px;"
-            "  padding: 6px 16px;"
-            "  font-weight: bold;"
-            "}"
-            "QPushButton:hover {"
-            f"  background-color: {_C.EXPORT_BUTTON_HOVER};"
-            "}"
-        )
+        exportBtn.setProperty("styleRole", "primary")
         exportBtn.clicked.connect(self._onExportClicked)
         row.addWidget(exportBtn)
 

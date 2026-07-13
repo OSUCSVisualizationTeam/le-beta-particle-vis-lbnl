@@ -94,9 +94,6 @@ class MainWindowStatusBarColors:
     TEXT_INFO = "#d0d0d0"
     TEXT_WARNING = "#f0b000"
     TEXT_ERROR = "#ff5a5a"
-    PROGRESS_LABEL = "#bbbbbb"
-    PROGRESS_CHUNK = "#3daee9"
-    PROGRESS_BACKGROUND = "rgba(0, 0, 0, 40)"
 
 
 class ExportButtonColors:
@@ -114,33 +111,10 @@ class ExportButtonColors:
     CANCEL_FOREGROUND = "#FFFFFF"
 
 
-class ExportOptionsDialogColors:
-    """Colors for ExportOptionsDialog (cluster card export options)."""
-
-    BACKGROUND = "#2d2d2d"
-    TEXT_NOTE = "#aaaaaa"
-    RADIO_FOREGROUND = "#eeeeee"
-    EXPORT_BUTTON_BACKGROUND = "#0078d7"
-    EXPORT_BUTTON_FOREGROUND = "#ffffff"
-    EXPORT_BUTTON_HOVER = "#005fa3"
-    CANCEL_BUTTON_BACKGROUND = "#3d3d3d"
-    CANCEL_BUTTON_FOREGROUND = "#cccccc"
-    CANCEL_BUTTON_BORDER = "#555555"
-    CANCEL_BUTTON_HOVER = "#505050"
-
-
 class ClusterLocationMapColors:
     """Colors for ClusterLocationMapWidget."""
 
     BORDER = "#3a3a3a"
-
-
-class LicensesTabColors:
-    """Colors for the About dialog's Licenses tab QTextBrowser."""
-
-    BACKGROUND = COLOR_BACKGROUND_SURFACE
-    TEXT = COLOR_TEXT_PRIMARY
-    BORDER = "#555555"
 
 
 class HUDAnnotationOverlayColors:
@@ -223,15 +197,15 @@ class TooltipStyle:
 class FilterPipelinePanelColors:
     """Colors for the Interactive Filter Stack UI in the right sidebar."""
 
-    PANEL_BACKGROUND = "#F9F9F9"
-    PANEL_BORDER = "#CCCCCC"
-    SCROLL_AREA_BACKGROUND = "#D9D9D9"
+    PANEL_BACKGROUND = "#2d2d2d"
+    PANEL_BORDER = "#1e1e1e"
+    SCROLL_AREA_BACKGROUND = "#1e1e1e"
     CARD_HEADER_BACKGROUND = "#2F2F2F"
-    CARD_BODY_BACKGROUND = "#FFFFFF"
-    PARAMETER_PILL_BACKGROUND = "#D9D9D9"
-    PARAMETER_PILL_HOVER_BACKGROUND = "#C0C0C0"
-    PARAMETER_PILL_BORDER = "#B8B8B8"
-    PARAMETER_PILL_TEXT_ENABLED = "#1A1A1A"
+    CARD_BODY_BACKGROUND = "#252525"
+    PARAMETER_PILL_BACKGROUND = "#3d3d3d"
+    PARAMETER_PILL_HOVER_BACKGROUND = "#4a4a4a"
+    PARAMETER_PILL_BORDER = "#555555"
+    PARAMETER_PILL_TEXT_ENABLED = "#eeeeee"
     PARAMETER_PILL_TEXT_DISABLED = "#9A9A9A"
     FILTER_NAME_ENABLED = "#E8E8E8"
     FILTER_NAME_DISABLED = "#686868"
@@ -241,8 +215,8 @@ class FilterPipelinePanelColors:
     TOGGLE_ON = "#14AE5C"
     TOGGLE_OFF = "#BBBBBB"
     ADD_FILTER_BUTTON_BACKGROUND = "#99B1E9"
-    COUNTER_TEXT = "#757575"
-    TITLE_TEXT = "#000000"
+    COUNTER_TEXT = "#999999"
+    TITLE_TEXT = "#eeeeee"
 
     POPOVER_BACKGROUND = "#2A2A2A"
     POPOVER_BORDER = "#4A4A4A"

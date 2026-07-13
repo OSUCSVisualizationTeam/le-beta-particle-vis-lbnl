@@ -28,119 +28,6 @@ from PySide6.QtWidgets import (
 from ..viewmodels.SettingsViewModel import SettingsViewModel
 
 
-class _Style:
-    DIALOG = "background-color: #2d2d2d; color: #eeeeee;"
-    GROUP_BOX = (
-        "QGroupBox {"
-        "  color: #eeeeee;"
-        "  font-weight: bold;"
-        "  font-size: 13px;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 4px;"
-        "  margin-top: 12px;"
-        "  padding-top: 16px;"
-        "}"
-        "QGroupBox::title {"
-        "  subcontrol-origin: margin;"
-        "  left: 10px;"
-        "  padding: 0 4px;"
-        "}"
-    )
-    SUBGROUP_HEADER = (
-        "color: #0078d7;"
-        "font-weight: bold;"
-        "font-size: 12px;"
-        "padding-top: 6px;"
-    )
-    LABEL = "color: #cccccc; font-size: 12px;"
-    DESC_LABEL = "color: #888888; font-size: 10px;"
-    INPUT = (
-        "QLineEdit, QSpinBox, QDoubleSpinBox {"
-        "  background-color: #3d3d3d;"
-        "  color: #eeeeee;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 3px;"
-        "  padding: 3px;"
-        "}"
-        "QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {"
-        "  border: 1px solid #0078d7;"
-        "}"
-    )
-    CHECKBOX = (
-        "QCheckBox {"
-        "  color: #eeeeee;"
-        "  spacing: 6px;"
-        "}"
-        "QCheckBox::indicator {"
-        "  width: 16px;"
-        "  height: 16px;"
-        "}"
-    )
-    FILTER_INPUT = (
-        "QLineEdit {"
-        "  background-color: #3d3d3d;"
-        "  color: #eeeeee;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 3px;"
-        "  padding: 5px;"
-        "  font-size: 12px;"
-        "}"
-        "QLineEdit:focus {"
-        "  border: 1px solid #0078d7;"
-        "}"
-    )
-    APPLY_BTN = (
-        "QPushButton {"
-        "  background-color: #0078d7;"
-        "  color: white;"
-        "  border: none;"
-        "  border-radius: 4px;"
-        "  padding: 6px 16px;"
-        "  font-weight: bold;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #005fa3;"
-        "}"
-    )
-    CANCEL_BTN = (
-        "QPushButton {"
-        "  background-color: #3d3d3d;"
-        "  color: #cccccc;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 4px;"
-        "  padding: 6px 16px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #505050;"
-        "}"
-    )
-    RESTORE_BTN = (
-        "QPushButton {"
-        "  background-color: #8b0000;"
-        "  color: white;"
-        "  border: none;"
-        "  border-radius: 4px;"
-        "  padding: 6px 16px;"
-        "  font-weight: bold;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #a00000;"
-        "}"
-    )
-    CLEAR_BTN = (
-        "QPushButton {"
-        "  background-color: #3d3d3d;"
-        "  color: #cccccc;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 4px;"
-        "  padding: 5px 10px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #505050;"
-        "}"
-    )
-
-
 class SettingsDialog(QDialog):
     """Modal dialog for editing all application configuration keys.
 
@@ -161,7 +48,6 @@ class SettingsDialog(QDialog):
 
         self.setWindowTitle(self.tr("Settings"))
         self.setMinimumSize(700, 500)
-        self.setStyleSheet(_Style.DIALOG)
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowContextHelpButtonHint
         )
@@ -182,12 +68,13 @@ class SettingsDialog(QDialog):
         self._filterEdit = QLineEdit()
         self._filterEdit.setPlaceholderText(self.tr("Filter settings..."))
         self._filterEdit.setClearButtonEnabled(True)
-        self._filterEdit.setStyleSheet(_Style.FILTER_INPUT)
+        self._filterEdit.setObjectName("settingsFilterEdit")
         self._filterEdit.textChanged.connect(self._onFilterTextChanged)
         filterRow.addWidget(self._filterEdit)
 
         clearBtn = QPushButton(self.tr("Clear"))
-        clearBtn.setStyleSheet(_Style.CLEAR_BTN)
+        clearBtn.setObjectName("settingsClearButton")
+        clearBtn.setProperty("styleRole", "secondary")
         clearBtn.clicked.connect(self._onClearFilter)
         filterRow.addWidget(clearBtn)
         root.addLayout(filterRow)
@@ -201,19 +88,19 @@ class SettingsDialog(QDialog):
         # Button row
         btnRow = QHBoxLayout()
         restoreBtn = QPushButton(self.tr("Restore Defaults"))
-        restoreBtn.setStyleSheet(_Style.RESTORE_BTN)
+        restoreBtn.setProperty("styleRole", "destructive")
         restoreBtn.clicked.connect(self._onRestoreDefaults)
         btnRow.addWidget(restoreBtn)
 
         btnRow.addStretch()
 
         cancelBtn = QPushButton(self.tr("Cancel"))
-        cancelBtn.setStyleSheet(_Style.CANCEL_BTN)
+        cancelBtn.setProperty("styleRole", "secondary")
         cancelBtn.clicked.connect(self._onCancel)
         btnRow.addWidget(cancelBtn)
 
         applyBtn = QPushButton(self.tr("Apply"))
-        applyBtn.setStyleSheet(_Style.APPLY_BTN)
+        applyBtn.setProperty("styleRole", "primary")
         applyBtn.clicked.connect(self._onApply)
         btnRow.addWidget(applyBtn)
 
@@ -230,14 +117,13 @@ class SettingsDialog(QDialog):
         for group_name in sorted(grouped.keys()):
             subgroups = grouped[group_name]
             groupBox = QGroupBox(group_name)
-            groupBox.setStyleSheet(_Style.GROUP_BOX)
             groupLayout = QVBoxLayout(groupBox)
             groupLayout.setSpacing(4)
 
             for sg_name in sorted(subgroups.keys()):
                 entries = subgroups[sg_name]
                 header = QLabel(sg_name)
-                header.setStyleSheet(_Style.SUBGROUP_HEADER)
+                header.setProperty("class", "settingSubgroupHeader")
                 groupLayout.addWidget(header)
 
                 form = QFormLayout()
@@ -253,7 +139,7 @@ class SettingsDialog(QDialog):
                         key, type_str, value, choices
                     )
                     labelWidget = QLabel(label)
-                    labelWidget.setStyleSheet(_Style.LABEL)
+                    labelWidget.setProperty("class", "settingFieldName")
 
                     wrapper = QWidget()
                     container = QVBoxLayout(wrapper)
@@ -262,7 +148,7 @@ class SettingsDialog(QDialog):
                     container.addWidget(row)
                     if desc:
                         descLabel = QLabel(desc)
-                        descLabel.setStyleSheet(_Style.DESC_LABEL)
+                        descLabel.setProperty("class", "settingFieldDesc")
                         descLabel.setWordWrap(True)
                         container.addWidget(descLabel)
 
@@ -281,7 +167,6 @@ class SettingsDialog(QDialog):
         """Return a type-dispatched input widget for *key*."""
         if type_str == "bool":
             cb = QCheckBox()
-            cb.setStyleSheet(_Style.CHECKBOX)
             cb.setChecked(bool(value))
             cb.toggled.connect(
                 lambda checked, k=key: self._vm.set_pending(k, checked),
@@ -290,7 +175,6 @@ class SettingsDialog(QDialog):
 
         if type_str == "enum":
             combo = QComboBox()
-            combo.setStyleSheet(_Style.INPUT)
             if choices:
                 combo.addItems([str(c) for c in choices])
             if value is not None:
@@ -302,7 +186,6 @@ class SettingsDialog(QDialog):
 
         if type_str == "int":
             spin = QSpinBox()
-            spin.setStyleSheet(_Style.INPUT)
             spin.setRange(-999999, 999999)
             spin.setValue(int(value) if value is not None else 0)
             spin.valueChanged.connect(
@@ -312,7 +195,6 @@ class SettingsDialog(QDialog):
 
         if type_str == "float":
             spin = QDoubleSpinBox()
-            spin.setStyleSheet(_Style.INPUT)
             spin.setRange(-999999.0, 999999.0)
             spin.setDecimals(4)
             spin.setValue(float(value) if value is not None else 0.0)
@@ -326,19 +208,18 @@ class SettingsDialog(QDialog):
             layout = QHBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(4)
-            
+
             edit = QLineEdit()
-            edit.setStyleSheet(_Style.INPUT)
             edit.setText(str(value) if value is not None else "")
             edit.textChanged.connect(
                 lambda text, k=key: self._vm.set_pending(k, text),
             )
             layout.addWidget(edit, stretch=1)
-            
+
             browseBtn = QPushButton(self.tr("Browse..."))
-            # Re-use clear button style for a small neutral button
-            browseBtn.setStyleSheet(_Style.CLEAR_BTN)
-            
+            browseBtn.setObjectName("settingsBrowseButton")
+            browseBtn.setProperty("styleRole", "secondary")
+
             def browse(checked=False, edit_widget=edit, t=type_str):
                 current_path = edit_widget.text()
                 if t == "directory_path":
@@ -347,14 +228,13 @@ class SettingsDialog(QDialog):
                     path, _ = QFileDialog.getOpenFileName(self, self.tr("Select File"), current_path)
                 if path:
                     edit_widget.setText(path)
-                    
+
             browseBtn.clicked.connect(browse)
             layout.addWidget(browseBtn)
             return container
 
         # Default: str
         edit = QLineEdit()
-        edit.setStyleSheet(_Style.INPUT)
         edit.setText(str(value) if value is not None else "")
         if "password" in key.lower():
             edit.setEchoMode(QLineEdit.EchoMode.Password)

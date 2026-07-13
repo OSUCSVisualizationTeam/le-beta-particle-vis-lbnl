@@ -1,0 +1,52 @@
+/* Form inputs — identical values already used everywhere they appear */
+QComboBox, QSpinBox, QDoubleSpinBox, QDateTimeEdit, QLineEdit {
+    background-color: #3d3d3d;
+    color: #eeeeee;
+    border: 1px solid #555555;
+    border-radius: 3px;
+    padding: 3px;
+}
+QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
+QDateTimeEdit:focus, QLineEdit:focus { border: 1px solid #0078d7; }
+QComboBox::drop-down { border: none; }
+QComboBox QAbstractItemView {
+    background-color: #3d3d3d;
+    color: #eeeeee;
+    selection-background-color: #0078d7;
+}
+
+/* Button roles — opt-in only, no bare QPushButton default */
+QPushButton[styleRole="primary"] {
+    background-color: #0078d7;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-weight: bold;
+}
+QPushButton[styleRole="primary"]:hover { background-color: #005fa3; }
+QPushButton[styleRole="primary"]:disabled { background-color: #555555; color: #888888; }
+
+QPushButton[styleRole="secondary"] {
+    background-color: #3d3d3d;
+    color: #cccccc;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 16px;
+}
+QPushButton[styleRole="secondary"]:hover { background-color: #505050; }
+
+QPushButton[styleRole="destructive"] {
+    background-color: #8b0000;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-weight: bold;
+}
+QPushButton[styleRole="destructive"]:hover { background-color: #a00000; }
+
+/* Score badges — tritium-confidence labels shared across dialogs/widgets */
+QLabel[scoreLevel="good"]   { color: #81c784; }
+QLabel[scoreLevel="medium"] { color: #ffb74d; }
+QLabel[scoreLevel="low"]    { color: #e57373; }

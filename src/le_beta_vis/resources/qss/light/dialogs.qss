@@ -1,0 +1,67 @@
+/* SettingsDialog */
+SettingsDialog { background-color: #f0f0f0; color: #000000; }
+
+SettingsDialog QLineEdit#settingsFilterEdit { padding: 5px; font-size: 12px; }
+
+SettingsDialog QPushButton#settingsClearButton,
+SettingsDialog QPushButton#settingsBrowseButton { padding: 5px 10px; }
+
+SettingsDialog QGroupBox {
+    color: #000000;
+    font-weight: bold;
+    font-size: 13px;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    margin-top: 12px;
+    padding-top: 16px;
+}
+SettingsDialog QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+
+SettingsDialog QCheckBox { color: #000000; spacing: 6px; }
+SettingsDialog QCheckBox::indicator { width: 16px; height: 16px; }
+
+SettingsDialog QLabel[class="settingSubgroupHeader"] {
+    color: #0078d7;
+    font-weight: bold;
+    font-size: 12px;
+    padding-top: 6px;
+}
+SettingsDialog QLabel[class="settingFieldName"] { color: #333333; font-size: 12px; }
+SettingsDialog QLabel[class="settingFieldDesc"] { color: #777777; font-size: 10px; }
+
+/* ExportOptionsDialog */
+ExportOptionsDialog { background-color: #f0f0f0; color: #000000; }
+ExportOptionsDialog QRadioButton { color: #000000; }
+ExportOptionsDialog QLabel#exportOptionsNote {
+    color: #666666;
+    font-size: 11px;
+    margin-left: 20px;
+}
+
+/* AboutDialog */
+AboutDialog { background-color: #f0f0f0; color: #000000; }
+AboutDialog QLabel#aboutNameLabel { color: #000000; font-size: 18px; font-weight: bold; }
+AboutDialog QLabel#aboutVersionLabel { color: #000000; font-size: 13px; }
+AboutDialog QLabel[class="aboutFieldName"] { color: #000000; font-weight: bold; font-size: 12px; }
+AboutDialog QLabel[class="aboutFieldValue"] { color: #000000; font-size: 12px; }
+AboutDialog QLabel#aboutCopyrightLabel { color: #000000; font-size: 11px; }
+AboutDialog QLabel#aboutRepoLink { font-size: 11px; }
+AboutDialog QLabel#aboutLicenseLink { font-size: 11px; }
+AboutDialog QFrame { color: #cccccc; }
+AboutDialog QDialogButtonBox QPushButton {
+    background-color: #e0e0e0;
+    color: #000000;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 6px 16px;
+}
+AboutDialog QDialogButtonBox QPushButton:hover { background-color: #d0d0d0; }
+AboutDialog QTextBrowser {
+    background-color: #f0f0f0;
+    color: #000000;
+    border: 1px solid #cccccc;
+}

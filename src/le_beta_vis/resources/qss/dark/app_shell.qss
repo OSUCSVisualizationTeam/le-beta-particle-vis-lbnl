@@ -1,0 +1,9 @@
+/* MainWindow status bar progress rows. The status message label's color
+   is data-driven (info/warning/error severity, changed at runtime) and
+   stays as an inline setStyleSheet call in MainWindow.py rather than a
+   QSS property selector, since it mutates after construction and a
+   property-based rule would need an explicit unpolish/polish repaint
+   that buys nothing over a direct setStyleSheet call for a single widget. */
+MainWindow QLabel[class="mainWindowProgressLabel"] { color: #bbbbbb; }
+MainWindow QProgressBar { background: rgba(0, 0, 0, 40); border: none; }
+MainWindow QProgressBar::chunk { background: #3daee9; }

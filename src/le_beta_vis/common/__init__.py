@@ -85,3 +85,4 @@ from .ClassifierService import (
     ErrorCallback,
 )
 from .MockClassifierService import MockClassifierService
+from .ThemeManager import ColorScheme, ThemeManager, detect_system_color_scheme
