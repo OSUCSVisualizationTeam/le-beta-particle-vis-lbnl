@@ -41,7 +41,13 @@ from .LBNLOptimizedClusterExtractor import LBNLOptimizedClusterExtractor
 from .GeneralClusterExtractor import GeneralClusterExtractor
 from .ClusterExtractorFactory import ClusterExtractorMethod, create_cluster_extractor
 from .cluster_sigma import compute_cluster_sigmas
-from .AppInfo import APP_VERSION, APP_NAME
+from .AppInfo import (
+    APP_VERSION,
+    APP_NAME,
+    APP_REPOSITORY_URL,
+    APP_REPOSITORY_BLOB_BASE_URL,
+)
+from .LicenseDocuments import get_license_text, get_third_party_notices_text
 from .ThumbnailLoaderService import ThumbnailLoaderService
 from .PrefetchingThumbnailLoaderService import PrefetchingThumbnailLoaderService
 from .EventEnvelope import EventEnvelope, SCHEMA_VERSION

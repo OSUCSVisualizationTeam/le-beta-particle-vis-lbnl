@@ -12,15 +12,19 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QTabWidget,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
 from ..viewmodels.AboutViewModel import AboutViewModel
+from ..viewmodels.LicensesViewModel import LicensesViewModel
 from ..theme import (
     COLOR_BACKGROUND_SURFACE,
     COLOR_TEXT_PRIMARY,
     COLOR_ACCENT_LINK,
+    LicensesTabColors,
 )
 
 _ICON_SIZE = 80
@@ -41,13 +45,15 @@ class AboutDialog(QDialog):
     def __init__(
         self,
         viewModel: AboutViewModel,
+        licensesViewModel: LicensesViewModel = None,
         parent: QWidget = None,
     ) -> None:
         super().__init__(parent)
         self._vm = viewModel
+        self._licenses_vm = licensesViewModel or LicensesViewModel()
 
         self.setWindowTitle(self.tr("About {0}").format(self._vm.app_name))
-        self.setFixedSize(420, 340)
+        self.setFixedSize(480, 440)
         self.setStyleSheet(
             f"background-color: {COLOR_BACKGROUND_SURFACE};"
             f" color: {COLOR_TEXT_PRIMARY};"
@@ -62,11 +68,61 @@ class AboutDialog(QDialog):
         root = QVBoxLayout(self)
         root.setSpacing(12)
 
-        self._buildHeader(root)
-        self._buildSeparator(root)
-        self._buildDetails(root)
-        self._buildRepoLink(root)
+        tabs = QTabWidget()
+        tabs.addTab(self._buildAboutTab(), self.tr("About"))
+        tabs.addTab(self._buildLicensesTab(), self.tr("Licenses"))
+        root.addWidget(tabs)
+
         self._buildButtonBox(root)
+
+    def _buildAboutTab(self) -> QWidget:
+        """About tab — existing application metadata content, unchanged."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setSpacing(12)
+
+        self._buildHeader(layout)
+        self._buildSeparator(layout)
+        self._buildDetails(layout)
+        self._buildRepoLink(layout)
+        layout.addStretch()
+
+        return page
+
+    def _buildLicensesTab(self) -> QWidget:
+        """Licenses tab — MIT license and third-party notices, scrollable."""
+        browser = QTextBrowser()
+        browser.setReadOnly(True)
+        # LicensesViewModel.third_party_notices_text already rewrites
+        # THIRD_PARTY_NOTICES.md's repo-relative links to absolute GitHub
+        # URLs (see LicenseDocuments._rewrite_relative_links), so every link
+        # this browser ever renders is external — safe to hand off to
+        # QDesktopServices rather than navigating within the dialog.
+        browser.setOpenExternalLinks(True)
+        browser.setStyleSheet(
+            f"QTextBrowser {{"
+            f"  background-color: {LicensesTabColors.BACKGROUND};"
+            f"  color: {LicensesTabColors.TEXT};"
+            f"  border: 1px solid {LicensesTabColors.BORDER};"
+            f"}}"
+        )
+        browser.setMarkdown(self._composeLicensesMarkdown())
+        return browser
+
+    def _composeLicensesMarkdown(self) -> str:
+        """Combine LICENSE and THIRD_PARTY_NOTICES.md into one markdown doc.
+
+        LICENSE's paragraphs are already blank-line separated, so it reads
+        correctly as plain markdown text and word-wraps in QTextBrowser; a
+        fenced code block was tried first but disabled wrapping and forced
+        an unwanted horizontal scrollbar.
+        """
+        return (
+            "## MIT License\n\n"
+            f"{self._licenses_vm.license_text}\n\n"
+            "---\n\n"
+            f"{self._licenses_vm.third_party_notices_text}"
+        )
 
     def _buildHeader(self, layout: QVBoxLayout) -> None:
         """Icon + title/version row."""
@@ -102,6 +158,7 @@ class AboutDialog(QDialog):
             f"color: {COLOR_TEXT_PRIMARY}; font-size: 13px;"
         )
         titleStack.addWidget(versionLabel)
+        self._buildLicenseLink(titleStack)
         titleStack.addStretch()
 
         row.addLayout(titleStack)
@@ -147,6 +204,16 @@ class AboutDialog(QDialog):
         form.addRow(copyright_label)
 
         layout.addLayout(form)
+
+    def _buildLicenseLink(self, layout: QVBoxLayout) -> None:
+        url = self._vm.license_url
+        link = QLabel(
+            f'<a href="{url}" style="color: {COLOR_ACCENT_LINK};">'
+            f'{self.tr("View License")}</a>'
+        )
+        link.setOpenExternalLinks(True)
+        link.setStyleSheet("font-size: 11px;")
+        layout.addWidget(link)
 
     def _buildRepoLink(self, layout: QVBoxLayout) -> None:
         url = self._vm.repository_url

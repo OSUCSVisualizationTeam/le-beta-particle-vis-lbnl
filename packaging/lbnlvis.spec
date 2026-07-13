@@ -29,6 +29,8 @@ a = Analysis(
         (str(RESOURCES), "resources"),
         (str(CONFIG / "defaults.yaml"), "config"),
         (str(ROOT / "pyproject.toml"), "."),
+        (str(ROOT / "LICENSE"), "."),
+        (str(ROOT / "THIRD_PARTY_NOTICES.md"), "."),
         (str(FONTS), "le_beta_vis/export/fonts"),
     ],
     hiddenimports=[
