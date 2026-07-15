@@ -1,0 +1,40 @@
+/* Live Mode is intentionally rendered dark regardless of OS theme
+   (mirrors LiveModeColors, which has no light/dark split) — this file
+   is identical to the other theme's live_mode.qss on purpose. */
+
+LiveModeView { background-color: #000000; }
+
+#FeaturedClusterWidget { background-color: #0d0d0d; }
+
+FeaturedClusterWidget QLabel#featuredTitleLabel {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+FeaturedClusterWidget ClusterDetailWidget#featuredStatsWidget {
+    background-color: #0a1628;
+    color: #e0f0ff;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+FeaturedClusterWidget InteractiveHistogramWidget#featuredHistogram {
+    background-color: #111111;
+    border-radius: 4px;
+}
+
+FeaturedClusterWidget QLabel#featuredSensorLabel {
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+FeaturedClusterWidget EnergyClusterWidget#featuredThumbnail {
+    background-color: #000000;
+}
+
+_ScaleGradientWidget QLabel[class="scaleGradientRangeLabel"] {
+    color: #ffffff;
+    font-size: 7pt;
+}

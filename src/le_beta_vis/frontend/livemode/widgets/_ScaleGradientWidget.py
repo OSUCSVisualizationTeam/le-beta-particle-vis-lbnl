@@ -17,7 +17,6 @@ from le_beta_vis.frontend.fitsconverters.cluster_thumbnail import (
     generate_cluster_thumbnail,
 )
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
-from le_beta_vis.frontend.theme import LiveModeColors
 
 _STRIP_WIDTH = 20
 _TOTAL_WIDTH = 60
@@ -120,13 +119,9 @@ class _ScaleGradientWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
-        label_style = (
-            f"color: {LiveModeColors.GRADIENT_LABEL}; font-size: 7pt;"
-        )
-
         self._maxLabel = QLabel()
         self._maxLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self._maxLabel.setStyleSheet(label_style)
+        self._maxLabel.setProperty("class", "scaleGradientRangeLabel")
         layout.addWidget(self._maxLabel)
 
         self._strip = _GradientStripWidget()
@@ -135,7 +130,7 @@ class _ScaleGradientWidget(QWidget):
 
         self._minLabel = QLabel()
         self._minLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self._minLabel.setStyleSheet(label_style)
+        self._minLabel.setProperty("class", "scaleGradientRangeLabel")
         layout.addWidget(self._minLabel)
 
     def setColormap(self, colormap: Colormap) -> None:
