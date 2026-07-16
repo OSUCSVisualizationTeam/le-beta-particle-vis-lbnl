@@ -100,6 +100,7 @@ def attach_to_root_logger(
     source: str,
     level: int = logging.WARNING,
     bind_or_connect: Literal["bind", "connect"] = "bind",
+    bind_key: Optional[str] = None,
 ) -> "ZMQEventLoggingHandler":
     """Create a :class:`ZMQEventLoggingHandler` and attach it to the root logger.
 
@@ -129,6 +130,11 @@ def attach_to_root_logger(
             (``"connect"``).  Backend services that own the IPC path should
             use ``"bind"``; a secondary producer joining an existing broker
             proxy should use ``"connect"``.
+        bind_key: Passed straight through to
+            :class:`~le_beta_vis.common.ZMQEventHandlerClient.ZMQEventHandlerClient`
+            — the configuration key this endpoint came from, checked
+            against the startup IPC bind registry before binding.  See
+            that class's docstring for details.
 
     Returns:
         The :class:`ZMQEventLoggingHandler` that was added to the root
@@ -155,6 +161,7 @@ def attach_to_root_logger(
     client = ZMQEventHandlerClient(
         endpoint=endpoint,
         bind_or_connect=bind_or_connect,
+        bind_key=bind_key,
     )
     handler = ZMQEventLoggingHandler(client, source=source, level=level)
     logging.root.addHandler(handler)

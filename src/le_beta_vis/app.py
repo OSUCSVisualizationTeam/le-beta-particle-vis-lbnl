@@ -12,7 +12,13 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from le_beta_vis.common import APP_VERSION, ThemeManager
+from le_beta_vis.common.YAMLBackedConfigurationService import (
+    YAMLBackedConfigurationService,
+)
+from le_beta_vis.common.IPCFallbackSupport import should_show_ipc_fallback_dialog
 from le_beta_vis.frontend.MainWindow import MainWindow
+from le_beta_vis.frontend.viewmodels.IPCFallbackViewModel import IPCFallbackViewModel
+from le_beta_vis.frontend.widgets.IPCFallbackDialogView import IPCFallbackDialogView
 from le_beta_vis.backend.ServicesManager import ServicesManager
 
 log = logging.getLogger(__name__)
@@ -128,6 +134,16 @@ def main() -> None:
     # translator = QTranslator()
     # if translator.load(QLocale.system(), "app", "_", "translations"):
     #     app.installTranslator(translator)
+
+    config = YAMLBackedConfigurationService()
+    if should_show_ipc_fallback_dialog(config):
+        # should_show_ipc_fallback_dialog() already logged the probe result;
+        # this line marks the app.py decision point in the same console stream.
+        log.warning("Windows ipc:// transport unsupported; showing fallback dialog.")
+        fallback_vm = IPCFallbackViewModel(config)
+        fallback_dialog = IPCFallbackDialogView(fallback_vm)
+        fallback_dialog.exec()
+        sys.exit(0)
 
     services = ServicesManager()
     services.start_all()

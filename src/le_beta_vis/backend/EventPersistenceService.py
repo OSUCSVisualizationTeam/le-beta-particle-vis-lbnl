@@ -4,6 +4,7 @@ import mysql.connector
 from le_beta_vis.common.YAMLBackedConfigurationService import (
     YAMLBackedConfigurationService,
 )
+from le_beta_vis.common.StartupIPCBindRegistry import bind_tracked_ipc_socket
 from le_beta_vis.common.EPSDataClasses import (
     ClusterPagedQueryFilter,
     ClusterQueryFilter,
@@ -104,13 +105,11 @@ class EventPersistence:
 
         try:
             fits_socket = context_manager.socket(zmq.REP)
-            fits_socket.bind(
-                self.config.get("eps:fits_ipc")
-            )  # EPC***.ipc will be the file created for IPC, becomes a pipe on windows
+            bind_tracked_ipc_socket(fits_socket, self.config, "eps:fits_ipc")
             cluster_socket = context_manager.socket(zmq.REP)
-            cluster_socket.bind(self.config.get("eps:cluster_ipc"))
+            bind_tracked_ipc_socket(cluster_socket, self.config, "eps:cluster_ipc")
             command_socket = context_manager.socket(zmq.REP)
-            command_socket.bind(self.config.get("eps:command_ipc"))
+            bind_tracked_ipc_socket(command_socket, self.config, "eps:command_ipc")
 
             socket_poller = zmq.Poller()
             socket_poller.register(fits_socket, zmq.POLLIN)
@@ -126,14 +125,14 @@ class EventPersistence:
 
                     if cluster_socket in sockets:
                         request = cluster_socket.recv_json()
-                        if EPS_is_active == False:
+                        if not EPS_is_active:
                             cluster_socket.send_json({"Error": "Server is stopped."})
                         else:
                             self.cluster_event(request, cluster_socket)
 
                     if fits_socket in sockets:
                         request = fits_socket.recv_json()
-                        if EPS_is_active == False:
+                        if not EPS_is_active:
                             fits_socket.send_json({"Error": "Server is stopped."})
                         else:
                             self.fits_event(request, fits_socket)
