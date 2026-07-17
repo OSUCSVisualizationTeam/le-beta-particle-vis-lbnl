@@ -455,6 +455,34 @@ pipeline:ingress:polling_location:
   description: >-
     File path on local system to poll for new FITS data.
 
+pipeline:ingress:stability_poll_interval_ms:
+  type: int
+  default: 500
+  description: >-
+    Delay in milliseconds between consecutive file-size polls used to
+    detect whether a newly-created file in the polling location has
+    finished being written before ingestion processes it. Guards against
+    watcher backends (notably Windows' ReadDirectoryChangesW) that report
+    a file as created before the writer has finished and closed it.
+
+pipeline:ingress:stability_max_wait_ms:
+  type: int
+  default: 30000
+  description: >-
+    Maximum total time in milliseconds to wait for a newly-detected
+    file's size to stop changing across two consecutive polls. If
+    exceeded, the file is logged and skipped, not processed or retried.
+
+pipeline:ingress:process_file_timeout_seconds:
+  type: int
+  default: 120
+  description: >-
+    Defense-in-depth timeout in seconds for a single process_file() call.
+    Guards against corrupted files, AV locks, or other unknowns that
+    survive the stability check. The blocked worker thread may not be
+    forcibly cancellable and can remain alive after a timeout; ingestion
+    moves on to the next queued file regardless.
+
 # ---------------------------------------------------------------------------
 # Event Persistence Service (EPS)
 # ---------------------------------------------------------------------------
