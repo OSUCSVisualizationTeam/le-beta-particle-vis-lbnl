@@ -70,17 +70,12 @@ class FeaturedClusterWidget(QWidget):
     def _buildLayout(self) -> None:
         """Construct the vertical label / featured row / stats / histogram layout."""
         self.setObjectName("FeaturedClusterWidget")
-        self.setStyleSheet(
-            f"#FeaturedClusterWidget {{ background-color: {LiveModeColors.PANEL_LEFT}; }}"
-        )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
         self._titleLabel = QLabel(self.tr("Live mode"))
-        self._titleLabel.setStyleSheet(
-            f"color: {LiveModeColors.TITLE_TEXT}; font-size: 18px; font-weight: bold;"
-        )
+        self._titleLabel.setObjectName("featuredTitleLabel")
         self._titleLabel.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
 
         top_row = QHBoxLayout()
@@ -99,11 +94,7 @@ class FeaturedClusterWidget(QWidget):
             show_filename=False,
             show_open_action=False,
         )
-        self._statsWidget.setStyleSheet(
-            f"background-color: {LiveModeColors.STATS_BACKGROUND};"
-            f"color: {LiveModeColors.STATS_TEXT};"
-            "padding: 8px; border-radius: 4px;"
-        )
+        self._statsWidget.setObjectName("featuredStatsWidget")
         layout.addWidget(self._statsWidget, stretch=0)
 
         self._histogram = InteractiveHistogramWidget()
@@ -111,10 +102,7 @@ class FeaturedClusterWidget(QWidget):
             self.tr("Awaiting cluster data..."),
         )
         self._histogram.setMinimumHeight(150)
-        self._histogram.setStyleSheet(
-            f"background-color: {LiveModeColors.HISTOGRAM_BG_DARK};"
-            "border-radius: 4px;"
-        )
+        self._histogram.setObjectName("featuredHistogram")
         self._histogram.setTheme(
             LiveModeColors.HISTOGRAM_BG_DARK,
             LiveModeColors.HISTOGRAM_FG_DARK,
@@ -122,9 +110,7 @@ class FeaturedClusterWidget(QWidget):
         layout.addWidget(self._histogram, stretch=1)
 
         sensorLabel = QLabel(self.tr("Sensor Location"))
-        sensorLabel.setStyleSheet(
-            f"color: {LiveModeColors.TITLE_TEXT};" "font-size: 12px; font-weight: bold;"
-        )
+        sensorLabel.setObjectName("featuredSensorLabel")
         sensorLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         layout.addWidget(sensorLabel)
 
@@ -144,9 +130,7 @@ class FeaturedClusterWidget(QWidget):
             enable_hover_tooltip=True,
         )
         self._featuredWidget.set_kev_converter(self._vm.physics.adu_to_kev)
-        self._featuredWidget.setStyleSheet(
-            f"background-color: {LiveModeColors.BACKGROUND};"
-        )
+        self._featuredWidget.setObjectName("featuredThumbnail")
         row_layout.addWidget(self._featuredWidget)
 
         self._gradientWidget = _ScaleGradientWidget(

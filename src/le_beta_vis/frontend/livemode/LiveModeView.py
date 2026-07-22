@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
 )
 
 from le_beta_vis.common.Cluster import Cluster
-from le_beta_vis.frontend.theme import LiveModeColors
 from le_beta_vis.frontend.viewmodels.HistoricalEventInspectorViewModel import (
     HistoricalEventInspectorViewModel,
 )
@@ -81,7 +80,6 @@ class LiveModeView(QDialog):
         self.setWindowFlags(
             Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
         )
-        self.setStyleSheet(f"background-color: {LiveModeColors.BACKGROUND};")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

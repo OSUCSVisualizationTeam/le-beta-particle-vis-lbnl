@@ -21,17 +21,16 @@ class ProgressOverlayColors:
 
 
 class LiveModeColors:
-    """Colors for the Live Mode screensaver."""
+    """Colors for the Live Mode screensaver.
 
-    BACKGROUND = "#000000"
-    PANEL_LEFT = "#0d0d0d"
-    GRADIENT_LABEL = "#ffffff"
-    STATS_BACKGROUND = "#0a1628"
-    STATS_TEXT = "#e0f0ff"
-    HISTOGRAM_BACKGROUND = "#1a0a0a"
+    Only the pyqtgraph-theming values consumed by
+    InteractiveHistogramWidget.setTheme() in FeaturedClusterWidget remain
+    here; all other Live Mode colors moved to
+    resources/qss/{dark,light}/live_mode.qss.
+    """
+
     HISTOGRAM_BG_DARK = "#111111"
     HISTOGRAM_FG_DARK = "#dddddd"
-    TITLE_TEXT = "#ffffff"
 
 
 class LiveModeBadgeColors:
