@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
 )
 
 from ...fitsconverters import Colormap
-from ...theme import RawClusterLabelingDialogColors as _C
 from ...viewmodels.RawClusterLabelingViewModel import Phase, RawClusterLabelingViewModel
 from ...widgets.ArcSpinner import ArcSpinner
 from ...widgets.EnergyClusterWidget import EnergyClusterWidget
@@ -99,14 +98,7 @@ class _RawClusterLabelingDialog(QDialog):
             )
         )
         callout.setWordWrap(True)
-        callout.setStyleSheet(
-            f"background-color: {_C.CALLOUT_BACKGROUND};"
-            f"border: 1px solid {_C.CALLOUT_BORDER};"
-            f"color: {_C.CALLOUT_TEXT};"
-            "border-radius: 4px;"
-            "padding: 8px 10px;"
-            "font-size: 12px;"
-        )
+        callout.setProperty("class", "callout")
         return callout
 
     def _buildLabelAllRow(self) -> QWidget:
@@ -213,34 +205,13 @@ class _RawClusterLabelingDialog(QDialog):
         row.addStretch()
 
         self._cancelBtn = QPushButton(self.tr("Cancel"))
-        self._cancelBtn.setStyleSheet(
-            "QPushButton {"
-            f"  background-color: {_C.CANCEL_BUTTON_BACKGROUND};"
-            f"  color: {_C.CANCEL_BUTTON_FOREGROUND};"
-            f"  border: 1px solid {_C.CANCEL_BUTTON_BORDER};"
-            "  border-radius: 4px;"
-            "  padding: 6px 16px;"
-            "}"
-        )
+        self._cancelBtn.setProperty("styleRole", "secondary")
         self._cancelBtn.clicked.connect(self.reject)
         row.addWidget(self._cancelBtn)
         row.addSpacing(8)
 
         self._submitBtn = QPushButton(self.tr("Add to Training Set"))
-        self._submitBtn.setStyleSheet(
-            "QPushButton {"
-            f"  background-color: {_C.SUBMIT_BUTTON_BACKGROUND};"
-            f"  color: {_C.SUBMIT_BUTTON_FOREGROUND};"
-            "  border: none;"
-            "  border-radius: 4px;"
-            "  padding: 6px 16px;"
-            "  font-weight: bold;"
-            "}"
-            "QPushButton:hover {"
-            f"  background-color: {_C.SUBMIT_BUTTON_HOVER};"
-            "}"
-            "QPushButton:disabled { background-color: #555555; color: #888888; }"
-        )
+        self._submitBtn.setProperty("styleRole", "primary")
         self._submitBtn.setEnabled(False)
         self._submitBtn.clicked.connect(self._vm.submit)
         row.addWidget(self._submitBtn)

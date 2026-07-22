@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
 )
 
 from ...fitsconverters import Colormap
-from ...theme import RawClusterClassificationDialogColors as _C
 from ...viewmodels.RawClusterClassificationViewModel import (
     Phase,
     RawClusterClassificationViewModel,
@@ -84,14 +83,7 @@ class _RawClusterClassificationDialog(QDialog):
     def _buildCallout(self, text: str) -> QLabel:
         callout = QLabel(text)
         callout.setWordWrap(True)
-        callout.setStyleSheet(
-            f"background-color: {_C.CALLOUT_BACKGROUND};"
-            f"border: 1px solid {_C.CALLOUT_BORDER};"
-            f"color: {_C.CALLOUT_TEXT};"
-            "border-radius: 4px;"
-            "padding: 8px 10px;"
-            "font-size: 12px;"
-        )
+        callout.setProperty("class", "callout")
         return callout
 
     def _buildPrePage(self) -> QWidget:
@@ -206,34 +198,13 @@ class _RawClusterClassificationDialog(QDialog):
         row.addStretch()
 
         self._cancelBtn = QPushButton(self.tr("Cancel"))
-        self._cancelBtn.setStyleSheet(
-            "QPushButton {"
-            f"  background-color: {_C.CANCEL_BUTTON_BACKGROUND};"
-            f"  color: {_C.CANCEL_BUTTON_FOREGROUND};"
-            f"  border: 1px solid {_C.CANCEL_BUTTON_BORDER};"
-            "  border-radius: 4px;"
-            "  padding: 6px 16px;"
-            "}"
-        )
+        self._cancelBtn.setProperty("styleRole", "secondary")
         self._cancelBtn.clicked.connect(self._onCancelClicked)
         row.addWidget(self._cancelBtn)
         row.addSpacing(8)
 
         self._classifyBtn = QPushButton(self.tr("Classify"))
-        self._classifyBtn.setStyleSheet(
-            "QPushButton {"
-            f"  background-color: {_C.CLASSIFY_BUTTON_BACKGROUND};"
-            f"  color: {_C.CLASSIFY_BUTTON_FOREGROUND};"
-            "  border: none;"
-            "  border-radius: 4px;"
-            "  padding: 6px 16px;"
-            "  font-weight: bold;"
-            "}"
-            "QPushButton:hover {"
-            f"  background-color: {_C.CLASSIFY_BUTTON_HOVER};"
-            "}"
-            "QPushButton:disabled { background-color: #555555; color: #888888; }"
-        )
+        self._classifyBtn.setProperty("styleRole", "primary")
         self._classifyBtn.clicked.connect(self._vm.classify)
         row.addWidget(self._classifyBtn)
 
@@ -319,13 +290,12 @@ class _RawClusterClassificationDialog(QDialog):
                 ("BDT", cluster_scores.bdt),
             ):
                 score_str = f"{val * 100:.0f}%" if val is not None else "?"
-                color = self._score_color(val)
                 lbl = QLabel(
                     self.tr("{model}: <b>{score}</b>").format(
                         model=model, score=score_str
                     )
                 )
-                lbl.setStyleSheet(f"color: {color};")
+                lbl.setProperty("scoreLevel", self._score_level(val))
                 info.addWidget(lbl)
 
             valid = [
@@ -347,15 +317,14 @@ class _RawClusterClassificationDialog(QDialog):
         return row
 
     @staticmethod
-    def _score_color(val: Optional[float]) -> str:
-        from le_beta_vis.frontend.theme import RawClusterClassificationDialogColors
+    def _score_level(val: Optional[float]) -> str:
         if val is None:
-            return RawClusterClassificationDialogColors.SCORE_LABEL_LOW
+            return "low"
         if val >= 0.75:
-            return RawClusterClassificationDialogColors.SCORE_LABEL_GOOD
+            return "good"
         if val >= 0.5:
-            return RawClusterClassificationDialogColors.SCORE_LABEL_MEDIUM
-        return RawClusterClassificationDialogColors.SCORE_LABEL_LOW
+            return "medium"
+        return "low"
 
     @Slot()
     def _onCancelClicked(self) -> None:

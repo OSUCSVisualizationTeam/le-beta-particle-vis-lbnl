@@ -5,7 +5,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..theme import ProgressOverlayColors as _C
 from .ProgressOverlay import ProgressOverlay
 
 
@@ -28,11 +27,6 @@ class ClusteringProgressOverlay(ProgressOverlay):
         btn_row.setAlignment(Qt.AlignCenter)
         self._cancelBtn = QPushButton(self.tr("Cancel"))
         self._cancelBtn.setFixedWidth(80)
-        self._cancelBtn.setStyleSheet(
-            f"background-color: {_C.ACTION_BUTTON_BACKGROUND};"
-            " color: #ffffff; border-radius: 4px;"
-            " padding: 4px 8px;"
-        )
         self._cancelBtn.clicked.connect(self.cancelRequested.emit)
         btn_row.addWidget(self._cancelBtn)
         self._accessoryLayout().addLayout(btn_row)

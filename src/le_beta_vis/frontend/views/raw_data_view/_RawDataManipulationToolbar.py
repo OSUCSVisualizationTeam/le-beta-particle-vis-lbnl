@@ -16,26 +16,7 @@ from PySide6.QtWidgets import (
     QToolButton,
 )
 
-from ...theme import RawDataManipulationToolbarColors, TooltipStyle
 from ...viewmodels.RawDataViewModel import ActiveTool, RawDataViewModel
-
-
-class _Style:
-    TOOLBAR = "background-color: #2d2d2d; border-bottom: 1px solid #3d3d3d;"
-    BUTTON = "QToolButton { font-weight: bold; color: #ffffff; }" f"{TooltipStyle.QSS}"
-    DIVIDER = "background-color: #555555;"
-    ZOOM_IN = (
-        "QToolButton { font-size: 20px; font-weight: bold; color: #ffffff; }"
-        f"{TooltipStyle.QSS}"
-    )
-    ZOOM_OUT = (
-        "QToolButton { font-size: 20px; font-weight: bold; color: #ffffff; }"
-        f"{TooltipStyle.QSS}"
-    )
-    HDU_LABEL = (
-        f"color: {RawDataManipulationToolbarColors.HDU_LABEL};"
-        " font-size: 11px; padding-left: 8px; font-weight: bold;"
-    )
 
 
 class _RawDataManipulationToolbar(QFrame):
@@ -49,7 +30,6 @@ class _RawDataManipulationToolbar(QFrame):
 
     def _setupUI(self) -> None:
         self.setFixedHeight(46)
-        self.setStyleSheet(_Style.TOOLBAR)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 3, 8, 3)
         layout.setSpacing(4)
@@ -70,7 +50,6 @@ class _RawDataManipulationToolbar(QFrame):
         self.btnBoxSelect.setCheckable(True)
         self.btnBoxSelect.setChecked(True)
         self.btnBoxSelect.setFixedSize(btn_size)
-        self.btnBoxSelect.setStyleSheet(_Style.BUTTON)
         self.btnBoxSelect.clicked.connect(
             lambda: self._viewModel.setActiveTool(ActiveTool.BOX_SELECT)
         )
@@ -82,7 +61,6 @@ class _RawDataManipulationToolbar(QFrame):
         self.btnMagnifier.setToolTip(self.tr("Magnifier: Inspect pixels in detail"))
         self.btnMagnifier.setCheckable(True)
         self.btnMagnifier.setFixedSize(btn_size)
-        self.btnMagnifier.setStyleSheet(_Style.BUTTON)
         self.btnMagnifier.clicked.connect(
             lambda: self._viewModel.setActiveTool(ActiveTool.MAGNIFIER)
         )
@@ -96,7 +74,7 @@ class _RawDataManipulationToolbar(QFrame):
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
         sep.setFrameShadow(QFrame.Sunken)
-        sep.setStyleSheet(_Style.DIVIDER)
+        sep.setObjectName("toolbarDivider")
         sep.setFixedHeight(28)
         layout.addWidget(sep)
 
@@ -104,7 +82,7 @@ class _RawDataManipulationToolbar(QFrame):
         self.btnZoomIn.setText("+")
         self.btnZoomIn.setToolTip(self.tr("Zoom In"))
         self.btnZoomIn.setFixedSize(btn_size)
-        self.btnZoomIn.setStyleSheet(_Style.ZOOM_IN)
+        self.btnZoomIn.setProperty("class", "zoomButton")
         self.btnZoomIn.clicked.connect(self._viewModel.zoomIn)
         layout.addWidget(self.btnZoomIn)
 
@@ -112,7 +90,6 @@ class _RawDataManipulationToolbar(QFrame):
         self.btnZoomReset.setText("1x")
         self.btnZoomReset.setToolTip(self.tr("Reset Zoom (1:1)"))
         self.btnZoomReset.setFixedSize(btn_size)
-        self.btnZoomReset.setStyleSheet(_Style.BUTTON)
         self.btnZoomReset.clicked.connect(self._viewModel.resetZoom)
         layout.addWidget(self.btnZoomReset)
 
@@ -120,14 +97,14 @@ class _RawDataManipulationToolbar(QFrame):
         self.btnZoomOut.setText("-")
         self.btnZoomOut.setToolTip(self.tr("Zoom Out"))
         self.btnZoomOut.setFixedSize(btn_size)
-        self.btnZoomOut.setStyleSheet(_Style.ZOOM_OUT)
+        self.btnZoomOut.setProperty("class", "zoomButton")
         self.btnZoomOut.clicked.connect(self._viewModel.zoomOut)
         layout.addWidget(self.btnZoomOut)
 
     def _createHDULabel(self, layout: QHBoxLayout) -> None:
         layout.addStretch()
         self.selectedHDULabel = QLabel()
-        self.selectedHDULabel.setStyleSheet(_Style.HDU_LABEL)
+        self.selectedHDULabel.setObjectName("rawDataToolbarHduLabel")
         layout.addWidget(self.selectedHDULabel)
 
     def _createMagnifierIcon(self) -> QIcon:

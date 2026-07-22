@@ -1,0 +1,19 @@
+/* _RawClusterClassificationDialog */
+_RawClusterClassificationDialog QLabel[class="callout"] {
+    background-color: #1a2a3a;
+    border: 1px solid #1565c0;
+    color: #bbdefb;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+/* _RawClusterLabelingDialog */
+_RawClusterLabelingDialog QLabel[class="callout"] {
+    background-color: #1a3a1a;
+    border: 1px solid #2e7d32;
+    color: #c8e6c9;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 12px;
+}

@@ -19,7 +19,6 @@ from ...viewmodels.RawDataViewModel import RawDataViewModel
 from ...widgets.ClusteringProgressOverlay import ClusteringProgressOverlay
 from ...widgets.HDUVisualizationView import HDUVisualizationView
 from ._RawDataManipulationToolbar import _RawDataManipulationToolbar
-from ._RawDataViewStyle import _Style
 
 
 class _CenterImageAreaView(QWidget):
@@ -79,8 +78,8 @@ class _CenterImageAreaView(QWidget):
 
     def _createStatusBar(self) -> QWidget:
         statusBar = QWidget()
+        statusBar.setObjectName("rawDataStatusBar")
         statusBar.setFixedHeight(24)
-        statusBar.setStyleSheet(_Style.STATUS_BAR)
         statusBarLayout = QHBoxLayout(statusBar)
         statusBarLayout.setContentsMargins(0, 0, 0, 0)
         statusBarLayout.setSpacing(0)
@@ -89,8 +88,8 @@ class _CenterImageAreaView(QWidget):
         statusBarLayout.addWidget(self._statusLabel, 1)
 
         self._hintLabel = QLabel()
+        self._hintLabel.setObjectName("rawDataToolHintLabel")
         self._hintLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self._hintLabel.setStyleSheet("padding-right: 8px;")
         self._hintLabel.setMinimumWidth(220)
         self._hintLabel.setVisible(False)
         statusBarLayout.addWidget(self._hintLabel)

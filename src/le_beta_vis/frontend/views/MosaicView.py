@@ -68,37 +68,9 @@ class MosaicView(QWidget):
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scrollArea.setStyleSheet(
-            """
-            QScrollArea {
-                background-color: #1e1e1e;
-                border: none;
-            }
-            QScrollBar:horizontal {
-                height: 12px;
-                background: transparent;
-                margin: 0px;
-            }
-            QScrollBar::handle:horizontal {
-                background: rgba(100, 100, 100, 165);
-                min-width: 30px;
-                border-radius: 6px;
-                margin: 2px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background: rgba(150, 150, 150, 200);
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0px;
-            }
-            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-                background: transparent;
-            }
-            """
-        )
 
         self.container = QWidget()
-        self.container.setStyleSheet("background-color: #1e1e1e;")
+        self.container.setObjectName("mosaicContainer")
         self.containerLayout = QHBoxLayout(self.container)
         self.containerLayout.setContentsMargins(5, 5, 5, 5)  # Top/Bottom margins
         self.containerLayout.setSpacing(10)
@@ -184,24 +156,6 @@ class MosaicView(QWidget):
 
             btn.setCheckable(True)
             btn.setAutoExclusive(True)  # Only one can be checked
-            btn.setStyleSheet(
-                """
-                QToolButton {
-                    background-color: #333;
-                    color: #ccc;
-                    border: 1px solid #555;
-                    border-radius: 4px;
-                    font-size: 10px;
-                }
-                QToolButton:checked {
-                    background-color: #444;
-                    border: 2px solid #0078d7;
-                }
-                QToolButton:hover {
-                    border: 1px solid #888;
-                }
-            """
-            )
 
             # Use lambda with default arg to capture 'i' correctly
             btn.clicked.connect(lambda checked, idx=i: self.viewModel.selectIndex(idx))

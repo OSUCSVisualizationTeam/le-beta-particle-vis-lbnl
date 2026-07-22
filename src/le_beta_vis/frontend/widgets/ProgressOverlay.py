@@ -47,11 +47,8 @@ class ProgressOverlay(QWidget):
     def _buildCard(self) -> QWidget:
         """Builds the centered card containing all overlay content."""
         card = QWidget(self)
+        card.setObjectName("progressOverlayCard")
         card.setMinimumSize(200, 140)
-        card.setStyleSheet(
-            f"background-color: {_C.CARD_BACKGROUND};"
-            " border-radius: 12px;"
-        )
 
         layout = QVBoxLayout(card)
         layout.setAlignment(Qt.AlignCenter)
@@ -76,11 +73,8 @@ class ProgressOverlay(QWidget):
 
     def _buildHeaderLabel(self, parent: QWidget) -> QLabel:
         label = QLabel(self.tr(self._title), parent)
+        label.setObjectName("progressOverlayHeaderLabel")
         label.setFixedHeight(24)
-        label.setStyleSheet(
-            f"background: transparent; color: {_C.CARD_TEXT};"
-            " font-size: 16px;"
-        )
         label.setAlignment(Qt.AlignCenter)
         return label
 
@@ -90,22 +84,12 @@ class ProgressOverlay(QWidget):
         bar.setValue(0)
         bar.setFixedWidth(160)
         bar.setFixedHeight(20)
-        bar.setStyleSheet(
-            f"QProgressBar {{ background: {_C.PROGRESS_BACKGROUND};"
-            " border-radius: 4px; text-align: center;"
-            f" color: {_C.CARD_TEXT}; }}"
-            f" QProgressBar::chunk {{ background: {_C.PROGRESS_CHUNK};"
-            " border-radius: 4px; }"
-        )
         bar.hide()
         return bar
 
     def _buildMessageLabel(self, parent: QWidget) -> QLabel:
         label = QLabel("", parent)
-        label.setStyleSheet(
-            f"background: transparent; color: {_C.CARD_TEXT};"
-            " font-size: 12px;"
-        )
+        label.setObjectName("progressOverlayMessageLabel")
         label.setAlignment(Qt.AlignCenter)
         label.setWordWrap(True)
         label.hide()
