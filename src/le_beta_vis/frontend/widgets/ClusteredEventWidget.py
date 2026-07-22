@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import Signal, Slot
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGroupBox,
@@ -17,19 +17,11 @@ from le_beta_vis.common.ClassifierService import ClusterScores
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
 from le_beta_vis.common.ParticleType import CLASSIFICATION_THRESHOLD, ParticleType
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
-from le_beta_vis.frontend.theme import (
-    ClusteredEventWidgetColors as _CEC,
-    RawClusterClassificationDialogColors as _SC,
-)
 from le_beta_vis.frontend.widgets.EnergyClusterWidget import (
     EnergyClusterWidget,
 )
 
 THUMBNAIL_SIZE = 64
-
-
-class _Style:
-    ENTRY_WIDGET = "background: transparent; border: 0;"
 
 
 class ClusteredEventWidget(QWidget):
@@ -78,19 +70,14 @@ class ClusteredEventWidget(QWidget):
         layout.addWidget(self._listWidget)
 
         btnLayout = QHBoxLayout()
-        _disabled_style = (
-            "QPushButton:disabled {" f" color: {_CEC.BUTTON_DISABLED_TEXT};" "}"
-        )
 
         self._btnClassify = QPushButton(self.tr("Classify"))
         self._btnClassify.setEnabled(False)
-        self._btnClassify.setStyleSheet(_disabled_style)
         self._btnClassify.clicked.connect(self.classifyRequested)
         btnLayout.addWidget(self._btnClassify)
 
         self._btnExport = QPushButton(self.tr("Export for Training"))
         self._btnExport.setEnabled(False)
-        self._btnExport.setStyleSheet(_disabled_style)
         self._btnExport.clicked.connect(self.exportRequested)
         btnLayout.addWidget(self._btnExport)
 
@@ -205,7 +192,8 @@ class ClusteredEventWidget(QWidget):
     def _createEntryWidget(self, index: int, event: ClusteredEventInfo) -> QWidget:
         """Creates a single list entry with thumbnail and metadata."""
         entry = QWidget()
-        entry.setStyleSheet(_Style.ENTRY_WIDGET)
+        entry.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        entry.setProperty("class", "entry")
         layout = QHBoxLayout(entry)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(8)
@@ -261,14 +249,14 @@ class ClusteredEventWidget(QWidget):
         def _fmt(v: Optional[float]) -> str:
             return f"{v * 100:.0f}%" if v is not None else "?"
 
-        def _color(v: Optional[float]) -> str:
+        def _level(v: Optional[float]) -> str:
             if v is None:
-                return _SC.SCORE_LABEL_LOW
+                return "low"
             if v >= CLASSIFICATION_THRESHOLD:
-                return _SC.SCORE_LABEL_GOOD
+                return "good"
             if v >= 0.5:
-                return _SC.SCORE_LABEL_MEDIUM
-            return _SC.SCORE_LABEL_LOW
+                return "medium"
+            return "low"
 
         for model, val in (
             ("CNN", scores.cnn),
@@ -280,7 +268,7 @@ class ClusteredEventWidget(QWidget):
                     model=model, score=_fmt(val)
                 )
             )
-            lbl.setStyleSheet(f"color: {_color(val)};")
+            lbl.setProperty("scoreLevel", _level(val))
             layout.addWidget(lbl)
 
         valid = [v for v in (scores.cnn, scores.nrg, scores.bdt) if v is not None]

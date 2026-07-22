@@ -24,80 +24,6 @@ from ..viewmodels.HistoricalFilterBarViewModel import (
 )
 
 
-class _Style:
-    DIALOG = "background-color: #2d2d2d; color: #eeeeee;"
-    LABEL = "color: #cccccc; font-size: 12px;"
-    SPINBOX = (
-        "QDoubleSpinBox, QSpinBox {"
-        "  background-color: #3d3d3d;"
-        "  color: #eeeeee;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 3px;"
-        "  padding: 3px;"
-        "}"
-        "QDoubleSpinBox:focus, QSpinBox:focus {"
-        "  border: 1px solid #0078d7;"
-        "}"
-    )
-    COMBO = (
-        "QComboBox {"
-        "  background-color: #3d3d3d;"
-        "  color: #eeeeee;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 3px;"
-        "  padding: 3px;"
-        "}"
-        "QComboBox:focus {"
-        "  border: 1px solid #0078d7;"
-        "}"
-        "QComboBox::drop-down {"
-        "  border: none;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "  background-color: #3d3d3d;"
-        "  color: #eeeeee;"
-        "  selection-background-color: #0078d7;"
-        "}"
-    )
-    APPLY_BTN = (
-        "QPushButton {"
-        "  background-color: #0078d7;"
-        "  color: white;"
-        "  border: none;"
-        "  border-radius: 4px;"
-        "  padding: 6px 16px;"
-        "  font-weight: bold;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #005fa3;"
-        "}"
-    )
-    RESET_BTN = (
-        "QPushButton {"
-        "  background-color: #3d3d3d;"
-        "  color: #cccccc;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 4px;"
-        "  padding: 6px 16px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #505050;"
-        "}"
-    )
-    DATETIME_EDIT = (
-        "QDateTimeEdit {"
-        "  background-color: #3d3d3d;"
-        "  color: #eeeeee;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 3px;"
-        "  padding: 3px;"
-        "}"
-        "QDateTimeEdit:focus {"
-        "  border: 1px solid #0078d7;"
-        "}"
-    )
-
-
 _TIME_PRESETS = [
     ("24h", "Last 24 hours"),
     ("3d", "Last 3 days"),
@@ -122,7 +48,6 @@ class HistoricalAdvancedFilterDialog(QDialog):
         self._vm = viewModel
         self.setWindowTitle(self.tr("Advanced Filters"))
         self.setMinimumWidth(360)
-        self.setStyleSheet(_Style.DIALOG)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self._initUI()
         self._syncFromViewModel()
@@ -139,20 +64,19 @@ class HistoricalAdvancedFilterDialog(QDialog):
 
         # Time
         self._timeCombo = QComboBox()
-        self._timeCombo.setStyleSheet(_Style.COMBO)
         for key, label in _TIME_PRESETS:
             self._timeCombo.addItem(self.tr(label), key)
-        form.addRow(self._styledLabel(self.tr("Time Range:")), self._timeCombo)
+        form.addRow(QLabel(self.tr("Time Range:")), self._timeCombo)
 
         # Start / End date-time
         self._startEdit = self._makeDateTimeEdit()
         form.addRow(
-            self._styledLabel(self.tr("Start:")),
+            QLabel(self.tr("Start:")),
             self._startEdit,
         )
         self._endEdit = self._makeDateTimeEdit()
         form.addRow(
-            self._styledLabel(self.tr("End:")),
+            QLabel(self.tr("End:")),
             self._endEdit,
         )
 
@@ -160,49 +84,48 @@ class HistoricalAdvancedFilterDialog(QDialog):
 
         # Cluster ID
         self._clusterIdSpin = self._makeIntSpin()
-        form.addRow(self._styledLabel(self.tr("Cluster ID:")), self._clusterIdSpin)
+        form.addRow(QLabel(self.tr("Cluster ID:")), self._clusterIdSpin)
 
         # FITS ID
         self._fitsIdSpin = self._makeIntSpin()
-        form.addRow(self._styledLabel(self.tr("FITS ID:")), self._fitsIdSpin)
+        form.addRow(QLabel(self.tr("FITS ID:")), self._fitsIdSpin)
 
         # HDU ID
         self._hduIdSpin = self._makeIntSpin()
-        form.addRow(self._styledLabel(self.tr("HDU ID:")), self._hduIdSpin)
+        form.addRow(QLabel(self.tr("HDU ID:")), self._hduIdSpin)
 
         # Min sigma-x
         self._sigmaXSpin = self._makeDoubleSpin()
         form.addRow(
-            self._styledLabel(self.tr("Min \u03c3\u2093:")),
+            QLabel(self.tr("Min \u03c3\u2093:")),
             self._sigmaXSpin,
         )
 
         # Min sigma-y
         self._sigmaYSpin = self._makeDoubleSpin()
         form.addRow(
-            self._styledLabel(self.tr("Min \u03c3\u1d67:")),
+            QLabel(self.tr("Min \u03c3\u1d67:")),
             self._sigmaYSpin,
         )
 
         # Min Energy
         unit = self._vm.energy_unit_label
         self._energySpin = self._makeDoubleSpin()
-        self._energyLabel = self._styledLabel(
+        self._energyLabel = QLabel(
             self.tr("Min Energy ({unit}):").format(unit=unit)
         )
         form.addRow(self._energyLabel, self._energySpin)
 
         # Min Pixels
         self._pixelsSpin = self._makeIntSpin()
-        form.addRow(self._styledLabel(self.tr("Min Pixels:")), self._pixelsSpin)
+        form.addRow(QLabel(self.tr("Min Pixels:")), self._pixelsSpin)
 
         # Classification
         self._classCombo = QComboBox()
-        self._classCombo.setStyleSheet(_Style.COMBO)
         for label, value in self._vm.classification_options:
             self._classCombo.addItem(self.tr(label), value)
         form.addRow(
-            self._styledLabel(self.tr("Classification:")),
+            QLabel(self.tr("Classification:")),
             self._classCombo,
         )
 
@@ -214,12 +137,12 @@ class HistoricalAdvancedFilterDialog(QDialog):
         btnRow.addStretch()
 
         resetBtn = QPushButton(self.tr("Reset"))
-        resetBtn.setStyleSheet(_Style.RESET_BTN)
+        resetBtn.setProperty("styleRole", "secondary")
         resetBtn.clicked.connect(self._onResetClicked)
         btnRow.addWidget(resetBtn)
 
         applyBtn = QPushButton(self.tr("Apply"))
-        applyBtn.setStyleSheet(_Style.APPLY_BTN)
+        applyBtn.setProperty("styleRole", "primary")
         applyBtn.clicked.connect(self._onApplyClicked)
         btnRow.addWidget(applyBtn)
 
@@ -227,14 +150,8 @@ class HistoricalAdvancedFilterDialog(QDialog):
 
     # --- Helpers ---
 
-    def _styledLabel(self, text: str) -> QLabel:
-        lbl = QLabel(text)
-        lbl.setStyleSheet(_Style.LABEL)
-        return lbl
-
     def _makeIntSpin(self) -> QSpinBox:
         spin = QSpinBox()
-        spin.setStyleSheet(_Style.SPINBOX)
         spin.setRange(0, 999999)
         spin.setSingleStep(1)
         spin.setSpecialValueText(self.tr("Any"))
@@ -244,7 +161,6 @@ class HistoricalAdvancedFilterDialog(QDialog):
 
     def _makeDoubleSpin(self) -> QDoubleSpinBox:
         spin = QDoubleSpinBox()
-        spin.setStyleSheet(_Style.SPINBOX)
         spin.setRange(0.0, 999999.0)
         spin.setDecimals(4)
         spin.setSingleStep(0.01)
@@ -255,7 +171,6 @@ class HistoricalAdvancedFilterDialog(QDialog):
 
     def _makeDateTimeEdit(self) -> QDateTimeEdit:
         edit = QDateTimeEdit()
-        edit.setStyleSheet(_Style.DATETIME_EDIT)
         edit.setDisplayFormat("yyyy-MM-dd HH:mm")
         edit.setCalendarPopup(True)
         return edit

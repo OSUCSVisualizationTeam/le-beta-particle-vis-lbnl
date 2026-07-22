@@ -40,11 +40,6 @@ from le_beta_vis.common.Cluster import Cluster
 logger = logging.getLogger(__name__)
 
 
-class _Style:
-    BROWSER_PANEL = "background-color: #2d2d2d;"
-    INSPECTOR_PANEL = "background-color: #f0f0f0; color: #000000;"
-
-
 class HistoricalView(QWidget):
     """View for the Historical Event Analysis tab.
 
@@ -148,7 +143,6 @@ class HistoricalView(QWidget):
         self._splitter = QSplitter(Qt.Horizontal)
 
         self._gridWidget = EventGridWidget()
-        self._gridWidget.setStyleSheet(_Style.BROWSER_PANEL)
         self._splitter.addWidget(self._gridWidget)
 
         self._inspectorVM = HistoricalEventInspectorViewModel(

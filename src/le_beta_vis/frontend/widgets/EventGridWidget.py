@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
 
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManager
-from le_beta_vis.frontend.theme import COLOR_BACKGROUND_SURFACE
 from le_beta_vis.frontend.widgets._EventItemDelegate import (
     CLUSTER_ROLE,
     THUMBNAIL_ROLE,
@@ -98,6 +97,7 @@ class EventGridWidget(QWidget):
     # ------------------------------------------------------------------ #
 
     def _initUI(self) -> None:
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -129,16 +129,12 @@ class EventGridWidget(QWidget):
         area.setFrameShape(QScrollArea.Shape.NoFrame)
         area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        area.setStyleSheet(f"background-color: {COLOR_BACKGROUND_SURFACE};")
 
         self._contentWidget = QWidget()
         self._contentLayout = QVBoxLayout(self._contentWidget)
         self._contentLayout.setContentsMargins(0, 0, 0, 0)
         self._contentLayout.setSpacing(0)
         area.setWidget(self._contentWidget)
-        area.verticalScrollBar().setStyleSheet(
-            "QScrollBar:vertical { width: 0px; max-width: 0px; }"
-        )
         return area
 
     def _buildStickyOverlay(self) -> EventGridSectionHeaderWidget:
@@ -181,7 +177,6 @@ class EventGridWidget(QWidget):
         view.setSpacing(4)
         view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        view.setStyleSheet(f"background-color: {COLOR_BACKGROUND_SURFACE};")
         view.clicked.connect(
             lambda idx, s=section_index: self._onSectionItemClicked(s, idx)
         )
@@ -336,7 +331,7 @@ class EventGridWidget(QWidget):
         view.setModel(model)
 
         start = info.start_index
-        for cluster in events[start : start + info.count]:
+        for cluster in events[start: start + info.count]:
             item = QStandardItem()
             item.setData(cluster, CLUSTER_ROLE)
             item.setEditable(False)

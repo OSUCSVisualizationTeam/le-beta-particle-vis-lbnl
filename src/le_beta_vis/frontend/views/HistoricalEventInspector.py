@@ -39,14 +39,6 @@ _HIGH_RES_SIZE = 256
 _HISTOGRAM_BINS = 50
 
 
-class _Style:
-    PANEL = "background-color: #f0f0f0;" "color: #000000;"
-    SECTION_HEADER = (
-        "font-weight: bold;" "font-size: 13px;" "color: #333333;" "padding-top: 8px;"
-    )
-    PLACEHOLDER = "color: #999999;" "font-style: italic;" "padding: 20px;"
-
-
 class HistoricalEventInspector(QWidget):
     """View for displaying detailed information about a selected event.
 
@@ -68,14 +60,14 @@ class HistoricalEventInspector(QWidget):
         self._initUI()
 
     def _initUI(self) -> None:
-        self.setStyleSheet(_Style.PANEL)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setAlignment(Qt.AlignTop)
 
         # Placeholder shown when nothing is selected
         self._placeholder = QLabel(self.tr("Select an event to inspect"))
-        self._placeholder.setStyleSheet(_Style.PLACEHOLDER)
+        self._placeholder.setProperty("class", "placeholder")
         self._placeholder.setAlignment(Qt.AlignCenter)
         self._layout.addWidget(self._placeholder)
 
@@ -126,7 +118,7 @@ class HistoricalEventInspector(QWidget):
     def _createHistogramSection(self, parent: QVBoxLayout) -> None:
         """Creates the energy histogram section."""
         header = QLabel(self.tr("Energy Distribution"))
-        header.setStyleSheet(_Style.SECTION_HEADER)
+        header.setProperty("class", "sectionHeader")
         parent.addWidget(header)
 
         self._histogram = InteractiveHistogramWidget()
