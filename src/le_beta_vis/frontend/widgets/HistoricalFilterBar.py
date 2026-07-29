@@ -249,7 +249,8 @@ class HistoricalFilterBar(QFrame):
         layout.addWidget(self._applyBtn)
 
         # Save button (issue #56). Toggles to Cancel while an export is
-        # running.
+        # running; disabled when the ExportViewModel reports the current
+        # result count fails the gating check (0 or 1 results).
         self._saveBtn = QPushButton(self.tr("Save"))
         self._saveBtn.setStyleSheet(_Style.SAVE_BTN)
         self._saveBtn.clicked.connect(self._onSaveClicked)
@@ -271,6 +272,19 @@ class HistoricalFilterBar(QFrame):
         self._vm.add_filter_reset_callback(self._syncFromViewModel)
         self._exportRunningChanged.connect(self._onExportLockChanged)
         self._vm.add_export_running_callback(self._exportRunningChanged.emit)
+
+    def setSaveEnabled(self, enabled: bool, reason: str = "") -> None:
+        """Owner view uses this to reflect the export gating state.
+
+        ``reason`` populates the tooltip when disabled so scientists see
+        why (fewer than 2 results in the current filter).
+        """
+        # During an export the button is the Cancel action — keep it
+        # enabled regardless of gating.
+        if self._vm.is_export_running:
+            return
+        self._saveBtn.setEnabled(enabled)
+        self._saveBtn.setToolTip(reason if not enabled else "")
 
     # --- Export lock (issue #56) ---
 

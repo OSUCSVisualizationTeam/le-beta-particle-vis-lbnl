@@ -2,6 +2,7 @@
 
 Pure Python — no Qt imports — so it runs in headless CI. Owns:
 
+  * Gating logic (more than one result must be present).
   * The export lifecycle (begin / progress / complete / cancel / error)
     surfaced as plain callbacks the View binds to.
   * Coordination with the filter-bar ViewModel's export lock so filter
@@ -56,6 +57,7 @@ class HistoricalExportViewModel:
         self._physics = physics
         self._service = export_service
         self._filter_bar = filter_bar_vm
+        self._result_count: int = 0
         self._is_exporting: bool = False
         self._cancel_token: Optional[CancelToken] = None
         self._on_state_changed: List[Callable[[bool], None]] = []
@@ -91,6 +93,26 @@ class HistoricalExportViewModel:
         base_dir = str(self._config.get("gui:export:default_path", "~"))
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return str(Path(base_dir).expanduser() / f"mlccd-export-{timestamp}")
+
+    # --- Gating ---
+
+    def set_result_count(self, count: int) -> None:
+        """Records the current filtered result count for the gating check."""
+        self._result_count = count
+
+    def can_export(self) -> bool:
+        ok, _ = self.gating_reason()
+        return ok
+
+    def gating_reason(self) -> tuple[bool, str]:
+        """Returns ``(enabled, reason_if_disabled)``.
+
+        Reason string is user-facing (no tr() here — the View wraps it
+        with ``tr()`` when building the tooltip).
+        """
+        if self._result_count <= 1:
+            return False, "Select more than one result to enable Save."
+        return True, ""
 
     # --- Commands ---
 

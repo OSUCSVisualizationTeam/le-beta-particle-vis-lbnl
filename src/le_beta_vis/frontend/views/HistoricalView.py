@@ -101,6 +101,7 @@ class HistoricalView(QWidget):
         self._buildExportViewModel()
         self._filterBar.saveClicked.connect(self._onSaveClicked)
         self._filterBar.cancelClicked.connect(self._onCancelClicked)
+        self._refreshSaveGating()
         return self._filterBar
 
     def _buildExportViewModel(self) -> None:
@@ -241,6 +242,9 @@ class HistoricalView(QWidget):
             lbl.setText(self.tr("1 event"))
         else:
             lbl.setText(self.tr("{count} events").format(count=count))
+        if self._exportVM is not None:
+            self._exportVM.set_result_count(count)
+            self._refreshSaveGating()
 
     @Slot()
     def _updateSelection(self) -> None:
@@ -281,6 +285,12 @@ class HistoricalView(QWidget):
             self._loadingOverlay.hideOverlay()
 
     # --- Export slots (issue #56) ---
+
+    def _refreshSaveGating(self) -> None:
+        if self._exportVM is None:
+            return
+        ok, reason = self._exportVM.gating_reason()
+        self._filterBar.setSaveEnabled(ok, self.tr(reason) if reason else "")
 
     def _onSaveClicked(self) -> None:
         if self._exportVM is None:

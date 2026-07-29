@@ -171,6 +171,32 @@ class TestExportLifecycle:
         assert vm.is_exporting is False
 
 
+class TestGating:
+    def test_disabled_with_no_results(self):
+        vm, _ = _build_vm()
+        vm.set_result_count(0)
+        ok, reason = vm.gating_reason()
+        assert ok is False
+        assert reason
+        assert vm.can_export() is False
+
+    def test_disabled_with_single_result(self):
+        vm, _ = _build_vm()
+        vm.set_result_count(1)
+        ok, reason = vm.gating_reason()
+        assert ok is False
+        assert reason
+        assert vm.can_export() is False
+
+    def test_enabled_with_more_than_one_result(self):
+        vm, _ = _build_vm()
+        vm.set_result_count(2)
+        ok, reason = vm.gating_reason()
+        assert ok is True
+        assert reason == ""
+        assert vm.can_export() is True
+
+
 class TestColormapResolution:
     def test_returns_enum_for_valid_config_value(self):
         vm, _ = _build_vm()
