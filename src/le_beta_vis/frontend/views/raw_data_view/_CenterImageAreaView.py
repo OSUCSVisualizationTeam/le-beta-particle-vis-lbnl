@@ -1,3 +1,5 @@
+from typing import List
+
 from PySide6.QtCore import (
     QMetaObject,
     QRectF,
@@ -14,6 +16,9 @@ from PySide6.QtWidgets import (
 )
 
 from le_beta_vis.common import AnnotationOverlay
+from le_beta_vis.common.Cluster import Cluster
+from le_beta_vis.common.ParticleType import classify_particle
+from ...fitsconverters import Colormap
 from ...viewmodels.ClusterAnalysisViewModel import ClusteringState
 from ...viewmodels.RawDataViewModel import RawDataViewModel
 from ...widgets.ClusteringProgressOverlay import ClusteringProgressOverlay
@@ -40,6 +45,8 @@ class _CenterImageAreaView(QWidget):
     def __init__(self, viewModel: RawDataViewModel) -> None:
         super().__init__()
         self._vm = viewModel
+        self._persistentOverlays: List[AnnotationOverlay] = []
+        self._selectionOverlays: List[AnnotationOverlay] = []
         self._initUI()
         self._bindViewModel()
         self._applyInitialToolHint()
@@ -110,6 +117,7 @@ class _CenterImageAreaView(QWidget):
         self._bindRoiCallbacks()
         self._bindClusteringOverlayCallbacks()
         self._bindClusterSelectionCallbacks()
+        self._bindAnnotationCallbacks()
 
     def _bindToolHintCallbacks(self) -> None:
         def on_active_tool_changed():
@@ -192,6 +200,24 @@ class _CenterImageAreaView(QWidget):
         self._vm.add_file_loaded_callback(on_context_changed)
         self._vm.add_active_hdu_changed_callback(on_context_changed)
 
+    def _bindAnnotationCallbacks(self) -> None:
+        """Wires persistent EPS-backed annotations to the HUD.
+
+        AutoConnection is required: the annotations VM notifies
+        synchronously (main thread) when refresh() clears stale state on
+        file/HDU change, and again later from its own background fetch
+        thread once the EPS round-trip completes.
+        """
+
+        def on_annotations_changed():
+            QMetaObject.invokeMethod(
+                self, "_updatePersistentAnnotationOverlay", Qt.AutoConnection
+            )
+
+        self._vm.annotationsViewModel.add_annotations_changed_callback(
+            on_annotations_changed
+        )
+
     # --- Tool hint / pointer status ---
 
     @Slot()
@@ -212,13 +238,29 @@ class _CenterImageAreaView(QWidget):
         info = self._vm.pointerHoverInfo
         if info is None:
             self._statusLabel.setText("")
-        else:
-            row, col, kev = info
-            self._statusLabel.setText(
-                self.tr("X: {col}  Y: {row}  Value: {kev} keV").format(
-                    col=col, row=row, kev=f"{kev:.5f}"
-                )
-            )
+            return
+        row, col, kev = info
+        text = self.tr("X: {col}  Y: {row}  Value: {kev} keV").format(
+            col=col, row=row, kev=f"{kev:.5f}"
+        )
+        cluster = self._vm.annotationsViewModel.hitTest(row, col)
+        if cluster is not None:
+            text += "  |  " + self._formatAnnotationClassification(cluster)
+        self._statusLabel.setText(text)
+
+    def _formatAnnotationClassification(self, cluster: Cluster) -> str:
+        """Formats particle type + per-model scores for the status bar."""
+        threshold = self._vm.annotationClassificationThreshold
+        particle_type, _ = classify_particle(cluster, threshold)
+        return self.tr(
+            "{symbol} {name}  cnn {cnn:.0%}  nrg {nrg:.0%}  bdt {bdt:.0%}"
+        ).format(
+            symbol=particle_type.symbol,
+            name=particle_type.display_name,
+            cnn=cluster.cnnClassification,
+            nrg=cluster.nrgClassification,
+            bdt=cluster.bdtClassification,
+        )
 
     # --- Box selection routing ---
 
@@ -232,12 +274,29 @@ class _CenterImageAreaView(QWidget):
 
     @Slot(int, int)
     def _onBoxSelectClicked(self, row: int, col: int) -> None:
+        cluster = self._vm.annotationsViewModel.hitTest(row, col)
+        if cluster is not None:
+            self._openAnnotationDetailDialog(cluster)
+            return
         rois = self._cavm.rois
         if not rois:
             return
         bbox = rois[-1].geometry()
         if row < bbox.top or row >= bbox.bottom or col < bbox.left or col >= bbox.right:
             self._cavm.clearRois()
+
+    def _openAnnotationDetailDialog(self, cluster: Cluster) -> None:
+        """Opens the read-only detail dialog for a clicked annotation."""
+        from ._AnnotationDetailDialog import _AnnotationDetailDialog
+
+        dialog = _AnnotationDetailDialog(
+            cluster,
+            physics=self._vm.physics_manager,
+            threshold=self._vm.annotationClassificationThreshold,
+            colormap=Colormap(self._vm.colormap),
+            parent=self.window(),
+        )
+        dialog.exec()
 
     @Slot()
     def _updateBoxSelection(self) -> None:
@@ -261,23 +320,43 @@ class _CenterImageAreaView(QWidget):
 
     @Slot()
     def _updateClusterAnnotationOverlay(self) -> None:
-        hud = self._visualizationView.hudWidget
-        if hud is None:
-            return
         clusters = self._cavm.selectedClusters
-        if not clusters:
-            hud.setAnnotationOverlays([])
-            return
-        hud.setAnnotationOverlays(
-            [AnnotationOverlay(c.boundingBox) for c in clusters]
-        )
+        self._selectionOverlays = [
+            AnnotationOverlay(c.boundingBox, cluster=c) for c in clusters
+        ]
+        self._pushAnnotationOverlays()
 
     @Slot()
     def _clearClusterAnnotationOverlay(self) -> None:
+        """Clears the in-session selection overlays only.
+
+        Persistent (EPS-backed) annotations are owned by
+        ``RawDataAnnotationsViewModel`` and refresh independently on the
+        same file/HDU-change events, so they must not be cleared here.
+        """
+        self._selectionOverlays = []
+        self._pushAnnotationOverlays()
+
+    @Slot()
+    def _updatePersistentAnnotationOverlay(self) -> None:
+        clusters = self._vm.annotationsViewModel.visibleAnnotations
+        self._persistentOverlays = [
+            AnnotationOverlay(c.boundingBox, cluster=c) for c in clusters
+        ]
+        self._pushAnnotationOverlays()
+
+    def _pushAnnotationOverlays(self) -> None:
+        """Combines persistent and selection overlays onto the HUD.
+
+        Sole caller of ``hud.setAnnotationOverlays()`` so the two
+        annotation sources never stomp on each other.
+        """
         hud = self._visualizationView.hudWidget
         if hud is None:
             return
-        hud.setAnnotationOverlays([])
+        hud.setAnnotationOverlays(
+            self._persistentOverlays + self._selectionOverlays
+        )
 
     # --- Clustering state ---
 

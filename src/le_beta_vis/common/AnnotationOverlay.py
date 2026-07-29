@@ -1,4 +1,9 @@
+from typing import Optional, TYPE_CHECKING
+
 from .BoundingBox import BoundingBox
+
+if TYPE_CHECKING:
+    from .Cluster import Cluster
 
 
 class AnnotationOverlay:
@@ -9,10 +14,20 @@ class AnnotationOverlay:
     added without changing the HUD API.
     """
 
-    def __init__(self, bounding_box: BoundingBox) -> None:
+    def __init__(
+        self,
+        bounding_box: BoundingBox,
+        cluster: Optional["Cluster"] = None,
+    ) -> None:
         self._bounding_box = bounding_box
+        self._cluster = cluster
 
     @property
     def bounding_box(self) -> BoundingBox:
         """Source-scene bounding box in FITS pixel coordinates."""
         return self._bounding_box
+
+    @property
+    def cluster(self) -> Optional["Cluster"]:
+        """The source Cluster this overlay represents, if any."""
+        return self._cluster

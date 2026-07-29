@@ -14,8 +14,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
-from le_beta_vis.common.EPSDataClasses import FitsQueryFilter, FitsStoreRequest
+from le_beta_vis.common.EPSDataClasses import (
+    ClusterQueryFilter,
+    FitsQueryFilter,
+    FitsStoreRequest,
+)
 from le_beta_vis.common.EventRepository import EventRepository
 from ...viewmodels.ClusterAnalysisViewModel import ClusteringState
 from ...viewmodels.RawDataViewModel import RawDataViewModel
@@ -87,6 +92,12 @@ class RawDataView(QWidget):
         self._bindClusteringStateCallback()
         if self._repository is not None:
             self._cavm.setExportHandler(self._onExportRequested)
+            self.viewModel.annotationsViewModel.setFitsLookupHandler(
+                self._onAnnotationFitsLookup
+            )
+            self.viewModel.annotationsViewModel.setClusterFetchHandler(
+                self._onAnnotationClusterFetch
+            )
         self._cavm.setClassifyHandler(self._onClassifyRequested)
 
     def _bindMosaicCallbacks(self) -> None:
@@ -192,6 +203,51 @@ class RawDataView(QWidget):
         dialog = _RawClusterLabelingDialog(vm, parent=self.window())
         if dialog.exec() == QDialog.Accepted:
             self._cavm.removeClustersByIndices(indices_to_remove)
+
+    def _onAnnotationFitsLookup(self, fits_path: str) -> Optional[int]:
+        """Resolves a FITS path to its EPS fits_id, or None if not ingested.
+
+        Matches on the full path, not the basename: the ingestion pipeline
+        (``PollingThread``/``process_file``) registers each FITS file under
+        the exact path the filesystem watcher observed it at
+        (``pipeline:ingress:polling_location`` + filename), and EPS matches
+        ``fileName`` with SQL equality, not a LIKE/substring query.
+        """
+        records = self._repository.query_fits_sync(
+            FitsQueryFilter(filename=fits_path)
+        )
+        if records:
+            return records[0].fits_id
+        return None
+
+    def _onAnnotationClusterFetch(
+        self, fits_id: int, hdu_id: int
+    ) -> List[Cluster]:
+        """Fetches clusters for a FITS/HDU and hydrates their pixel data.
+
+        Slices pixel data from the already-loaded raw HDU array rather than
+        re-reading the FITS file from disk, since Raw Data Analysis already
+        holds it in memory. Returns an empty list if the active raw data is
+        unavailable (e.g. the file/HDU changed again while this fetch was
+        in flight) rather than risk hydrating from the wrong HDU.
+
+        EPS-sourced clusters store ``boundingBox.top``/``bottom`` with the
+        axis flipped relative to locally-extracted ones (see
+        ``ClusterLocationMapWidget._draw_bbox``), so the row span is
+        normalized with min/max rather than assumed ordered.
+        """
+        clusters = self._repository.fetch_clusters_sync(
+            ClusterQueryFilter(fits_id=fits_id, hdu_id=hdu_id)
+        )
+        raw = self.viewModel.activeRawData
+        if raw is None:
+            return []
+        for cluster in clusters:
+            bb = cluster.boundingBox
+            row_lo, row_hi = min(bb.top, bb.bottom), max(bb.top, bb.bottom)
+            col_lo, col_hi = min(bb.left, bb.right), max(bb.left, bb.right)
+            cluster.data = raw[row_lo:row_hi, col_lo:col_hi]
+        return clusters
 
     def _onClassifyRequested(self, clusters: List[ClusteredEventInfo]) -> None:
         # TODO(#XXX): Replace MockClassifierService with the production
