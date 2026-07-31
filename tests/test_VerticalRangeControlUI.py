@@ -7,7 +7,7 @@
 # issue #63 prevents broken widget state.
 #
 # NOTE: This file requires a display server (QApplication). It is excluded
-# from headless CI via --ignore in python-package-conda.yml.
+# from headless CI via --ignore in python-package-uv.yml.
 
 import sys
 import pytest

@@ -11,7 +11,7 @@ test: a ``tests/test_live_*.py`` file gated by this same env var.
 
 NOTE: ``test_live_dialog_renders_without_error`` requires a display server
 (QApplication). It is excluded from headless CI via --ignore in
-python-package-conda.yml, per the project's convention for Qt-bug-fix
+python-package-uv.yml, per the project's convention for Qt-bug-fix
 integration tests (issue #204 is the recorded bug).
 """
 

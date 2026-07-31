@@ -1,16 +1,14 @@
-name: Python Conda
+name: Python Package (UV)
 
 on:
   push:
     branches:
       - main
       - 'release/**'
-      - 'feat/uv_support'
   pull_request:
     branches:
       - main
       - 'release/**'
-      - 'feat/uv_support'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,22 +27,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache conda
-        uses: actions/cache@v4
-        env:
-          # Increase this value to reset cache if etc/example-environment.yml has not changed
-          CACHE_NUMBER: 2
-        with:
-          path: ~/conda_pkgs_dir
-          key:
-            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{
-            hashFiles('environment.yml') }}
-
       - name: Set up Python 3.10
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
       - name: Start MySQL
         run: sudo service mysql start
 
@@ -53,18 +46,13 @@ jobs:
           echo "Creating database ${DB_NAME}"
           echo " User: ${DB_USER}"
           mysql -u $DB_USER --password=$DB_PASS --port=3306 --host=127.0.0.1 -e "CREATE DATABASE ${DB_NAME};"
-      
+
       - name: Create schema
         run: |
           mysql -u $DB_USER --password=$DB_PASS --port=3306 --host=127.0.0.1 --database=$DB_NAME < src/le_beta_vis/backend/eventPersistence.sql
 
-      - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          activate-environment: mlccd_viz
-          environment-file: environment.yml
-          conda-remove-defaults: true
-          use-only-tar-bz2: true
+      - name: Install project dependencies
+        run: uv sync --extra dev
 
       - name: Install system dependencies
         run: |
@@ -72,16 +60,15 @@ jobs:
           apt-get install -y -qq libgl1 libegl1 || sudo apt-get install -y -qq libgl1 libegl1
 
       - name: Lint with flake8
-        shell: bash -el {0}
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=archive
+          uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=archive,.venv,.packaging-venv
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=archive
+          uv run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=archive,.venv,.packaging-venv
 
       - name: Test with pytest
-        shell: bash -el {0}
         env:
           PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
         run: |
-          pytest --ignore=tests/test_MagnifierGraphicsItem.py --ignore=tests/test_CaptureGraphicsView.py --ignore=tests/test_SectionHeaderFormatting.py --ignore=tests/test_VerticalRangeControlUI.py --ignore=tests/test_HUDBoxSelectionItem.py --ignore=tests/test_HUDMagnifierBorderItem.py --ignore=tests/test_HDUVisualizationHUDWidget.py --ignore=tests/test_DragHandleLifetimeUI.py --ignore=tests/test_live_ipc_fallback.py tests
+          uv run pytest --ignore=tests/test_MagnifierGraphicsItem.py --ignore=tests/test_CaptureGraphicsView.py --ignore=tests/test_SectionHeaderFormatting.py --ignore=tests/test_VerticalRangeControlUI.py --ignore=tests/test_HUDBoxSelectionItem.py --ignore=tests/test_HUDMagnifierBorderItem.py --ignore=tests/test_HDUVisualizationHUDWidget.py --ignore=tests/test_DragHandleLifetimeUI.py --ignore=tests/test_live_ipc_fallback.py tests
