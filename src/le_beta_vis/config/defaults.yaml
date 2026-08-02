@@ -198,6 +198,22 @@ gui:raw_analysis:display_energy_in_kev:
   description: >-
     Display cluster energy in keV. When false, displays raw ADU values.
 
+gui:raw_analysis:show_low_confidence_annotations:
+  type: bool
+  default: true
+  description: >-
+    Show persistent cluster annotation overlays for clusters whose best
+    classification score is below annotation_classification_threshold.
+    When false, those low-confidence/unclassified annotations are hidden.
+
+gui:raw_analysis:annotation_classification_threshold:
+  type: float
+  default: 0.5
+  description: >-
+    Minimum confidence (across cnn, nrg, and bdt scores) for a persistent
+    cluster annotation to be considered classified, used to gate
+    show_low_confidence_annotations.
+
 # ---------------------------------------------------------------------------
 # GUI — Window
 # ---------------------------------------------------------------------------

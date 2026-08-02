@@ -16,6 +16,9 @@ from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.PhysicsConversionManager import PhysicsConversionManagerImpl
 from le_beta_vis.frontend.fitsconverters import OpenCVBasedConverter
+from le_beta_vis.frontend.viewmodels.RawDataAnnotationsViewModel import (
+    RawDataAnnotationsViewModel,
+)
 from le_beta_vis.frontend.viewmodels.RawDataViewModel import (
     ActiveTool,
     RawDataViewModel,
@@ -511,3 +514,80 @@ def test_set_scaling_function_invalid_is_noop(view_model):
     original = view_model.scalingFunction
     view_model.setScalingFunction("invalid")
     assert view_model.scalingFunction == original
+
+
+def test_annotations_view_model_constructed(view_model):
+    """Test that annotationsViewModel is constructed as a sub-VM."""
+    assert isinstance(view_model.annotationsViewModel, RawDataAnnotationsViewModel)
+
+
+def test_show_low_confidence_annotations_default(view_model):
+    """Test the low-confidence-annotations visibility flag defaults to True."""
+    assert view_model.showLowConfidenceAnnotations is True
+
+
+def test_show_low_confidence_annotations_from_config():
+    """Test the low-confidence-annotations visibility flag honors config."""
+    config = MockConfigurationService()
+    config.set("gui:raw_analysis:show_low_confidence_annotations", False)
+    physics_manager = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics_manager)
+    assert vm.showLowConfidenceAnnotations is False
+
+
+def test_annotation_classification_threshold_default(view_model):
+    """Test the annotation classification threshold defaults to 0.5."""
+    assert view_model.annotationClassificationThreshold == 0.5
+
+
+def test_annotation_classification_threshold_from_config():
+    """Test the annotation classification threshold honors config."""
+    config = MockConfigurationService()
+    config.set("gui:raw_analysis:annotation_classification_threshold", 0.75)
+    physics_manager = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics_manager)
+    assert vm.annotationClassificationThreshold == 0.75
+
+
+def test_load_file_refreshes_annotations(view_model):
+    """Test that loadFile triggers an annotations refresh for the new file."""
+    view_model.mosaicViewModel._converter = MagicMock()
+    view_model.mosaicViewModel._converter.convert.return_value = np.zeros((10, 10))
+
+    mock_capture = MagicMock(spec=CCDCaptureModel)
+    mock_capture.info.return_value.rows = 100
+    mock_capture.info.return_value.cols = 100
+    mock_capture.rawData.return_value = np.zeros((10, 10))
+
+    view_model.annotationsViewModel.refresh = MagicMock()
+
+    module = sys.modules["le_beta_vis.frontend.viewmodels.RawDataViewModel"]
+    with patch.object(module, "Path") as MockPath:
+        MockPath.return_value.exists.return_value = True
+        with patch.object(CCDCaptureModel, "load", return_value=[mock_capture]):
+            view_model.loadFile("dummy/path/file.fits")
+
+    view_model.annotationsViewModel.refresh.assert_called_with(
+        "dummy/path/file.fits", 0
+    )
+
+
+def test_set_active_hdu_refreshes_annotations():
+    """Test that switching the active HDU triggers an annotations refresh."""
+    config = MockConfigurationService()
+    physics_manager = PhysicsConversionManagerImpl(config)
+    vm = RawDataViewModel(config, physics_manager)
+    vm._converter = MagicMock()
+    vm._converter.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
+    vm._request_render = lambda: None
+
+    mock_capture0 = MagicMock(spec=CCDCaptureModel)
+    mock_capture1 = MagicMock(spec=CCDCaptureModel)
+    vm._captures = [mock_capture0, mock_capture1]
+    vm._fits_path = "some/file.fits"
+    vm._activeIndex = 0
+
+    vm.annotationsViewModel.refresh = MagicMock()
+    vm.setActiveHDU(1)
+
+    vm.annotationsViewModel.refresh.assert_called_with("some/file.fits", 1)

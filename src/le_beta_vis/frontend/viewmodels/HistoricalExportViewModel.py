@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import socket
-import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,7 +25,11 @@ from le_beta_vis.common.Colormap import Colormap
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
 from le_beta_vis.export.ClusterExportService import ClusterMetadataLabels
-from le_beta_vis.export.ExportStorageService import CancelToken, ExportProvenance
+from le_beta_vis.export.ExportStorageService import (
+    CancelToken,
+    ExportProvenance,
+    machine_id,
+)
 from le_beta_vis.export.HistoricalExportService import (
     ExportRequest,
     HistoricalExportService,
@@ -297,29 +300,5 @@ class HistoricalExportViewModel:
             calibration_pedestal_width=int(self._physics.pedestal_width),
             hostname=socket.gethostname(),
             user=os.environ.get("USER") or os.environ.get("USERNAME") or "unknown",
-            machine_id=_machine_id(),
+            machine_id=machine_id(),
         )
-
-
-def _format_mac(node: int) -> str:
-    return ":".join(f"{(node >> shift) & 0xFF:02x}" for shift in range(40, -1, -8))
-
-
-def _machine_id() -> str:
-    """Return a stable machine identifier without blocking the main thread.
-
-    Reads the first non-zero MAC address from /sys/class/net (Linux) —
-    an instantaneous file read. Falls back to uuid.getnode() only on
-    non-Linux systems; that call can spawn subprocesses on some
-    configurations and block for up to 120 s.
-    """
-    sys_net = Path("/sys/class/net")
-    if sys_net.is_dir():
-        for addr_file in sorted(sys_net.glob("*/address")):
-            try:
-                addr = addr_file.read_text().strip()
-                if addr and addr != "00:00:00:00:00:00":
-                    return addr
-            except OSError:
-                continue
-    return _format_mac(uuid.getnode())

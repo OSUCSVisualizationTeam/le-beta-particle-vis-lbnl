@@ -6,6 +6,7 @@ Zarr, a future streaming format, etc.) can slot in without touching
 ``HistoricalExportService`` or the UI layer.
 """
 
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,6 +14,31 @@ from threading import Event
 from typing import Callable, Dict, List, Optional
 
 from ..common.Cluster import Cluster
+
+
+def format_mac(node: int) -> str:
+    """Formats a 48-bit integer (as returned by uuid.getnode()) as a MAC string."""
+    return ":".join(f"{(node >> shift) & 0xFF:02x}" for shift in range(40, -1, -8))
+
+
+def machine_id() -> str:
+    """Return a stable machine identifier without blocking the main thread.
+
+    Reads the first non-zero MAC address from /sys/class/net (Linux) —
+    an instantaneous file read. Falls back to uuid.getnode() only on
+    non-Linux systems; that call can spawn subprocesses on some
+    configurations and block for up to 120 s.
+    """
+    sys_net = Path("/sys/class/net")
+    if sys_net.is_dir():
+        for addr_file in sorted(sys_net.glob("*/address")):
+            try:
+                addr = addr_file.read_text().strip()
+                if addr and addr != "00:00:00:00:00:00":
+                    return addr
+            except OSError:
+                continue
+    return format_mac(uuid.getnode())
 
 
 class CancelToken:

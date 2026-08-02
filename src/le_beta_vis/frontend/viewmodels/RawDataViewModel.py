@@ -21,6 +21,7 @@ from le_beta_vis.frontend.fitsconverters.RenderPipeline import RenderPipeline
 from .ClusterAnalysisViewModel import ClusterAnalysisViewModel
 from .FilterStackViewModel import FilterStackViewModel
 from .MosaicViewModel import MosaicViewModel
+from .RawDataAnnotationsViewModel import RawDataAnnotationsViewModel
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,13 @@ class RawDataViewModel:
         # The render-on-mutation callback is registered after
         # _seed_pinned_filter_state runs, so seeding the pinned filter
         # parameters during init doesn't queue redundant renders.
+
+        self.annotationsViewModel = RawDataAnnotationsViewModel(
+            lambda: self.showLowConfidenceAnnotations,
+            lambda: self.annotationClassificationThreshold,
+        )
+        self.add_file_loaded_callback(self._refreshAnnotations)
+        self.add_active_hdu_changed_callback(self._refreshAnnotations)
 
     def _init_visualization_state(self) -> None:
         """Initializes colormap, zoom, tool, magnifier, image bounds, and
@@ -179,6 +187,10 @@ class RawDataViewModel:
             self._notify_active_hdu_changed()
             self.mosaicViewModel.selectIndex(index)
             self._request_render()
+
+    def _refreshAnnotations(self) -> None:
+        """Re-triggers the persistent annotation fetch for the active file/HDU."""
+        self.annotationsViewModel.refresh(self._fits_path, self._activeIndex)
 
     def setColormap(self, colormap: str):
         try:
@@ -521,6 +533,22 @@ class RawDataViewModel:
     def autoRangeOnLoad(self) -> bool:
         """Whether to auto-set the visualization range on load."""
         return self._config.get("gui:raw_analysis:auto_range_on_load", False)
+
+    @property
+    def showLowConfidenceAnnotations(self) -> bool:
+        """Whether persistent cluster annotations below the classification
+        threshold are shown alongside classified ones."""
+        return self._config.get_bool(
+            "gui:raw_analysis:show_low_confidence_annotations", True
+        )
+
+    @property
+    def annotationClassificationThreshold(self) -> float:
+        """Minimum confidence for a persistent cluster annotation to be
+        considered classified."""
+        return self._config.get_float(
+            "gui:raw_analysis:annotation_classification_threshold", 0.5
+        )
 
     # --- Observer Pattern Helpers ---
 
