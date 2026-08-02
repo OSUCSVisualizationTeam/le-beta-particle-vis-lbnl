@@ -15,6 +15,7 @@ from le_beta_vis.common.YAMLBackedConfigurationService import (  # noqa E402
     YAMLBackedConfigurationService,
 )
 from le_beta_vis.backend.FileProcessing import process_file  # noqa E402
+from le_beta_vis.backend.FileStabilityCheck import wait_for_file_stable  # noqa E402
 
 logger = logging.getLogger(__name__)
 
@@ -90,13 +91,60 @@ class PollingThread:
                 ]  # return extension of file in queue
                 if file_type.lower() != ".fits":
                     continue
-                process_file(config_service=config, file=path)
+                _wait_and_process(path, config, stop_event)
             except Exception as e:
-                if queue.empty():
-                    continue
-                else:
-                    logger.exception(f"file_uploaded processing error {e}")
-                    continue
+                logger.exception(f"file_uploaded processing error {e}")
+                continue
+
+
+def _wait_and_process(
+    path: str,
+    config: YAMLBackedConfigurationService,
+    stop_event: threading.Event,
+) -> None:
+    """Gate process_file() behind a file-stability check, then run it with a timeout."""
+    poll_ms = config.get_int(
+        "pipeline:ingress:stability_poll_interval_ms", 500, minimum=10
+    )
+    max_wait_ms = config.get_int(
+        "pipeline:ingress:stability_max_wait_ms", 30000, minimum=100
+    )
+    timeout_s = config.get_int(
+        "pipeline:ingress:process_file_timeout_seconds", 120, minimum=1
+    )
+
+    if not wait_for_file_stable(path, poll_ms, max_wait_ms, stop_event):
+        logger.warning(f"Skipping {path}: did not stabilize within {max_wait_ms}ms.")
+        return
+    _process_file_with_timeout(config, path, timeout_s)
+
+
+def _process_file_with_timeout(
+    config: YAMLBackedConfigurationService, path: str, timeout_seconds: float
+) -> None:
+    """Run process_file() on a daemon thread and give up waiting after timeout_seconds.
+
+    A hung astropy read is not reliably cancellable from Python once entered,
+    so this only stops *waiting* on the worker; the thread is daemonized so a
+    permanently-blocked worker cannot prevent clean process shutdown.
+    """
+
+    def _run():
+        try:
+            process_file(config_service=config, file=path)
+        except Exception:
+            logger.exception(f"file_uploaded processing error for {path}")
+
+    worker = threading.Thread(
+        target=_run, name=f"FileProcessing-{os.path.basename(path)}", daemon=True
+    )
+    worker.start()
+    worker.join(timeout=timeout_seconds)
+    if worker.is_alive():
+        logger.error(
+            f"process_file timed out after {timeout_seconds}s for {path}; "
+            "worker thread may remain blocked; continuing to next queued file."
+        )
 
 
 class EventHandler(FileSystemEventHandler):

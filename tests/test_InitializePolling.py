@@ -1,3 +1,8 @@
+from mock_configuration_service import MockConfigurationService
+from le_beta_vis.backend.PollingRunner import PollingRunner
+from le_beta_vis.backend.InitializePolling import FileWatcher
+from le_beta_vis.backend.InitializePolling import EventHandler
+from le_beta_vis.backend.InitializePolling import PollingThread
 import pytest
 import queue
 from pathlib import Path
@@ -8,12 +13,6 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from le_beta_vis.backend.InitializePolling import PollingThread
-from le_beta_vis.backend.InitializePolling import EventHandler
-from le_beta_vis.backend.InitializePolling import FileWatcher
-from le_beta_vis.backend.PollingRunner import PollingRunner
-from mock_configuration_service import MockConfigurationService
 
 
 @pytest.fixture
@@ -139,7 +138,7 @@ class TestPollingThread:
     def test_polling_thread_initialization_with_default_config(self):
         """Test PollingThread initialization with default config"""
         with patch('le_beta_vis.backend.InitializePolling.YAMLBackedConfigurationService') as mock_config_class, \
-             patch('os.path.exists', return_value=True):
+                patch('os.path.exists', return_value=True):
 
             mock_config = MagicMock()
             mock_config.get.return_value = "/tmp"
@@ -152,9 +151,9 @@ class TestPollingThread:
     def test_polling_thread_begin(self, mock_config):
         """Test PollingThread.begin() creates and starts threads"""
         with patch('os.path.exists', return_value=True), \
-             patch('le_beta_vis.backend.InitializePolling.FileWatcher') as MockWatcher, \
-             patch('threading.Thread') as MockThread, \
-             patch('time.sleep'):
+                patch('le_beta_vis.backend.InitializePolling.FileWatcher') as MockWatcher, \
+                patch('threading.Thread') as MockThread, \
+                patch('time.sleep'):
 
             mock_watcher = MagicMock()
             MockWatcher.return_value = mock_watcher
@@ -176,9 +175,9 @@ class TestPollingThread:
     def test_polling_thread_end(self, mock_config):
         """Test PollingThread.end() stops observer and joins threads"""
         with patch('os.path.exists', return_value=True), \
-             patch('le_beta_vis.backend.InitializePolling.FileWatcher') as MockWatcher, \
-             patch('threading.Thread') as MockThread, \
-             patch('time.sleep'):
+                patch('le_beta_vis.backend.InitializePolling.FileWatcher') as MockWatcher, \
+                patch('threading.Thread') as MockThread, \
+                patch('time.sleep'):
 
             mock_watcher = MagicMock()
             MockWatcher.return_value = mock_watcher
@@ -197,7 +196,8 @@ class TestPollingThread:
 
     def test_file_uploaded_filters_fits_files(self, mock_config):
         """Test file_uploaded only processes .fits files"""
-        with patch('le_beta_vis.backend.InitializePolling.process_file') as mock_process:
+        with patch('le_beta_vis.backend.InitializePolling.process_file') as mock_process, \
+                patch('le_beta_vis.backend.InitializePolling.wait_for_file_stable', return_value=True):
             polling = PollingThread(mock_config)
 
             # Create a test queue with controlled items
@@ -223,6 +223,64 @@ class TestPollingThread:
 
             # Should only process the .fits file
             mock_process.assert_called_once_with(config_service=mock_config, file="test.fits")
+
+    def test_file_uploaded_skips_unstable_file(self, mock_config, caplog):
+        """Test file_uploaded never calls process_file when the file doesn't stabilize"""
+        with patch('le_beta_vis.backend.InitializePolling.process_file') as mock_process, \
+                patch('le_beta_vis.backend.InitializePolling.wait_for_file_stable', return_value=False):
+            polling = PollingThread(mock_config)
+
+            test_queue = queue.Queue()
+            test_queue.put("test.fits")
+
+            stop_event = threading.Event()
+            call_count = [0]
+            original_get = test_queue.get
+
+            def limited_get(*args, **kwargs):
+                call_count[0] += 1
+                if call_count[0] > 1:
+                    stop_event.set()
+                return original_get(*args, **kwargs)
+
+            test_queue.get = limited_get
+
+            polling.file_uploaded(test_queue, mock_config, stop_event)
+
+            mock_process.assert_not_called()
+            assert "did not stabilize" in caplog.text
+
+    def test_file_uploaded_logs_and_continues_on_process_timeout(self, mock_config, caplog):
+        """Test a hung process_file logs an error and doesn't block the consumer loop"""
+        def _slow_process_file(config_service, file):
+            time.sleep(1.2)
+
+        # get_int() clamps this to its minimum=1, so the timeout wrapper
+        # gives up waiting after 1s while _slow_process_file is still asleep.
+        mock_config.set("pipeline:ingress:process_file_timeout_seconds", 0)
+
+        with patch('le_beta_vis.backend.InitializePolling.process_file', side_effect=_slow_process_file), \
+                patch('le_beta_vis.backend.InitializePolling.wait_for_file_stable', return_value=True):
+            polling = PollingThread(mock_config)
+
+            test_queue = queue.Queue()
+            test_queue.put("test.fits")
+
+            stop_event = threading.Event()
+            call_count = [0]
+            original_get = test_queue.get
+
+            def limited_get(*args, **kwargs):
+                call_count[0] += 1
+                if call_count[0] > 1:
+                    stop_event.set()
+                return original_get(*args, **kwargs)
+
+            test_queue.get = limited_get
+
+            polling.file_uploaded(test_queue, mock_config, stop_event)
+
+            assert "timed out" in caplog.text
 
     def test_file_uploaded_exits_on_stop_event(self, mock_config):
         """Test file_uploaded exits when stop_event is set"""
@@ -254,9 +312,9 @@ class TestPollingRunner:
         poller = PollingThread(mock_config)
 
         with patch.object(poller, 'begin'), \
-             patch.object(poller, 'end'), \
-             patch('threading.Thread') as MockThread, \
-             patch('time.sleep'):
+                patch.object(poller, 'end'), \
+                patch('threading.Thread') as MockThread, \
+                patch('time.sleep'):
 
             mock_thread = MagicMock()
             MockThread.return_value = mock_thread
@@ -333,7 +391,7 @@ class TestPollingThreadCallable:
     def test_polling_thread_callable(self, mock_config):
         """Test PollingThread is callable and calls begin"""
         with patch('os.path.exists', return_value=True), \
-             patch.object(PollingThread, 'begin') as mock_begin:
+                patch.object(PollingThread, 'begin') as mock_begin:
 
             polling = PollingThread(mock_config)
             polling()

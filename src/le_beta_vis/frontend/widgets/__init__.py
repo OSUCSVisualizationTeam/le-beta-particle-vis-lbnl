@@ -16,3 +16,4 @@ from .HistoricalAdvancedFilterDialog import (
     HistoricalAdvancedFilterDialog,
 )
 from .SettingsDialog import SettingsDialog
+from .IPCFallbackDialogView import IPCFallbackDialogView

@@ -69,6 +69,17 @@ from .EventHandlerClient import EventHandlerClient
 from .ZMQEventHandlerClient import ZMQEventHandlerClient
 from .ZMQEventHandlerSource import ZMQEventHandlerSource
 from .ZMQEventLoggingHandler import ZMQEventLoggingHandler
+from .StartupIPCBindRegistry import (
+    STARTUP_IPC_BIND_KEYS,
+    assert_ipc_bind_key_registered,
+    bind_tracked_ipc_socket,
+)
+from .IPCFallbackSupport import (
+    is_ipc_bind_supported,
+    any_startup_key_uses_ipc_scheme,
+    should_show_ipc_fallback_dialog,
+    find_free_tcp_ports,
+)
 from .ActionableEvent import ActionDescriptor, ActionableEvent
 from .ActionRegistry import ActionRegistry, NoOpActionRegistry, ActionHandler
 from .ClassifierDataClasses import (

@@ -22,6 +22,7 @@ class EPSRunner:
             endpoint=self.config.get("event_handler:zmq_pub_endpoint")
             or DEFAULT_EVENT_PUB_ENDPOINT,
             source="eps",
+            bind_key="event_handler:zmq_pub_endpoint",
         )
 
     def start(self):

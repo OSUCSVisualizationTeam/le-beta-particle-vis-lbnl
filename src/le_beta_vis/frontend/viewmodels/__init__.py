@@ -10,6 +10,7 @@ from .HistoricalEventInspectorViewModel import (
 )
 from .HistoricalFilterBarViewModel import HistoricalFilterBarViewModel
 from .SettingsViewModel import SettingsViewModel
+from .IPCFallbackViewModel import IPCFallbackEndpointRow, IPCFallbackViewModel
 from .FilterPresetService import (
     generate_schema,
     serialize_stack,

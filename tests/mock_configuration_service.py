@@ -63,11 +63,16 @@ class MockConfigurationService(ConfigurationService):
             # Pipeline and Ingress
             "pipeline:ingress:polling_location":
                 "~/Google\\ Drive\\/My\\ Drive/FITS",
+            "pipeline:ingress:stability_poll_interval_ms": 500,
+            "pipeline:ingress:stability_max_wait_ms": 30000,
+            "pipeline:ingress:process_file_timeout_seconds": 120,
             # Event Persistence Service (EPS)
             "eps:cluster_ipc": "ipc:///tmp/EPCCluster.ipc",
             "eps:fits_ipc": "ipc:///tmp/EPCFits.ipc",
             "eps:command_ipc": "ipc:///tmp/EPCCommand.ipc",
             "eps:timeout_ms": 5000,
+            # Event Handler bus
+            "event_handler:zmq_pub_endpoint": "ipc:///tmp/EPCEvents.ipc",
         }
 
     def get(self, key: str, default: Any = None) -> Any:

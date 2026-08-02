@@ -25,6 +25,7 @@ import zmq
 
 from .EventEnvelope import EventEnvelope
 from .EventHandlerClient import EventHandlerClient
+from .StartupIPCBindRegistry import assert_ipc_bind_key_registered
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,15 @@ class ZMQEventHandlerClient(EventHandlerClient):
             ``zmq.Context.instance()``.  Injected in tests.
         linger_ms: Socket LINGER option in milliseconds.
         sndhwm: Send high-water mark.
+        bind_key: When binding, the configuration key this endpoint was
+            resolved from (e.g. ``"event_handler:zmq_pub_endpoint"``).  If
+            provided, the key is checked against
+            :data:`~le_beta_vis.common.StartupIPCBindRegistry.STARTUP_IPC_BIND_KEYS`
+            before the bind — an unregistered key raises ``RuntimeError``
+            so a new startup-time ``ipc://`` bind can't be added without
+            also wiring it into the Windows fallback dialog.  Left ``None``
+            (the default) for callers that don't bind at startup or don't
+            resolve their endpoint from configuration.
     """
 
     def __init__(
@@ -69,6 +79,7 @@ class ZMQEventHandlerClient(EventHandlerClient):
         context: Optional[zmq.Context] = None,
         linger_ms: int = _DEFAULT_LINGER_MS,
         sndhwm: int = _DEFAULT_SNDHWM,
+        bind_key: Optional[str] = None,
     ) -> None:
         if bind_or_connect not in ("bind", "connect"):
             raise ValueError(
@@ -85,6 +96,8 @@ class ZMQEventHandlerClient(EventHandlerClient):
         self._socket.setsockopt(zmq.SNDHWM, int(sndhwm))
         try:
             if bind_or_connect == "bind":
+                if bind_key is not None:
+                    assert_ipc_bind_key_registered(bind_key)
                 self._socket.bind(endpoint)
             else:
                 self._socket.connect(endpoint)
