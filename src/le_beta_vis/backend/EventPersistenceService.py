@@ -13,6 +13,8 @@ from le_beta_vis.common.EPSDataClasses import (
     FitsClusterQueryFilter,
     FitsStoreRequest,
     ClusterStoreRequest,
+    BulkClusterStoreRequest,
+    BulkInsertClustersResponse,
     ClassificationUpdateRequest,
     EPSClusterRecord,
     EPSFitsRecord,
@@ -20,6 +22,9 @@ from le_beta_vis.common.EPSDataClasses import (
 )
 from le_beta_vis.backend.PagedClusterRetrieval import (
     paged_retrieve_clusters as _paged_retrieve_clusters,
+)
+from le_beta_vis.backend.BulkClusterInsert import (
+    bulk_insert_clusters as _bulk_insert_clusters,
 )
 import os
 import zmq
@@ -40,12 +45,10 @@ def _parse_date_filter(
 ) -> Optional[Tuple[datetime, datetime]]:
     """Validates and parses a date-range filter from an EPS request.
 
-    Returns ``(start, end)`` as ``datetime`` objects when both keys are
-    present and well-formed, or ``None`` when no date filter was supplied
-    (``None``, empty dict, or both keys ``None``). Raises ``ValueError``
-    or ``TypeError`` on malformed input so the calling retrieve_* method
-    can surface a clean failure response to the client instead of a
-    confusing MySQL error.
+    Returns ``(start, end)`` as ``datetime`` objects when both keys are present and well-formed, or
+    ``None`` when no date filter was supplied (``None``, empty dict, or both keys ``None``). Raises
+    ``ValueError`` or ``TypeError`` on malformed input so the calling retrieve_* method can surface
+    a clean failure response to the client instead of a confusing MySQL error.
     """
     if not date:
         return None
@@ -191,6 +194,9 @@ class EventPersistence:
                     {"result": "failure", "cluster_id": None, "error": str(err)}
                 )
 
+        elif request.get("Action") == "BulkStorage":
+            self._handle_bulk_storage(request, socket)
+
         elif request.get("Action") == "Retrieval":
             try:
                 retrieval_clusters = ClusterQueryFilter.from_eps_dict(request)
@@ -230,6 +236,27 @@ class EventPersistence:
                 socket.send_json(
                     {"result": "failure", "clusters": None, "error": str(err)}
                 )
+
+        else:
+            action = request.get("Action")
+            logger.error(f"Unknown cluster Action received: {action!r}")
+            socket.send_json(
+                {"result": "failure", "error": f"Unknown Action: {action!r}"}
+            )
+
+    def _handle_bulk_storage(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, persists, and responds to a BulkStorage cluster action.
+
+        Split out of cluster_event to keep that method's branching complexity from growing further.
+        """
+        try:
+            bulk_request = BulkClusterStoreRequest.from_eps_dict(request)
+            response = self.bulk_store_clusters(bulk_request)
+            socket.send_json(dataclasses.asdict(response))
+        except Exception as err:
+            socket.send_json(
+                {"result": "failure", "cluster_ids": None, "error": str(err)}
+            )
 
     def fits_event(self, request: dict, socket: zmq.Socket):
         """Processes a requested cluster event and calls storage or retrieval of cluster."""
@@ -278,8 +305,8 @@ class EventPersistence:
                 )
 
     def store_fits(self, fits: FitsStoreRequest) -> int:
-        """Uses the persistent EPS DB connection to call the stored procedure insert_fits on the database with the values from
-        the request."""
+        """Uses the persistent EPS DB connection to call the stored procedure insert_fits on the
+        database with the values from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -306,8 +333,8 @@ class EventPersistence:
             logger.warning(f"Could not connect: {str(err)}")
 
     def store_cluster(self, cluster: ClusterStoreRequest) -> int:
-        """Uses the persistent EPS DB connection to call the stored procedure insert_cluster on the database with the values
-        from the request."""
+        """Uses the persistent EPS DB connection to call the stored procedure insert_cluster on the
+        database with the values from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -351,7 +378,8 @@ class EventPersistence:
             logger.warning(f"Could not connect: {str(err)}")
 
     def retrieve_fits(self, fits: FitsQueryFilter) -> dict:
-        """Selects from the database all values from the fits table that match any and all values from the request."""
+        """Selects from the database all values from the fits table that match any and all values
+        from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -401,7 +429,8 @@ class EventPersistence:
             logger.warning(f"Could not connect: {str(err)}")
 
     def retrieve_clusters(self, clusters: ClusterQueryFilter) -> dict:
-        """Selects from the database all values from the clusters table that match any and all values from the request."""
+        """Selects from the database all values from the clusters table that match any and all
+        values from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -484,8 +513,7 @@ class EventPersistence:
 
     def classify_cluster(self, cluster: ClassificationUpdateRequest) -> dict:
         """Executes the insert_classifications stored procedure in the database based on the EPS
-            UpdateClassification request.
-        """
+        UpdateClassification request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -514,8 +542,7 @@ class EventPersistence:
     def retrieve_recent_clusters(self, recent_clusters: ClusterRecentQueryFilter) -> dict:
         """Selects the newest clusters ordered by FITS date, paginated.
 
-        Uses the ``limit`` and ``offset`` stored in
-        ``self.retrieval_recent_clusters``. Reuses
+        Uses the ``limit`` and ``offset`` stored in ``self.retrieval_recent_clusters``. Reuses
         ``process_retrieval_clusters`` to shape the response.
         """
         try:
@@ -542,13 +569,23 @@ class EventPersistence:
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
 
+    def bulk_store_clusters(self, bulk_request: BulkClusterStoreRequest) -> BulkInsertClustersResponse:
+        """Persists all clusters in bulk_request via one multi-row INSERT.
+
+        Falls back to per-row inserts on failure. Delegates to
+        BulkClusterInsert.bulk_insert_clusters so this file doesn't keep growing (mirrors
+        paged_retrieve_clusters).
+        """
+        if not self.conn:
+            self.conn = self.db_connect()
+        return _bulk_insert_clusters(self.conn, bulk_request.clusters)
+
     def paged_retrieve_clusters(self, paged_filter: ClusterPagedQueryFilter) -> PagedRetrieveClustersResponse:
         """Selects clusters matching ``paged_filter`` with bounded pagination.
 
-        Defaults and caps the effective ``limit`` from
-        ``eps:retrieval_limit_default`` / ``eps:retrieval_limit_max`` so an
-        unbounded or excessive client request cannot return the entire
-        table. Delegates the query and formatting to
+        Defaults and caps the effective ``limit`` from ``eps:retrieval_limit_default`` /
+        ``eps:retrieval_limit_max`` so an unbounded or excessive client request cannot return the
+        entire table. Delegates the query and formatting to
         ``PagedClusterRetrieval.paged_retrieve_clusters``.
         """
         if not self.conn:
@@ -558,7 +595,8 @@ class EventPersistence:
         return _paged_retrieve_clusters(self.conn, paged_filter, default_limit, max_limit)
 
     def process_retrieval_fits(self, results) -> dict:
-        """Takes the results from a fits retrieval SELECT statement and formats the EPS response into JSON.
+        """Takes the results from a fits retrieval SELECT statement and formats the EPS response
+        into JSON.
 
         args:
             results: list of results from the retrieve_fits function, collection of mySQL fetches
@@ -585,7 +623,8 @@ class EventPersistence:
         return response
 
     def process_retrieval_clusters(self, results) -> dict:
-        """Takes the results from a fits retrieval SELECT statement and formats the EPS response into JSON.
+        """Takes the results from a fits retrieval SELECT statement and formats the EPS response
+        into JSON.
 
         args:
             results: list of results from the retrieve_fits function, collection of mySQL fetches

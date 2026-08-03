@@ -16,13 +16,14 @@ from le_beta_vis.common.YAMLBackedConfigurationService import (  # noqa E402
 )
 from le_beta_vis.backend.FileProcessing import process_file  # noqa E402
 from le_beta_vis.backend.FileStabilityCheck import wait_for_file_stable  # noqa E402
+from le_beta_vis.backend.InMemoryClusterStorageBuffer import InMemoryClusterStorageBuffer  # noqa E402
 
 logger = logging.getLogger(__name__)
 
 
 class PollingThread:
-    """
-    Polling thread class for input database, location determined from configuration service.
+    """Polling thread class for input database, location determined from configuration service.
+
     Manages starting polls and processing.
     """
 
@@ -56,9 +57,7 @@ class PollingThread:
         self.begin()
 
     def begin(self):
-        """
-        Begins polling the configured location with an observer
-        """
+        """Begins polling the configured location with an observer."""
         self.observer = FileWatcher(self.handler, self.polling_location)
         time.sleep(1)
         self.ingest_thread = threading.Thread(
@@ -124,14 +123,22 @@ def _process_file_with_timeout(
 ) -> None:
     """Run process_file() on a daemon thread and give up waiting after timeout_seconds.
 
-    A hung astropy read is not reliably cancellable from Python once entered,
-    so this only stops *waiting* on the worker; the thread is daemonized so a
-    permanently-blocked worker cannot prevent clean process shutdown.
+    A hung astropy read is not reliably cancellable from Python once entered, so this only stops
+    *waiting* on the worker; the thread is daemonized so a permanently-blocked worker cannot prevent
+    clean process shutdown.
     """
 
     def _run():
         try:
-            process_file(config_service=config, file=path)
+            # The concrete ClusterStorageBuffer implementation is chosen
+            # here, at the top of the ingestion call chain, and injected
+            # down through process_file/cluster_fits so FileProcessing.py
+            # never depends on a specific implementation.
+            process_file(
+                config_service=config,
+                file=path,
+                cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+            )
         except Exception:
             logger.exception(f"file_uploaded processing error for {path}")
 
@@ -148,15 +155,15 @@ def _process_file_with_timeout(
 
 
 class EventHandler(FileSystemEventHandler):
-    """
-    Sub-class of Watchdog's FileSystemEventHandler, adds to queue when new files are created in polling directory.
-    """
+    """Sub-class of Watchdog's FileSystemEventHandler, adds to queue when new files are created in
+    polling directory."""
 
     def __init__(self, queue):
         self.event_queue = queue
 
     def on_created(self, event):
-        """Handles events when files are created in watched directory, does not update for created directories."""
+        """Handles events when files are created in watched directory, does not update for created
+        directories."""
         super().on_created(event)
         if not event.is_directory:
             logger.info("New file creation polled.")
@@ -173,9 +180,8 @@ class EventHandler(FileSystemEventHandler):
 
 
 class FileWatcher:
-    """
-    FileWatcher class that instantiates an observer object to watch for changes in the directory
-    """
+    """FileWatcher class that instantiates an observer object to watch for changes in the
+    directory."""
 
     def __init__(self, handler: EventHandler, path: str):
         self.handler = handler

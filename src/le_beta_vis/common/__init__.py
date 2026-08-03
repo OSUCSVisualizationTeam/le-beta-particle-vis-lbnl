@@ -21,12 +21,14 @@ from .EPSDataClasses import (
     ClusterQueryFilter,
     ClusterRecentQueryFilter,
     ClusterStoreRequest,
+    BulkClusterStoreRequest,
     ClassificationUpdateRequest,
     FitsQueryFilter,
     FitsClusterQueryFilter,
     EPSClusterRecord,
     EPSFitsRecord,
     PagedRetrieveClustersResponse,
+    BulkInsertClustersResponse,
 )
 from .ClusterProvider import ClusterBatch, ClusterProvider, NoOpClusterProvider
 from .EventRepository import EventRepository

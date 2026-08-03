@@ -544,6 +544,15 @@ eps:retrieval_limit_max:
     with a `limit` <= 0 or > this value are rejected, closing the
     unbounded-result crash path regardless of client input.
 
+eps:cluster_storage_buffer_size:
+  type: int
+  default: 32
+  description: >-
+    Number of Cluster objects the client-side ClusterStorageBuffer
+    accumulates in FileProcessing before flushing them to the EPS
+    BulkStorage action in a single ZMQ round-trip / multi-row INSERT.
+    Bounded to [16, 2000] via ConfigurationService.get_int.
+
 # ---------------------------------------------------------------------------
 # Event Handler (pub/sub bus)
 # ---------------------------------------------------------------------------

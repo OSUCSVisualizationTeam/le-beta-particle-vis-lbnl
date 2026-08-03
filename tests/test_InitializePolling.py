@@ -3,6 +3,7 @@ from le_beta_vis.backend.PollingRunner import PollingRunner
 from le_beta_vis.backend.InitializePolling import FileWatcher
 from le_beta_vis.backend.InitializePolling import EventHandler
 from le_beta_vis.backend.InitializePolling import PollingThread
+from le_beta_vis.backend.InMemoryClusterStorageBuffer import InMemoryClusterStorageBuffer
 import pytest
 import queue
 from pathlib import Path
@@ -222,7 +223,11 @@ class TestPollingThread:
             polling.file_uploaded(test_queue, mock_config, stop_event)
 
             # Should only process the .fits file
-            mock_process.assert_called_once_with(config_service=mock_config, file="test.fits")
+            mock_process.assert_called_once_with(
+                config_service=mock_config,
+                file="test.fits",
+                cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+            )
 
     def test_file_uploaded_skips_unstable_file(self, mock_config, caplog):
         """Test file_uploaded never calls process_file when the file doesn't stabilize"""
@@ -252,7 +257,7 @@ class TestPollingThread:
 
     def test_file_uploaded_logs_and_continues_on_process_timeout(self, mock_config, caplog):
         """Test a hung process_file logs an error and doesn't block the consumer loop"""
-        def _slow_process_file(config_service, file):
+        def _slow_process_file(config_service, file, cluster_storage_buffer_factory):
             time.sleep(1.2)
 
         # get_int() clamps this to its minimum=1, so the timeout wrapper

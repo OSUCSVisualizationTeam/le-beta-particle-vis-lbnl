@@ -1,5 +1,6 @@
 import socket
 import numpy as np
+from le_beta_vis.backend.ClusterStorageBuffer import ClusterStorageBuffer, FlushCallback
 from le_beta_vis.common.CCDCaptureModel import CCDCaptureModel
 from le_beta_vis.common.ConfigurationService import ConfigurationService
 from le_beta_vis.common.BoundingBox import BoundingBox
@@ -8,19 +9,33 @@ from le_beta_vis.common.cluster_sigma import compute_cluster_sigmas
 from le_beta_vis.common.EPSDataClasses import (
     FitsStoreRequest,
     ClusterStoreRequest,
+    BulkClusterStoreRequest,
 )
 from astropy.io import fits
 from scipy.ndimage import label, maximum_position
 import numpy as np
 import os
 from pathlib import Path
+from typing import Callable, List, Optional
 import zmq
 import logging
 
 logger = logging.getLogger(__name__)
 
+ClusterStorageBufferFactory = Callable[[int, FlushCallback], ClusterStorageBuffer]
+"""Builds a ClusterStorageBuffer given a capacity and flush callback.
 
-def process_file(config_service: ConfigurationService, file: Path):
+FileProcessing never constructs a concrete ClusterStorageBuffer itself — the caller (ultimately
+InitializePolling.py) injects which implementation to use, so it can be swapped without touching
+this file.
+"""
+
+
+def process_file(
+    config_service: ConfigurationService,
+    file: Path,
+    cluster_storage_buffer_factory: ClusterStorageBufferFactory,
+):
     config = config_service
     kev = config.get(key="global:physics:kev_conversion")  # Will be adjusted for real config service
     ped_width = config.get(key="global:physics:ped_width")
@@ -30,16 +45,14 @@ def process_file(config_service: ConfigurationService, file: Path):
         capture = CCDCaptureModel.load(file)
         fits_id = None
         fits_id = store_fits(process_context, config, fits_name, capture, fits_id, kev, ped_width)
-        cluster_fits(process_context, config, capture, fits_id, kev, ped_width)
+        cluster_fits(process_context, config, capture, fits_id, kev, ped_width, cluster_storage_buffer_factory)
     finally:
         process_context.term()
 
 
 def store_fits(process_context: zmq.Context, config: ConfigurationService, fits_name: Path, capture: CCDCaptureModel,
                fits_id: int, kev: float, ped_width: float):
-    """
-    Stores ingested fits file into the fits_file table in the database.
-    """
+    """Stores ingested fits file into the fits_file table in the database."""
     socket = process_context.socket(zmq.REQ)
     try:
         socket.connect(config.get("eps:fits_ipc"))
@@ -68,82 +81,87 @@ def store_fits(process_context: zmq.Context, config: ConfigurationService, fits_
 
 
 def cluster_fits(process_context: zmq.Context, config: ConfigurationService, capture: CCDCaptureModel,
-                 fits_id: int, kev: float, ped_width: float):
-    """
-    Iterates through HDUs, creating clusters from each
-    """
-    for hdu_index, hdu in enumerate(capture):
-        data = hdu.rawData()
-        # Label as a cluster if the data passes the four sigma threshold comparison to the background noise
-        labeled_array, num_features = label(data > 4 * ped_width)  # 4 sigma threshold
-        for i in range(1, num_features + 1):
-            # This will set each background value in the numpy array to zero and keep all features that pass the threshold
-            # as their value
-            cluster_image = np.where(labeled_array == i, data, 0)
-            # Using 1 keV as a baseline to filter out smaller energy clusters, this is the threshold for tritium decay
-            # This can be adjusted here to play with the total cluster results
-            if (np.sum(cluster_image) * kev) < 1:
-                continue
-            # If the cluster passed the threshold and was stored as an image, calc max position
-            try:
-                max_pos = maximum_position(cluster_image, labels=labeled_array, index=i)
-            except BaseException:
-                continue
-            # Extract region around the maximum to display
-            y, x = max_pos
-            # Check if the 10x10 region centered around max_pos would lie completely within the image
-            # If the plot ends up smaller, the event is most likely not from tritium decay due to its size
-            if y - 5 >= 0 and y + 5 <= data.shape[0] and x - 5 >= 0 and x + 5 <= data.shape[1]:
-                y_start, y_end = y - 5, y + 5
-                x_start, x_end = x - 5, x + 5
-            # If cluster is bigger or smaller than a 10x10 image, such as with a muon, set start and ending coordinates
-            # based on the indices of the array where there are min and max values
-            else:
-                indices = np.where(cluster_image > 0)
-                y_start, y_end = np.min(indices[0]), np.max(indices[0]) + 1
-                x_start, x_end = np.min(indices[1]), np.max(indices[1]) + 1
-
-            # Ranges here can be adjusted based on the maximum size of the HDU display
-            if x_end - x_start >= 3200 or y_end - y_start >= 550 or x_end - x_start <= 1 or y_end - y_start <= 1:
-                continue
-
-            # Extract a cluster centered at the maximum position, with and without background noise
-            # pixels_around_cluster_with_noise = data[y_start:y_end, x_start:x_end]
-            pixels_around_cluster_wo_noise = cluster_image[y_start:y_end, x_start:x_end]
-            bounding_box = BoundingBox(y_end, x_start, y_start, x_end)
-
-            # Calculate weighted mean sigma
-            sigma_x, sigma_y = compute_cluster_sigmas(pixels_around_cluster_wo_noise)
-
-            # Store the values, standard deviation in x and y, energy value, and other relevant info
-            cluster_sigma_x = sigma_x
-            cluster_sigma_y = sigma_y
-            cluster_energy = np.sum(pixels_around_cluster_wo_noise)
-            cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
-            cluster = Cluster(
-                boundingBox=bounding_box,
-                data=pixels_around_cluster_wo_noise,
-                centerX=x,
-                centerY=y,
-                sigmaX=cluster_sigma_x,
-                sigmaY=cluster_sigma_y,
-                energy=cluster_energy,
-                pixelCount=cluster_pixels,
-                fitsId=fits_id,
-                hdu_id=hdu_index,
-            )
-            store_cluster(config, process_context, cluster)
-
-
-def store_cluster(config: ConfigurationService, process_context: zmq.Context, cluster: "Cluster"):
-    """
-    Stores ingested clusters into the clusters table in the database.
-    """
+                 fits_id: int, kev: float, ped_width: float,
+                 cluster_storage_buffer_factory: ClusterStorageBufferFactory):
+    """Iterates through HDUs, creating clusters from each and buffering them for batched storage in
+    the EPS."""
+    buffer_size = config.get_int("eps:cluster_storage_buffer_size", 32, minimum=16, maximum=2000)
     socket = process_context.socket(zmq.REQ)
+    socket.connect(config.get("eps:cluster_ipc"))
     try:
-        socket.connect(config.get("eps:cluster_ipc"))
-        # Form JSON request with cluster data, send to endpoint and grab response
-        request = ClusterStoreRequest(
+        with cluster_storage_buffer_factory(
+            buffer_size, lambda batch: _flush_cluster_batch(socket, batch)
+        ) as buffer:
+            for hdu_index, hdu in enumerate(capture):
+                data = hdu.rawData()
+                # Label as a cluster if the data passes the four sigma threshold comparison to the background noise
+                labeled_array, num_features = label(data > 4 * ped_width)  # 4 sigma threshold
+                for i in range(1, num_features + 1):
+                    # This will set each background value in the numpy array to zero and keep all features that pass
+                    # the threshold as their value
+                    cluster_image = np.where(labeled_array == i, data, 0)
+                    # Using 1 keV as a baseline to filter out smaller energy clusters, this is the threshold for
+                    # tritium decay. This can be adjusted here to play with the total cluster results
+                    if (np.sum(cluster_image) * kev) < 1:
+                        continue
+                    # If the cluster passed the threshold and was stored as an image, calc max position
+                    try:
+                        max_pos = maximum_position(cluster_image, labels=labeled_array, index=i)
+                    except BaseException:
+                        continue
+                    # Extract region around the maximum to display
+                    y, x = max_pos
+                    # Check if the 10x10 region centered around max_pos would lie completely within the image
+                    # If the plot ends up smaller, the event is most likely not from tritium decay due to its size
+                    if y - 5 >= 0 and y + 5 <= data.shape[0] and x - 5 >= 0 and x + 5 <= data.shape[1]:
+                        y_start, y_end = y - 5, y + 5
+                        x_start, x_end = x - 5, x + 5
+                    # If cluster is bigger or smaller than a 10x10 image, such as with a muon, set start and ending
+                    # coordinates based on the indices of the array where there are min and max values
+                    else:
+                        indices = np.where(cluster_image > 0)
+                        y_start, y_end = np.min(indices[0]), np.max(indices[0]) + 1
+                        x_start, x_end = np.min(indices[1]), np.max(indices[1]) + 1
+
+                    # Ranges here can be adjusted based on the maximum size of the HDU display
+                    if x_end - x_start >= 3200 or y_end - y_start >= 550 or x_end - x_start <= 1 or y_end - y_start <= 1:
+                        continue
+
+                    # Extract a cluster centered at the maximum position, with and without background noise
+                    # pixels_around_cluster_with_noise = data[y_start:y_end, x_start:x_end]
+                    pixels_around_cluster_wo_noise = cluster_image[y_start:y_end, x_start:x_end]
+                    bounding_box = BoundingBox(y_end, x_start, y_start, x_end)
+
+                    # Calculate weighted mean sigma
+                    sigma_x, sigma_y = compute_cluster_sigmas(pixels_around_cluster_wo_noise)
+
+                    # Store the values, standard deviation in x and y, energy value, and other relevant info
+                    cluster_sigma_x = sigma_x
+                    cluster_sigma_y = sigma_y
+                    cluster_energy = np.sum(pixels_around_cluster_wo_noise)
+                    cluster_pixels = np.count_nonzero(pixels_around_cluster_wo_noise)
+                    cluster = Cluster(
+                        boundingBox=bounding_box,
+                        data=pixels_around_cluster_wo_noise,
+                        centerX=x,
+                        centerY=y,
+                        sigmaX=cluster_sigma_x,
+                        sigmaY=cluster_sigma_y,
+                        energy=cluster_energy,
+                        pixelCount=cluster_pixels,
+                        fitsId=fits_id,
+                        hdu_id=hdu_index,
+                    )
+                    buffer.add(cluster)
+    finally:
+        socket.close()
+
+
+def _flush_cluster_batch(socket: zmq.Socket, clusters: List["Cluster"]) -> List[Optional[int]]:
+    """Sends a batch of buffered clusters to the EPS in one BulkStorage round-trip and assigns the
+    returned cluster_ids back onto each Cluster in order."""
+    requests = [
+        ClusterStoreRequest(
             data=None,
             hdu_id=cluster.hdu_id,
             bounding_box={
@@ -159,13 +177,18 @@ def store_cluster(config: ConfigurationService, process_context: zmq.Context, cl
             fits_id=cluster.fitsId,
             classification=cluster.classification
         )
-        request_dict = request.to_eps_dict()
-        socket.send_json(request_dict)
+        for cluster in clusters
+    ]
+    try:
+        socket.send_json(BulkClusterStoreRequest(clusters=requests).to_eps_dict())
         response = socket.recv_json()
-        if response["result"] == "success":
-            cluster.clusterId = response["cluster_id"]
-            logger.info(f"Cluster ID {cluster.clusterId} stored in database.")
-        else:
-            logger.warning(f"There was an issue communicating with the EPS. Due to {response['error']}")
-    finally:
-        socket.close()
+    except zmq.ZMQError as err:
+        logger.warning(f"There was an issue communicating with the EPS during bulk cluster storage. Due to {err}")
+        return [None] * len(clusters)
+
+    cluster_ids = response.get("cluster_ids") or [None] * len(clusters)
+    for cluster, cluster_id in zip(clusters, cluster_ids):
+        cluster.clusterId = cluster_id
+    if response.get("result") != "success":
+        logger.warning(f"Cluster batch storage returned '{response.get('result')}'. Due to {response.get('error')}")
+    return cluster_ids
