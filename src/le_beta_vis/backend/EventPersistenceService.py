@@ -169,7 +169,7 @@ class EventPersistence:
 
     def cluster_event(self, request: dict, socket: zmq.Socket):
         """Processes a requested cluster event and calls storage or retrieval of cluster."""
-        logger.info("Cluster request received by EPS.")
+        # logger.info("Cluster request received by EPS.")
         action = request.get("Action")
         if action == "Storage":
             self._handle_storage(request, socket)

@@ -143,6 +143,7 @@ class TestPollingThread:
 
             mock_config = MagicMock()
             mock_config.get.return_value = "/tmp"
+            mock_config.get_int.return_value = 4
             mock_config_class.return_value = mock_config
 
             polling = PollingThread()
@@ -299,6 +300,98 @@ class TestPollingThread:
 
         # Should exit immediately without processing
         polling.file_uploaded(test_queue, mock_config, stop_event)
+
+    def test_executor_sized_from_default_max_concurrent_files(self, mock_config):
+        """PollingThread sizes its pool from pipeline:ingress:max_concurrent_files, default 4"""
+        polling = PollingThread(mock_config)
+
+        assert polling.executor._max_workers == 4
+
+    def test_executor_sized_from_configured_max_concurrent_files(self, mock_config):
+        """A configured pool size is honored"""
+        mock_config.set("pipeline:ingress:max_concurrent_files", 2)
+
+        polling = PollingThread(mock_config)
+
+        assert polling.executor._max_workers == 2
+
+    def test_executor_clamps_max_concurrent_files(self, mock_config):
+        """Out-of-range pool sizes are clamped to [1, 16]"""
+        mock_config.set("pipeline:ingress:max_concurrent_files", 100)
+        polling = PollingThread(mock_config)
+        assert polling.executor._max_workers == 16
+
+        mock_config.set("pipeline:ingress:max_concurrent_files", 0)
+        polling = PollingThread(mock_config)
+        assert polling.executor._max_workers == 1
+
+    def test_file_uploaded_bounds_concurrency_to_pool_size(self, mock_config):
+        """Multiple queued files are processed concurrently, bounded by the pool size"""
+        mock_config.set("pipeline:ingress:max_concurrent_files", 2)
+
+        state_lock = threading.Lock()
+        state = {"current": 0, "peak": 0}
+
+        def _tracking_process_file(config_service, file, cluster_storage_buffer_factory):
+            with state_lock:
+                state["current"] += 1
+                state["peak"] = max(state["peak"], state["current"])
+            time.sleep(0.25)
+            with state_lock:
+                state["current"] -= 1
+
+        with patch('le_beta_vis.backend.InitializePolling.process_file', side_effect=_tracking_process_file), \
+                patch('le_beta_vis.backend.InitializePolling.wait_for_file_stable', return_value=True):
+            polling = PollingThread(mock_config)
+
+            test_queue = queue.Queue()
+            for name in ("a.fits", "b.fits", "c.fits"):
+                test_queue.put(name)
+
+            stop_event = threading.Event()
+            call_count = [0]
+            original_get = test_queue.get
+
+            def limited_get(*args, **kwargs):
+                call_count[0] += 1
+                if call_count[0] > 3:
+                    stop_event.set()
+                return original_get(*args, **kwargs)
+
+            test_queue.get = limited_get
+
+            polling.file_uploaded(test_queue, mock_config, stop_event)
+
+        # Bounded by pool size, not silently serialized to 1, and no work left running.
+        assert state["peak"] == 2
+        assert state["current"] == 0
+
+    def test_file_uploaded_shuts_down_executor_on_exit(self, mock_config):
+        """file_uploaded() shuts down the pool before returning, draining in-flight work"""
+        with patch('le_beta_vis.backend.InitializePolling.process_file') as mock_process, \
+                patch('le_beta_vis.backend.InitializePolling.wait_for_file_stable', return_value=True):
+            polling = PollingThread(mock_config)
+
+            test_queue = queue.Queue()
+            test_queue.put("test.fits")
+
+            stop_event = threading.Event()
+            call_count = [0]
+            original_get = test_queue.get
+
+            def limited_get(*args, **kwargs):
+                call_count[0] += 1
+                if call_count[0] > 1:
+                    stop_event.set()
+                return original_get(*args, **kwargs)
+
+            test_queue.get = limited_get
+
+            polling.file_uploaded(test_queue, mock_config, stop_event)
+
+        mock_process.assert_called_once()
+        with pytest.raises(RuntimeError):
+            polling.executor.submit(lambda: None)
 
 
 class TestPollingRunner:

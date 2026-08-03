@@ -1,5 +1,6 @@
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+from concurrent.futures import ThreadPoolExecutor
 import os
 import time
 import sys
@@ -16,7 +17,9 @@ from le_beta_vis.common.YAMLBackedConfigurationService import (  # noqa E402
 )
 from le_beta_vis.backend.FileProcessing import process_file  # noqa E402
 from le_beta_vis.backend.FileStabilityCheck import wait_for_file_stable  # noqa E402
-from le_beta_vis.backend.InMemoryClusterStorageBuffer import InMemoryClusterStorageBuffer  # noqa E402
+from le_beta_vis.backend.InMemoryClusterStorageBuffer import (
+    InMemoryClusterStorageBuffer,
+)  # noqa E402
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +53,12 @@ class PollingThread:
         self.file_queue = queue.Queue()
         self.handler = EventHandler(self.file_queue)
         self.stop_event = threading.Event()
+        max_workers = self.config_service.get_int(
+            "pipeline:ingress:max_concurrent_files", 4, minimum=1, maximum=16
+        )
+        self.executor = ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix="FileIngestion"
+        )
         # Do not call begin here, let PollingRunner manage
 
     def __call__(self):
@@ -82,7 +91,7 @@ class PollingThread:
             try:
                 path = queue.get(timeout=1)  # Wait for 1 second
             except Empty:
-                logger.debug("file_uploaded: No files to process")
+                # logger.debug("file_uploaded: No files to process")
                 continue
             try:
                 file_type = os.path.splitext(path)[
@@ -90,10 +99,11 @@ class PollingThread:
                 ]  # return extension of file in queue
                 if file_type.lower() != ".fits":
                     continue
-                _wait_and_process(path, config, stop_event)
+                self.executor.submit(_wait_and_process, path, config, stop_event)
             except Exception as e:
                 logger.exception(f"file_uploaded processing error {e}")
                 continue
+        self.executor.shutdown(wait=True)
 
 
 def _wait_and_process(
