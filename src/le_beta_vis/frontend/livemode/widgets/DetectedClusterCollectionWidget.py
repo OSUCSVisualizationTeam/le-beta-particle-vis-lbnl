@@ -7,6 +7,7 @@ On each advance step, cells animate to their new positions using
 Cell size is computed dynamically from the available space.
 """
 
+import logging
 from typing import Callable, List, Optional
 
 import numpy as np
@@ -28,6 +29,8 @@ from le_beta_vis.frontend.widgets.EnergyClusterWidget import EnergyClusterWidget
 
 from ..LiveModeViewModel import LiveModeViewModel
 from ._ThumbnailCell import _ThumbnailCell
+
+logger = logging.getLogger(__name__)
 
 
 class DetectedClusterCollectionWidget(QWidget):
@@ -60,8 +63,10 @@ class DetectedClusterCollectionWidget(QWidget):
         self._cell_size = 1
         self._cells: List[_ThumbnailCell] = []
         self._anim_group: Optional[QParallelAnimationGroup] = None
+        self._anim_group_id: Optional[int] = None
         self._deferred_grid: Optional[List[Optional[Cluster]]] = None
         self._cell_click_handler: Optional[Callable[[Cluster], None]] = None
+        self._group_seq = 0
         self._createCells()
 
     # --- Public ---
@@ -125,18 +130,30 @@ class DetectedClusterCollectionWidget(QWidget):
         """
         self._stopAnimation()
         positions = self._computeSnakePositions()
+        self._group_seq += 1
+        group_id = self._group_seq
+        self._anim_group_id = group_id
         self._anim_group = QParallelAnimationGroup(self)
         duration = self._vm.animation_duration_ms
 
         for i, cell in enumerate(self._cells):
             target = self._targetAfterShift(i, positions, shift_count)
-            anim = QPropertyAnimation(cell, b"pos", self)
+            # No parent here: addAnimation() below is Qt's own
+            # ownership-establishing call (QAnimationGroup reparents
+            # added animations onto itself), so passing a parent at
+            # construction would only create a stale, conflicting
+            # parent reference.
+            anim = QPropertyAnimation(cell, b"pos")
             anim.setDuration(duration)
             anim.setStartValue(cell.pos())
             anim.setEndValue(target)
             anim.setEasingCurve(QEasingCurve.InOutQuad)
             self._anim_group.addAnimation(anim)
 
+        logger.debug(
+            "animateAdvance: group %d created (%d animations)",
+            group_id, len(self._cells),
+        )
         self._pending_grid = new_grid
         self._anim_group.finished.connect(self._onAnimationFinished)
         self._anim_group.start()
@@ -277,4 +294,8 @@ class DetectedClusterCollectionWidget(QWidget):
         if self._anim_group is not None:
             self._anim_group.stop()
             self._anim_group.deleteLater()
+            logger.debug(
+                "animateAdvance: group %d deleteLater()", self._anim_group_id,
+            )
             self._anim_group = None
+            self._anim_group_id = None

@@ -14,6 +14,8 @@ from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.ThumbnailLoaderService import ThumbnailLoaderService
 from le_beta_vis.frontend.fitsconverters.interface import Colormap
 
+logger = logging.getLogger(__name__)
+
 
 class HistoricalViewModel:
     """ViewModel for the Historical Event Analysis mode.
@@ -219,6 +221,9 @@ class HistoricalViewModel:
         self._thumbnail_service.clear()
         with self._state_lock:
             if self._loading:
+                logger.info(
+                    "loadEvents: request already in flight, ignoring Apply click"
+                )
                 return
             request_id = self._next_request_id
             self._next_request_id += 1
@@ -227,6 +232,7 @@ class HistoricalViewModel:
             loading_callbacks = list(self._on_loading_changed_callbacks)
             self._loading = True
 
+        logger.debug("loadEvents: request %d started", request_id)
         for callback in loading_callbacks:
             callback(True)
         if query_filter is not None:

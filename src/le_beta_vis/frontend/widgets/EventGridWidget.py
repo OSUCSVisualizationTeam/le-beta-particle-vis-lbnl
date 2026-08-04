@@ -1,4 +1,6 @@
+import logging
 import math
+import time
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -44,6 +46,8 @@ from le_beta_vis.frontend.widgets._EventGridSectionGrouping import (
 from le_beta_vis.frontend.widgets._EventGridSectionHeaderWidget import (
     EventGridSectionHeaderWidget,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -299,11 +303,16 @@ class EventGridWidget(QWidget):
         Args:
             events: List of Cluster objects to display.
         """
+        start = time.monotonic()
         self._clearSections()
         sections = group_clusters(events)
         for idx, info in enumerate(sections):
             self._addSection(idx, info, events)
         self._setAllNavigationStates()
+        logger.debug(
+            "setEvents: rebuilt %d sections for %d events in %.1fms",
+            len(sections), len(events), (time.monotonic() - start) * 1000,
+        )
         QTimer.singleShot(0, self._afterLayout)
         self._scheduleVisibilityCheck()
         self.prefetchRequested.emit(self._prefetch_count)
