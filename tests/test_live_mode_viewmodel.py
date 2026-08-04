@@ -280,6 +280,31 @@ class TestActivateDeactivate:
     ) -> None:
         vm.deactivate()  # should not raise
 
+    def test_deactivate_clears_thumbnail_service(
+        self,
+        config: _StubConfig,
+        event_handler: _StubEventHandler,
+        repository: _StubRepository,
+        physics: _StubPhysics,
+    ) -> None:
+        thumb = MagicMock()
+        vm = LiveModeViewModel(
+            config, event_handler, repository, physics, thumbnailService=thumb,
+        )
+        with patch.object(vm, "_schedule_refill"):
+            vm.activate()
+        vm.deactivate()
+        thumb.clear.assert_called_once()
+
+    def test_deactivate_bumps_generation(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        with patch.object(vm, "_schedule_refill"):
+            vm.activate()
+        before = vm._generation
+        vm.deactivate()
+        assert vm._generation == before + 1
+
 
 # ---------------------------------------------------------------------------
 # Tests — Advance
@@ -484,6 +509,34 @@ class TestRefill:
         vm._refill_worker(3)
 
         assert len(fired) >= 1
+
+    def test_refill_worker_current_generation_notifies(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        fired = []
+        vm.add_grid_changed_callback(lambda: fired.append(True))
+
+        vm._refill_worker(3, generation=vm._generation)
+
+        assert len(fired) >= 1
+
+    def test_refill_worker_stale_generation_skips_notify(
+        self, vm: LiveModeViewModel,
+    ) -> None:
+        """A refill scheduled before deactivate() must not update the queue
+        or notify the View once it completes after Live Mode was left."""
+        fired = []
+        vm.add_grid_changed_callback(lambda: fired.append(True))
+
+        with patch.object(vm, "_schedule_refill"):
+            vm.activate()
+        stale_generation = vm._generation
+        vm.deactivate()
+
+        vm._refill_worker(3, generation=stale_generation)
+
+        assert fired == []
+        assert all(s is None for s in vm._queue.snapshot())
 
 
 # ---------------------------------------------------------------------------

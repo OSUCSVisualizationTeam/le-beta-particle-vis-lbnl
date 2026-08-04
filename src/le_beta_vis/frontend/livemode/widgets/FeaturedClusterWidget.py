@@ -7,6 +7,7 @@ detection stats, and energy histogram.
 from typing import Optional
 
 import numpy as np
+from shiboken6 import isValid
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -257,6 +258,8 @@ class FeaturedClusterWidget(QWidget):
 
     def _onHduFrameReady(self, frame: object, bbox: object) -> None:
         """Main-thread slot: update the sensor location map with the loaded HDU frame."""
+        if not isValid(self):
+            return
         if frame is not None and bbox is not None:
             self._locationMap.set_hdu_frame(frame, bbox)
         else:
