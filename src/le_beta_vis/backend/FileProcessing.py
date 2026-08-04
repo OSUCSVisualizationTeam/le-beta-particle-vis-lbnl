@@ -54,6 +54,10 @@ def store_fits(process_context: zmq.Context, config: ConfigurationService, fits_
                fits_id: int, kev: float, ped_width: float):
     """Stores ingested fits file into the fits_file table in the database."""
     socket = process_context.socket(zmq.REQ)
+    timeout_ms = config.get_int("eps:timeout_ms", 5000)
+    socket.setsockopt(zmq.LINGER, 0)
+    socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
+    socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
     try:
         socket.connect(config.get("eps:fits_ipc"))
         # Form JSON request with fits data, send to endpoint and grab response
@@ -87,6 +91,10 @@ def cluster_fits(process_context: zmq.Context, config: ConfigurationService, cap
     the EPS."""
     buffer_size = config.get_int("eps:cluster_storage_buffer_size", 32, minimum=16, maximum=2000)
     socket = process_context.socket(zmq.REQ)
+    timeout_ms = config.get_int("eps:timeout_ms", 5000)
+    socket.setsockopt(zmq.LINGER, 0)
+    socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
+    socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
     socket.connect(config.get("eps:cluster_ipc"))
     try:
         with cluster_storage_buffer_factory(

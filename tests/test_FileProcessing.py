@@ -155,6 +155,31 @@ class TestStoreFits:
         assert sent_payload["max"] == 40.0
         socket.close.assert_called_once()
 
+    def test_store_fits_sets_zmq_timeouts(self):
+        """A hung EPS response must not block forever — bounded by eps:timeout_ms."""
+        config = _make_config()
+        capture = [_make_hdu(np.zeros((2, 2)), _make_capture_info(1.0, 2.0))] * 4
+
+        socket = MagicMock(spec=zmq.Socket)
+        socket.recv_json.return_value = {"result": "success", "fits_id": 1}
+
+        context = MagicMock(spec=zmq.Context)
+        context.socket.return_value = socket
+
+        store_fits(
+            process_context=context,
+            config=config,
+            fits_name="capture.fits",
+            capture=capture,
+            fits_id=None,
+            kev=1.0,
+            ped_width=1.0,
+        )
+
+        socket.setsockopt.assert_any_call(zmq.LINGER, 0)
+        socket.setsockopt.assert_any_call(zmq.RCVTIMEO, 5000)
+        socket.setsockopt.assert_any_call(zmq.SNDTIMEO, 5000)
+
     def test_store_fits_failure_returns_none(self):
         config = _make_config()
         capture = [_make_hdu(np.zeros((2, 2)), _make_capture_info(1.0, 2.0))] * 4
@@ -273,6 +298,25 @@ class TestClusterFits:
 
         assert len(created) == 1
         assert created[0].clusterId == 55
+
+    def test_cluster_fits_sets_zmq_timeouts(self):
+        """A hung EPS response must not block forever — bounded by eps:timeout_ms."""
+        config = _make_config()
+        context, socket = _make_context_and_socket()
+
+        cluster_fits(
+            process_context=context,
+            config=config,
+            capture=[],
+            fits_id=7,
+            kev=1.0,
+            ped_width=1.0,
+            cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+        )
+
+        socket.setsockopt.assert_any_call(zmq.LINGER, 0)
+        socket.setsockopt.assert_any_call(zmq.RCVTIMEO, 5000)
+        socket.setsockopt.assert_any_call(zmq.SNDTIMEO, 5000)
 
     @patch("le_beta_vis.backend.FileProcessing.compute_cluster_sigmas", return_value=(1.2, 2.3))
     @patch("le_beta_vis.backend.FileProcessing.maximum_position")
