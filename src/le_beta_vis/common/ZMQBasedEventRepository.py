@@ -33,7 +33,14 @@ from .EPSDataClasses import (
     FitsStoreRequest,
     PagedRetrieveClustersResponse,
 )
-from .EventRepository import EventRepository, onCluster, onError, onFits, onUpdate
+from .EventRepository import (
+    Dispatcher,
+    EventRepository,
+    onCluster,
+    onError,
+    onFits,
+    onUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +60,11 @@ class ZMQBasedEventRepository(EventRepository):
         self,
         config: ConfigurationService,
         context: Optional[zmq.Context] = None,
+        dispatcher: Optional[Dispatcher] = None,
     ):
         self._config = config
         self._ctx = context or zmq.Context.instance()
+        self._dispatch: Dispatcher = dispatcher or (lambda fn: fn())
 
     def _run_async(self,
                    function: Callable,
@@ -66,10 +75,11 @@ class ZMQBasedEventRepository(EventRepository):
         def async_wrapper():
             try:
                 result = function()
-                callback(result)
+                self._dispatch(lambda: callback(result))
             except Exception as exc:
                 logger.warning("Error in async operation: %s", exc, exc_info=True)
-                on_error(str(exc))
+                message = str(exc)
+                self._dispatch(lambda: on_error(message))
         thread = threading.Thread(target=async_wrapper, daemon=True)
         thread.start()
 

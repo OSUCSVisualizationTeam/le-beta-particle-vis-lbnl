@@ -734,3 +734,85 @@ class TestSocketLifecycle:
         _await_callback(done)
         sock.setsockopt.assert_any_call(zmq.RCVTIMEO, 9999)
         sock.setsockopt.assert_any_call(zmq.SNDTIMEO, 9999)
+
+
+# -------------------------------------------------------------------
+# Dispatcher injection (issue #181)
+# -------------------------------------------------------------------
+
+
+class TestDispatcher:
+    """Verifies callback/on_error invocations route through an injected
+    Dispatcher, and that omitting one preserves the historical inline
+    (direct-call) behavior other tests in this file rely on."""
+
+    def test_injected_dispatcher_receives_callback(self):
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        config = MockConfigurationService()
+        dispatched = []
+        repo = ZMQBasedEventRepository(
+            config, context=ctx,
+            dispatcher=lambda fn: (dispatched.append(fn), fn()),
+        )
+        done = threading.Event()
+        repo.fetch_events(
+            callback=lambda _: done.set(),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
+        assert len(dispatched) == 1
+
+    def test_injected_dispatcher_receives_on_error(self):
+        ctx, sock = _mock_context()
+        sock.send_json.side_effect = zmq.ZMQError("down")
+        config = MockConfigurationService()
+        req = ClassificationUpdateRequest(cluster_id=1, classification="muon")
+        dispatched = []
+        repo = ZMQBasedEventRepository(
+            config, context=ctx,
+            dispatcher=lambda fn: (dispatched.append(fn), fn()),
+        )
+        done = threading.Event()
+        repo.update_classification(
+            req,
+            callback=lambda _: done.set(),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
+        assert len(dispatched) == 1
+
+    def test_dispatcher_not_invoked_when_undelivered(self):
+        """A dispatcher that never runs its argument leaves the caller's
+        callback un-invoked — proves the callback is genuinely routed
+        through the dispatcher rather than called directly beforehand."""
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        config = MockConfigurationService()
+        received = []
+        repo = ZMQBasedEventRepository(
+            config, context=ctx,
+            dispatcher=lambda fn: received.append(fn),
+        )
+        callback_called = threading.Event()
+        repo.fetch_events(
+            callback=lambda _: callback_called.set(),
+            on_error=lambda _: callback_called.set(),
+        )
+        # Give the worker thread time to reach (and stop at) the dispatcher.
+        assert not callback_called.wait(0.2)
+        assert len(received) == 1
+        received[0]()
+        assert callback_called.is_set()
+
+    def test_omitted_dispatcher_preserves_inline_behavior(self):
+        """Default construction (no dispatcher arg) still calls back
+        synchronously from the worker thread, matching pre-#181 behavior."""
+        ctx, sock = _mock_context({"result": "success", "clusters": []})
+        repo = _make_repo(ctx)
+        done = threading.Event()
+        got = {"clusters": None}
+        repo.fetch_events(
+            callback=lambda clusters: (got.__setitem__("clusters", clusters), done.set()),
+            on_error=lambda _: done.set(),
+        )
+        _await_callback(done)
+        assert got["clusters"] == []

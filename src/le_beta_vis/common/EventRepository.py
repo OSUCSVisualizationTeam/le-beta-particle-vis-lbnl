@@ -16,6 +16,7 @@ onCluster = Callable[[List[Cluster]], None]
 onFits = Callable[[List[EPSFitsRecord]], None]
 onUpdate = Callable[[bool], None]
 onError = Callable[[str], None]
+Dispatcher = Callable[[Callable[[], None]], None]
 
 
 class EventRepository(ABC):
