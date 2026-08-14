@@ -28,6 +28,25 @@ class TestAssertIpcBindKeyRegistered:
             assert_ipc_bind_key_registered("eps:some_new_ipc")
 
 
+class TestIPCFallbackViewModelStaysInSync:
+    """Named tripwire for the registry/ViewModel invariant.
+
+    ``IPCFallbackViewModel`` already asserts this at import time, but that
+    surfaces as a collateral ``AssertionError`` in whatever test happens to
+    import the module first. This test gives CI an unambiguous signal that
+    a new ``STARTUP_IPC_BIND_KEYS`` entry was added without a matching
+    ``IPCFallbackViewModel._ENDPOINT_LABELS`` row (or vice versa).
+    """
+
+    def test_endpoint_labels_match_registry(self):
+        from le_beta_vis.frontend.viewmodels.IPCFallbackViewModel import (
+            _ENDPOINT_LABELS,
+        )
+
+        labeled_keys = tuple(key for key, _ in _ENDPOINT_LABELS)
+        assert labeled_keys == STARTUP_IPC_BIND_KEYS
+
+
 class TestBindTrackedIpcSocket:
 
     def test_binds_resolved_endpoint_for_registered_key(self):

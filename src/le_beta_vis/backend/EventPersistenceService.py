@@ -1,9 +1,11 @@
 import dataclasses
+import time
 import mysql.connector
 from le_beta_vis.common.YAMLBackedConfigurationService import (
     YAMLBackedConfigurationService,
 )
 from le_beta_vis.common.StartupIPCBindRegistry import bind_tracked_ipc_socket
+from le_beta_vis.common.EPSStartupSignals import EPSStartupSignals
 from le_beta_vis.common.EPSDataClasses import (
     ClusterPagedQueryFilter,
     ClusterQueryFilter,
@@ -78,16 +80,61 @@ class EventPersistence:
     It is responsible for the storage and retrieval of FITS and cluster information
     """
 
-    def __init__(self):
+    def __init__(self, startup_signals: Optional[EPSStartupSignals] = None):
         self.config = YAMLBackedConfigurationService()
         self.db_host = self.config.get("global:db:hostname")
         self.db_user = self.config.get("global:db:username")
         self.db_password = self.config.get("global:db:password")
         self.database = self.config.get("global:db:database")
         self.conn = None
+        self._startup_signals = startup_signals
 
         self.conn = self.db_connect()  # connect to DB before listening loop
         self.initialize_server()
+
+    def _publish_initial_status(self) -> Tuple[Optional[float], float, float]:
+        """Publishes the initial startup-readiness status once sockets are bound.
+
+        Returns ``(broadcast_deadline, broadcast_interval_s, next_broadcast_at)``
+        — all ``monotonic()``-based, or ``(None, 0.0, 0.0)`` when no
+        ``startup_signals`` was injected (nothing to broadcast).
+        """
+        if self._startup_signals is None:
+            return None, 0.0, 0.0
+        self._startup_signals.publish_status(
+            db_connected=self.conn is not None, sockets_bound=True
+        )
+        interval_s = self.config.get_int(
+            "eps:startup_status_broadcast_interval_ms", 250, minimum=1
+        ) / 1000.0
+        deadline = time.monotonic() + self.config.get_int(
+            "eps:startup_status_broadcast_window_ms", 3000, minimum=0
+        ) / 1000.0
+        return deadline, interval_s, time.monotonic() + interval_s
+
+    def _maybe_rebroadcast_status(
+        self,
+        broadcast_deadline: Optional[float],
+        next_broadcast_at: float,
+        broadcast_interval_s: float,
+    ) -> Tuple[Optional[float], float]:
+        """Re-publishes status on the broadcast cadence, mitigating the ZMQ
+        pub/sub "slow joiner" race for a subscriber that connects after the
+        first publish. Returns the updated ``(broadcast_deadline,
+        next_broadcast_at)``; ``broadcast_deadline`` becomes ``None`` once
+        the broadcast window elapses, after which this is a no-op.
+        """
+        if broadcast_deadline is None:
+            return None, next_broadcast_at
+        now = time.monotonic()
+        if now >= broadcast_deadline:
+            return None, next_broadcast_at
+        if now >= next_broadcast_at:
+            self._startup_signals.publish_status(
+                db_connected=self.conn is not None, sockets_bound=True
+            )
+            next_broadcast_at = now + broadcast_interval_s
+        return broadcast_deadline, next_broadcast_at
 
     def initialize_server(self):
         """Initialize the zmq server endpoint socket to listen for requests."""
@@ -111,10 +158,18 @@ class EventPersistence:
 
             EPS_is_active = True
 
+            broadcast_deadline, broadcast_interval_s, next_broadcast_at = (
+                self._publish_initial_status()
+            )
+
             while True:
                 try:
                     # timeout can be adjusted for performance
                     sockets = dict(socket_poller.poll(timeout=100))
+
+                    broadcast_deadline, next_broadcast_at = self._maybe_rebroadcast_status(
+                        broadcast_deadline, next_broadcast_at, broadcast_interval_s
+                    )
 
                     if cluster_socket in sockets:
                         request = cluster_socket.recv_json()
@@ -155,17 +210,44 @@ class EventPersistence:
             context_manager.term()
 
     def db_connect(self):
-        """Opens a connection to the database with the values from the configuration."""
-        try:
-            conn = mysql.connector.connect(
-                host=self.db_host,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.database,
-            )
-            return conn
-        except mysql.connector.Error as err:
-            print(f"Could not connect: {err}")
+        """Opens a connection to the database with the values from the configuration.
+
+        Retries with a fixed backoff up to `eps:db_connect_retry_max_attempts`
+        times before giving up and returning ``None`` — callers still start
+        serving in that case (existing per-request reconnect-on-demand
+        applies). Publishes a startup-status envelope on each failed attempt
+        when ``startup_signals`` was injected, so a splash screen watching
+        the bus can show retry progress.
+        """
+        max_attempts = self.config.get_int(
+            "eps:db_connect_retry_max_attempts", 20, minimum=1
+        )
+        backoff_ms = self.config.get_int(
+            "eps:db_connect_retry_backoff_ms", 500, minimum=0
+        )
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                conn = mysql.connector.connect(
+                    host=self.db_host,
+                    user=self.db_user,
+                    password=self.db_password,
+                    database=self.database,
+                )
+                return conn
+            except mysql.connector.Error as err:
+                print(f"Could not connect: {err}")
+                if self._startup_signals is not None:
+                    self._startup_signals.publish_status(
+                        db_connected=False,
+                        sockets_bound=False,
+                        attempt=attempt,
+                        max_attempts=max_attempts,
+                    )
+                if attempt >= max_attempts:
+                    return None
+                time.sleep(backoff_ms / 1000.0)
 
     def cluster_event(self, request: dict, socket: zmq.Socket):
         """Processes a requested cluster event and calls storage or retrieval of cluster."""

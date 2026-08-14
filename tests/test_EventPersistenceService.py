@@ -1702,5 +1702,230 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
         self.assertEqual(sent["result"], "failure")
 
 
+def _configured_config_mock(overrides=None):
+    """Builds a mock config whose `.get`/`.get_int` resolve from a dict,
+    matching the pattern the rest of this file uses for `.get` but also
+    covering `.get_int`, which db_connect()/the status-broadcast helpers
+    use for the new retry/broadcast keys."""
+    values = {
+        "global:db:hostname": "localhost",
+        "global:db:username": "test_user",
+        "global:db:password": "test_pass",
+        "global:db:database": "test_db",
+        "eps:db_connect_retry_max_attempts": 20,
+        "eps:db_connect_retry_backoff_ms": 0,
+        "eps:startup_status_broadcast_interval_ms": 250,
+        "eps:startup_status_broadcast_window_ms": 3000,
+    }
+    values.update(overrides or {})
+
+    mock_config = MagicMock()
+    mock_config.get.side_effect = lambda key, default=None: values.get(key, default)
+    mock_config.get_int.side_effect = lambda key, default=None, **kw: values.get(key, default)
+    return mock_config
+
+
+class TestEventPersistenceDatabaseConnectionRetry(unittest.TestCase):
+    """Test cases for db_connect()'s bounded retry/backoff loop."""
+
+    @patch('le_beta_vis.backend.EventPersistenceService.time.sleep')
+    @patch('le_beta_vis.backend.EventPersistenceService.mysql.connector.connect')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    def test_retries_then_succeeds(self, mock_config_cls, mock_init_server, mock_mysql_connect, mock_sleep):
+        import mysql.connector
+        mock_config_cls.return_value = _configured_config_mock(
+            {"eps:db_connect_retry_max_attempts": 5}
+        )
+        mock_connection = MagicMock()
+        mock_mysql_connect.side_effect = [
+            mysql.connector.Error("down"),
+            mysql.connector.Error("still down"),
+            mock_connection,
+        ]
+        mock_signals = MagicMock()
+
+        with patch(
+            'le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect',
+            side_effect=lambda: None,
+        ):
+            ep = EventPersistence(startup_signals=mock_signals)
+
+        with patch('builtins.print'):
+            conn = ep.db_connect()
+
+        self.assertEqual(conn, mock_connection)
+        self.assertEqual(mock_mysql_connect.call_count, 3)
+        self.assertEqual(mock_signals.publish_status.call_count, 2)
+        first_call, second_call = mock_signals.publish_status.call_args_list
+        self.assertEqual(
+            first_call.kwargs,
+            {"db_connected": False, "sockets_bound": False, "attempt": 1, "max_attempts": 5},
+        )
+        self.assertEqual(
+            second_call.kwargs,
+            {"db_connected": False, "sockets_bound": False, "attempt": 2, "max_attempts": 5},
+        )
+
+    @patch('le_beta_vis.backend.EventPersistenceService.time.sleep')
+    @patch('le_beta_vis.backend.EventPersistenceService.mysql.connector.connect')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    def test_exhausts_retries_then_gives_up(self, mock_config_cls, mock_init_server, mock_mysql_connect, mock_sleep):
+        import mysql.connector
+        mock_config_cls.return_value = _configured_config_mock(
+            {"eps:db_connect_retry_max_attempts": 3}
+        )
+        mock_mysql_connect.side_effect = mysql.connector.Error("down")
+        mock_signals = MagicMock()
+
+        with patch(
+            'le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect',
+            side_effect=lambda: None,
+        ):
+            ep = EventPersistence(startup_signals=mock_signals)
+
+        with patch('builtins.print'):
+            conn = ep.db_connect()
+
+        self.assertIsNone(conn)
+        self.assertEqual(mock_mysql_connect.call_count, 3)
+        self.assertEqual(mock_signals.publish_status.call_count, 3)
+
+    @patch('le_beta_vis.backend.EventPersistenceService.time.sleep')
+    @patch('le_beta_vis.backend.EventPersistenceService.mysql.connector.connect')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    def test_no_startup_signals_does_not_raise(self, mock_config_cls, mock_init_server, mock_mysql_connect, mock_sleep):
+        """startup_signals=None (the default) must not break the retry loop."""
+        import mysql.connector
+        mock_config_cls.return_value = _configured_config_mock(
+            {"eps:db_connect_retry_max_attempts": 2}
+        )
+        mock_mysql_connect.side_effect = mysql.connector.Error("down")
+
+        with patch(
+            'le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect',
+            side_effect=lambda: None,
+        ):
+            ep = EventPersistence()
+
+        with patch('builtins.print'):
+            conn = ep.db_connect()
+
+        self.assertIsNone(conn)
+        self.assertEqual(mock_mysql_connect.call_count, 2)
+
+
+class TestPublishInitialStatus(unittest.TestCase):
+    """Test cases for EventPersistence._publish_initial_status()."""
+
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    def test_no_startup_signals_publishes_nothing(self, mock_config_cls, mock_db_connect, mock_init_server):
+        mock_config_cls.return_value = _configured_config_mock()
+        ep = EventPersistence()
+
+        deadline, interval_s, next_at = ep._publish_initial_status()
+
+        self.assertIsNone(deadline)
+        self.assertEqual(interval_s, 0.0)
+        self.assertEqual(next_at, 0.0)
+
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    def test_publishes_current_connection_state(self, mock_config_cls, mock_db_connect, mock_init_server):
+        mock_config_cls.return_value = _configured_config_mock(
+            {
+                "eps:startup_status_broadcast_interval_ms": 250,
+                "eps:startup_status_broadcast_window_ms": 3000,
+            }
+        )
+        mock_signals = MagicMock()
+        ep = EventPersistence(startup_signals=mock_signals)
+        ep.conn = MagicMock()  # simulate a live connection
+
+        deadline, interval_s, next_at = ep._publish_initial_status()
+
+        mock_signals.publish_status.assert_called_once_with(
+            db_connected=True, sockets_bound=True
+        )
+        self.assertIsNotNone(deadline)
+        self.assertAlmostEqual(interval_s, 0.25)
+        self.assertGreater(next_at, 0.0)
+
+
+class TestMaybeRebroadcastStatus(unittest.TestCase):
+    """Test cases for EventPersistence._maybe_rebroadcast_status()."""
+
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    def _make_ep(self, mock_config_cls, mock_db_connect, mock_init_server):
+        mock_config_cls.return_value = _configured_config_mock()
+        mock_db_connect.return_value = None
+        ep = EventPersistence()
+        ep.conn = None
+        return ep
+
+    def test_none_deadline_is_noop(self):
+        ep = self._make_ep()
+        ep._startup_signals = MagicMock()
+
+        deadline, next_at = ep._maybe_rebroadcast_status(None, 999.0, 0.25)
+
+        self.assertIsNone(deadline)
+        self.assertEqual(next_at, 999.0)
+        ep._startup_signals.publish_status.assert_not_called()
+
+    @patch('le_beta_vis.backend.EventPersistenceService.time.monotonic')
+    def test_publishes_when_due_and_before_deadline(self, mock_monotonic):
+        ep = self._make_ep()
+        mock_signals = MagicMock()
+        ep._startup_signals = mock_signals
+        mock_monotonic.return_value = 10.0
+
+        deadline, next_at = ep._maybe_rebroadcast_status(
+            broadcast_deadline=20.0, next_broadcast_at=10.0, broadcast_interval_s=0.25
+        )
+
+        mock_signals.publish_status.assert_called_once_with(
+            db_connected=False, sockets_bound=True
+        )
+        self.assertEqual(deadline, 20.0)
+        self.assertEqual(next_at, 10.25)
+
+    @patch('le_beta_vis.backend.EventPersistenceService.time.monotonic')
+    def test_no_publish_before_next_broadcast(self, mock_monotonic):
+        ep = self._make_ep()
+        mock_signals = MagicMock()
+        ep._startup_signals = mock_signals
+        mock_monotonic.return_value = 10.0
+
+        deadline, next_at = ep._maybe_rebroadcast_status(
+            broadcast_deadline=20.0, next_broadcast_at=15.0, broadcast_interval_s=0.25
+        )
+
+        mock_signals.publish_status.assert_not_called()
+        self.assertEqual(deadline, 20.0)
+        self.assertEqual(next_at, 15.0)
+
+    @patch('le_beta_vis.backend.EventPersistenceService.time.monotonic')
+    def test_deadline_elapsed_stops_broadcasting(self, mock_monotonic):
+        ep = self._make_ep()
+        mock_signals = MagicMock()
+        ep._startup_signals = mock_signals
+        mock_monotonic.return_value = 25.0
+
+        deadline, next_at = ep._maybe_rebroadcast_status(
+            broadcast_deadline=20.0, next_broadcast_at=21.0, broadcast_interval_s=0.25
+        )
+
+        mock_signals.publish_status.assert_not_called()
+        self.assertIsNone(deadline)
+
+
 if __name__ == '__main__':
     unittest.main()

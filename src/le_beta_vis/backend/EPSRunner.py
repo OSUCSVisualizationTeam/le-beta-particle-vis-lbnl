@@ -2,8 +2,8 @@ import threading
 import logging
 from typing import Optional
 from .EventPersistenceService import EventPersistence
-from .InitializePolling import PollingThread
 from le_beta_vis.common.YAMLBackedConfigurationService import YAMLBackedConfigurationService
+from le_beta_vis.common.EPSStartupSignals import EPSStartupSignals
 from le_beta_vis.common.ZMQEventHandlerClient import DEFAULT_EVENT_PUB_ENDPOINT
 from le_beta_vis.common.ZMQEventLoggingHandler import attach_to_root_logger
 import zmq
@@ -24,6 +24,7 @@ class EPSRunner:
             source="eps",
             bind_key="event_handler:zmq_pub_endpoint",
         )
+        self._startup_signals = EPSStartupSignals(self.config, source="eps")
 
     def start(self):
         """Starts the EPS in a daemon thread, checks if already running and calls run on EPS."""
@@ -41,7 +42,7 @@ class EPSRunner:
     def run(self):
         """Initializes EPS and catches exceptions."""
         try:
-            EventPersistence()
+            EventPersistence(startup_signals=self._startup_signals)
         except Exception as e:
             logger.error(f"Issue with EPS: {e}")
             self.running = False
@@ -49,6 +50,7 @@ class EPSRunner:
     def stop(self):
         """Kills EPS by sending Kill to EPS command endpoint."""
         logging.root.removeHandler(self._log_handler)
+        self._startup_signals.close()
         try:
             context = zmq.Context()
             command_socket = context.socket(zmq.REQ)

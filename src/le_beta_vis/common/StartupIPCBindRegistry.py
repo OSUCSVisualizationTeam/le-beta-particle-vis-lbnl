@@ -24,6 +24,7 @@ STARTUP_IPC_BIND_KEYS: Tuple[str, ...] = (
     "eps:fits_ipc",
     "eps:cluster_ipc",
     "eps:command_ipc",
+    "eps:status_pub_endpoint",
 )
 """Configuration keys whose value is ``.bind()``-ed as an ``ipc://`` socket
 during application startup. Keep in sync with the Windows fallback dialog —

@@ -239,6 +239,25 @@ gui:window:status_bar_clear_timeout_s:
     indicators are unaffected.
 
 # ---------------------------------------------------------------------------
+# GUI — Startup readiness / splash screen
+# ---------------------------------------------------------------------------
+
+gui:startup:ready_timeout_ms:
+  type: int
+  default: 12000
+  description: >-
+    Maximum time the splash screen waits for EPS startup-readiness
+    signals (sockets bound, database connected) before proceeding to
+    show MainWindow in a degraded state with a warning status message.
+
+gui:startup:poll_interval_ms:
+  type: int
+  default: 150
+  description: >-
+    How often the splash screen polls StartupReadinessViewModel for an
+    updated readiness snapshot and status message.
+
+# ---------------------------------------------------------------------------
 # GUI — Mosaic
 # ---------------------------------------------------------------------------
 
@@ -563,6 +582,48 @@ eps:cluster_storage_buffer_size:
     accumulates in FileProcessing before flushing them to the EPS
     BulkStorage action in a single ZMQ round-trip / multi-row INSERT.
     Bounded to [16, 2000] via ConfigurationService.get_int.
+
+eps:status_pub_endpoint:
+  type: str
+  default: "ipc:///tmp/EPCStatus.ipc"
+  description: >-
+    ZMQ IPC address for the EPS startup-readiness status PUB/SUB bus.
+    Dedicated to `eps.startup.status` envelopes (EPSStartupSignals) —
+    kept separate from `event_handler:zmq_pub_endpoint` (logs) so a
+    future distributed-EPS deployment can route status traffic
+    independently of log traffic.
+
+eps:db_connect_retry_max_attempts:
+  type: int
+  default: 20
+  description: >-
+    Maximum number of MySQL connection attempts EPS makes at startup
+    before giving up and serving anyway with `self.conn = None`
+    (existing per-request reconnect-on-demand still applies).
+
+eps:db_connect_retry_backoff_ms:
+  type: int
+  default: 500
+  description: >-
+    Delay in milliseconds between consecutive MySQL connection
+    attempts during EPS startup.
+
+eps:startup_status_broadcast_interval_ms:
+  type: int
+  default: 250
+  description: >-
+    How often EPS re-publishes its startup-readiness status envelope
+    during `eps:startup_status_broadcast_window_ms`, mitigating the
+    ZMQ pub/sub "slow joiner" race for a frontend subscriber that
+    connects after the first publish.
+
+eps:startup_status_broadcast_window_ms:
+  type: int
+  default: 3000
+  description: >-
+    Duration after EPS startup during which the startup-readiness
+    status envelope is periodically re-broadcast. The heartbeat stops
+    once this window elapses.
 
 # ---------------------------------------------------------------------------
 # Event Handler (pub/sub bus)
