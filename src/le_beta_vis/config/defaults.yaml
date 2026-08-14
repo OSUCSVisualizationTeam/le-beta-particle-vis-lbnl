@@ -486,9 +486,12 @@ gui:export:progress_weight_png:
 
 pipeline:ingress:polling_location:
   type: directory_path
-  default: "~/Google\\ Drive\\/My\\ Drive/FITS"
+  default: "~/fits-data"
   description: >-
-    File path on local system to poll for new FITS data.
+    File path on local system to poll for new FITS data. `~` is expanded
+    via os.path.expanduser() at the call site (InitializePolling.py).
+    Deliberately not a guessed Google Drive path — its real mount
+    location varies by OS and sync mode. Set the real path per machine.
 
 pipeline:ingress:stability_poll_interval_ms:
   type: int

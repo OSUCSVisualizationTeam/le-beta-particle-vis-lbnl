@@ -23,6 +23,16 @@ from le_beta_vis.backend.InMemoryClusterStorageBuffer import (
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_POLLING_LOCATION = "~/fits-data"
+"""Fallback for `pipeline:ingress:polling_location` if unset in config.
+Mirrors the default in `config/defaults.yaml`. Deliberately not a guessed
+Google Drive path — Drive's actual mount location varies by OS and sync
+mode (a Windows drive letter, `~/Library/CloudStorage/...` on modern
+macOS, etc.), so a plain home-relative placeholder that `os.path.expanduser()`
+resolves correctly and predictably on every platform is more honest than a
+plausible-looking guess that's usually wrong. Real deployments set the
+real path via the Configuration Manager."""
+
 
 class PollingThread:
     """Polling thread class for input database, location determined from configuration service.
@@ -36,7 +46,12 @@ class PollingThread:
         # Modify this path for testing
         self.config_service = config_service or YAMLBackedConfigurationService()
         self.polling_location = os.path.normpath(
-            self.config_service.get("pipeline:ingress:polling_location")
+            os.path.expanduser(
+                self.config_service.get(
+                    "pipeline:ingress:polling_location",
+                    _DEFAULT_POLLING_LOCATION,
+                )
+            )
         )
 
         # Early exit in polling operations if the path doesn't exist, can add logging here later
