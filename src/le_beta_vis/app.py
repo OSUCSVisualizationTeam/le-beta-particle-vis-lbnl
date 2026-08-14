@@ -8,18 +8,9 @@ import sys
 import os
 from pathlib import Path
 
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication
-
-from le_beta_vis.common import APP_VERSION, ThemeManager
-from le_beta_vis.common.YAMLBackedConfigurationService import (
-    YAMLBackedConfigurationService,
-)
-from le_beta_vis.common.IPCFallbackSupport import should_show_ipc_fallback_dialog
-from le_beta_vis.frontend.MainWindow import MainWindow
-from le_beta_vis.frontend.viewmodels.IPCFallbackViewModel import IPCFallbackViewModel
-from le_beta_vis.frontend.widgets.IPCFallbackDialogView import IPCFallbackDialogView
-from le_beta_vis.backend.ServicesManager import ServicesManager
+from PySide6.QtCore import Qt, QEventLoop, QTimer
+from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import QApplication, QSplashScreen
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +31,9 @@ ICON_PATH = _resolve_resource_path(
     os.path.join("resources", "icons", "lbnl-logo.png")
 )
 QSS_DIR = _resolve_resource_path(os.path.join("resources", "qss"))
+SPLASH_PATH = _resolve_resource_path(
+    os.path.join("resources", "images", "splash.png")
+)
 
 XDG_DATA_HOME = Path(
     os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
@@ -98,6 +92,30 @@ def _install_linux_desktop_integration() -> None:
     log.info("Installed XDG desktop entry and icon for %s", APP_ID)
 
 
+def _show_splash(app: QApplication) -> QSplashScreen:
+    """Shows the splash screen and confirms it is actually on screen.
+
+    ``processEvents()`` flushes Qt's event queue but does not wait for
+    macOS's Core Animation compositor to commit the frame to the display
+    (CA commits are vsync-aligned, not tied to the Qt event queue). Spin a
+    nested event loop for 50 ms — covering three vsync periods at 60 Hz —
+    so the splash is guaranteed to be on screen before blocking imports
+    begin.
+    """
+    splash = QSplashScreen(QPixmap(str(SPLASH_PATH)))
+    splash.show()
+    app.processEvents()
+    splash.showMessage(
+        "Loading…", Qt.AlignBottom | Qt.AlignHCenter, Qt.darkGray
+    )
+    app.processEvents()
+
+    vsync_wait = QEventLoop()
+    QTimer.singleShot(50, vsync_wait.quit)
+    vsync_wait.exec()
+    return splash
+
+
 def main() -> None:
     """Launch the LE Beta Particle Visualization application."""
     logging.basicConfig(
@@ -125,6 +143,39 @@ def main() -> None:
     QApplication.setDesktopFileName(APP_ID)
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
+
+    splash = _show_splash(app)
+
+    # Deferred until the splash is confirmed on screen: MainWindow and
+    # ServicesManager pull a large transitive dependency chain (PySide6's
+    # Cocoa platform plugin, pyqtgraph, scipy, numpy) that otherwise delays
+    # the first paint on macOS. mlccd_diffusion/cv2 are pre-warmed here too
+    # so their first-import GIL cost lands before the user can interact
+    # with the main window (issue #207).
+    from le_beta_vis.common import APP_VERSION, ThemeManager
+    from le_beta_vis.common.YAMLBackedConfigurationService import (
+        YAMLBackedConfigurationService,
+    )
+    from le_beta_vis.common.IPCFallbackSupport import should_show_ipc_fallback_dialog
+    from le_beta_vis.common.EPSStartupSignals import (
+        DEFAULT_STATUS_PUB_ENDPOINT,
+        EPS_STARTUP_STATUS_EVENT,
+    )
+    from le_beta_vis.common.EventHandler import EventHandler
+    from le_beta_vis.common.ZMQEventHandlerSource import ZMQEventHandlerSource
+    from le_beta_vis.frontend.MainWindow import MainWindow
+    from le_beta_vis.frontend.viewmodels.IPCFallbackViewModel import IPCFallbackViewModel
+    from le_beta_vis.frontend.viewmodels.MainWindowStatusViewModel import Severity
+    from le_beta_vis.frontend.viewmodels.StartupReadinessViewModel import (
+        StartupReadinessViewModel,
+    )
+    from le_beta_vis.frontend.widgets.IPCFallbackDialogView import IPCFallbackDialogView
+    from le_beta_vis.frontend.widgets.SplashScreenView import SplashScreenView
+    from le_beta_vis.backend.ServicesManager import ServicesManager
+
+    import mlccd_diffusion.help_functions  # noqa: F401
+    import cv2  # noqa: F401
+
     app.setApplicationName(_APPLICATION_DISPLAY_NAME)
     app.setApplicationDisplayName(_APPLICATION_DISPLAY_NAME)
     app.setApplicationVersion(APP_VERSION)
@@ -145,16 +196,51 @@ def main() -> None:
         fallback_dialog.exec()
         sys.exit(0)
 
+    # Started before ServicesManager so the SUB socket is already
+    # subscribing by the time EPS's status PUB socket binds — one half of
+    # the mitigation for the ZMQ pub/sub "slow joiner" race (the other half
+    # is EventPersistence's bounded re-broadcast burst after binding).
+    startup_event_handler = EventHandler(config)
+    startup_readiness_vm = StartupReadinessViewModel(config, startup_event_handler)
+    startup_event_source = ZMQEventHandlerSource(
+        endpoint=str(
+            config.get("eps:status_pub_endpoint", DEFAULT_STATUS_PUB_ENDPOINT)
+        ),
+        event_handler=startup_event_handler,
+        config=config,
+        subscriptions=[EPS_STARTUP_STATUS_EVENT],
+    )
+    startup_event_source.start()
+
     services = ServicesManager()
     services.start_all()
 
-    window = MainWindow()
-    window.show()
+    def _launch_main_window(snapshot) -> None:
+        # The temporary startup-phase bus has done its job; MainWindow
+        # builds its own permanent EventHandler/ZMQEventHandlerSource pair
+        # (on the separate log-forwarding endpoint) in its own ViewModel.
+        startup_event_source.shutdown()
+        startup_event_handler.shutdown()
 
-    def cleanup() -> None:
-        services.stop_all()
+        window = MainWindow()
+        if snapshot.degraded:
+            window.statusViewModel.set_message(
+                snapshot.message, severity=Severity.WARNING
+            )
+        window.show()
+        splash.finish(window)
 
-    app.aboutToQuit.connect(cleanup)
+        def cleanup() -> None:
+            services.stop_all()
+
+        app.aboutToQuit.connect(cleanup)
+
+    poll_interval_ms = config.get_int(
+        "gui:startup:poll_interval_ms", 150, minimum=1
+    )
+    splash_view = SplashScreenView(splash, startup_readiness_vm, poll_interval_ms)
+    splash_view.begin(on_ready=_launch_main_window)
+
     sys.exit(app.exec())
 
 
