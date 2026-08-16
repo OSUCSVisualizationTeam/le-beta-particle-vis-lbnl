@@ -53,7 +53,7 @@ class EPSStartupSignals:
         source: str = "eps",
         context: Optional[zmq.Context] = None,
     ) -> None:
-        endpoint = config.get("eps:status_pub_endpoint") or DEFAULT_STATUS_PUB_ENDPOINT
+        endpoint = config.get("eps:status_pub_endpoint", DEFAULT_STATUS_PUB_ENDPOINT)
         self._source = source
         self._client = ZMQEventHandlerClient(
             endpoint=endpoint,
