@@ -131,7 +131,7 @@ class RawClusterClassificationViewModel:
 
             # TODO(#XXX): MockClassifierService.classify_* fires on_complete
             # synchronously on this thread. Safe here because we are already in
-            # a daemon Thread. ZMQBasedClassifierService fires on_complete from
+            # a daemon Thread. ZMQBasedClassifierServer fires on_complete from
             # the ZMQ receive thread; the threading.Event latch handles both
             # cases correctly.
             classify_fn(request_clusters, on_complete, on_error)
