@@ -165,6 +165,9 @@ class TestPollingThread:
         """
         config = MagicMock()
         config.get.side_effect = lambda key, default=None: default
+        config.get_int.side_effect = (
+            lambda key, default, minimum=None, maximum=None: default
+        )
 
         with patch('os.path.exists', return_value=False):
             polling = PollingThread(config)
