@@ -1,5 +1,6 @@
 """Application entry point for LE Beta Particle Visualization."""
 
+import gc
 import logging
 import platform
 import shutil
@@ -16,6 +17,15 @@ log = logging.getLogger(__name__)
 
 APP_ID = "le-beta-vis-lbnl"
 _APPLICATION_DISPLAY_NAME = "LE Beta Particle Visualization"
+
+# CPython's cyclic GC can run on whatever thread happens to trip its
+# allocation threshold, including background worker threads. If it sweeps
+# up a shiboken-wrapped QObject there, that object's C++ destructor runs
+# off the main thread, which can touch Qt internals (timers, animations)
+# that assert GUI-thread ownership. Disabling automatic collection and
+# driving it from a main-thread QTimer instead keeps all QObject
+# deallocation on the GUI thread.
+_GC_INTERVAL_MS = 10_000
 
 
 def _resolve_resource_path(relative: str) -> Path:
@@ -123,6 +133,7 @@ def main() -> None:
         format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
         datefmt="%H:%M:%S",
     )
+    gc.disable()
     current_platform = platform.system()
 
     if current_platform == "Windows":
@@ -143,6 +154,11 @@ def main() -> None:
     QApplication.setDesktopFileName(APP_ID)
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
+
+    gc_timer = QTimer()
+    gc_timer.setInterval(_GC_INTERVAL_MS)
+    gc_timer.timeout.connect(gc.collect)
+    gc_timer.start()
 
     splash = _show_splash(app)
 

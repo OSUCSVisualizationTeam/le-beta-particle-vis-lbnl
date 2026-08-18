@@ -5,7 +5,7 @@ minimum energy, minimum pixel count) and an Advanced button that
 opens the full filter dialog.
 """
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -158,6 +158,12 @@ class HistoricalFilterBar(QFrame):
     saveClicked = Signal()
     cancelClicked = Signal()
 
+    # Re-emitted from HistoricalFilterBarViewModel's export-lock callback,
+    # which fires on HistoricalExportService's background thread — routing
+    # it through a Signal marshals the delivery onto this widget's thread
+    # before _onExportLockChanged touches any Qt state.
+    _exportRunningChanged = Signal(bool)
+
     def __init__(
         self,
         viewModel: HistoricalFilterBarViewModel,
@@ -263,10 +269,12 @@ class HistoricalFilterBar(QFrame):
 
     def _bindViewModel(self) -> None:
         self._vm.add_filter_reset_callback(self._syncFromViewModel)
-        self._vm.add_export_running_callback(self._onExportLockChanged)
+        self._exportRunningChanged.connect(self._onExportLockChanged)
+        self._vm.add_export_running_callback(self._exportRunningChanged.emit)
 
     # --- Export lock (issue #56) ---
 
+    @Slot(bool)
     def _onExportLockChanged(self, running: bool) -> None:
         """Called when the filter-bar VM's export lock toggles.
 

@@ -144,8 +144,7 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
         on_ready: Callable[[Optional[np.ndarray]], None],
     ) -> None:
         try:
-            with self._lock:
-                hdus = self._get_or_load_hdus(fits_filename)
+            hdus = self._get_or_load_hdus(fits_filename)
             frame = (
                 np.asarray(hdus[hdu_id].rawData())
                 if 0 <= hdu_id < len(hdus)
@@ -203,20 +202,25 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
     ) -> List[CCDCaptureModel]:
         """Return cached HDUs for *fits_filename*, loading if needed.
 
-        Must be called under ``self._lock``.
+        Manages its own locking — callers must NOT hold ``self._lock``
+        around this call. The FITS read below can be slow (large file,
+        disk contention from concurrent ingestion) and must not block
+        other lock holders, notably ``clear()``, which
+        ``LiveModeViewModel.deactivate()`` calls synchronously from the
+        main thread.
         """
-        if self._cached_fits_filename == fits_filename:
-            self._reset_idle_timer()
-            return self._cached_hdus
-
-        self._cached_hdus = None
-        self._cached_fits_filename = None
+        with self._lock:
+            if self._cached_fits_filename == fits_filename:
+                self._reset_idle_timer()
+                return self._cached_hdus
 
         hdus = CCDCaptureModel.load(Path(fits_filename))
-        self._cached_hdus = hdus
-        self._cached_fits_filename = fits_filename
-        self._reset_idle_timer()
-        return hdus
+
+        with self._lock:
+            self._cached_hdus = hdus
+            self._cached_fits_filename = fits_filename
+            self._reset_idle_timer()
+            return hdus
 
     def _evict_fits_cache(self) -> None:
         """Release the FITS HDU cache (called by the idle timer)."""
@@ -303,8 +307,7 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
             return cluster.data
 
         if cluster.fitsFilename and cluster.hdu_id is not None:
-            with self._lock:
-                hdus = self._get_or_load_hdus(cluster.fitsFilename)
+            hdus = self._get_or_load_hdus(cluster.fitsFilename)
             if 0 <= cluster.hdu_id < len(hdus):
                 return hdus[cluster.hdu_id].clusterFromBoundingBox(
                     cluster.boundingBox,

@@ -315,6 +315,13 @@ class MainWindow(QMainWindow):
 
         self._handleLiveModePostExit(vm)
 
+        # Without this, dialog stays a permanently-hidden child of
+        # MainWindow (Qt parent-child ownership keeps it alive), leaking a
+        # new LiveModeViewModel/LiveModeView pair on every screensaver
+        # entry and leaving shiboken6.isValid() guards on its background
+        # callbacks unable to ever trip.
+        dialog.deleteLater()
+
     def _handleLiveModePostExit(self, vm) -> None:
         """Handle pending intents stored on the ViewModel after Live Mode closes."""
         from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter

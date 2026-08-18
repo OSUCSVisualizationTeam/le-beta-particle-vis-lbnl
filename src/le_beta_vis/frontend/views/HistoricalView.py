@@ -53,6 +53,7 @@ class HistoricalView(QWidget):
     _exportCompleteReceived = Signal(Path)
     _exportErrorReceived = Signal(str)
     _exportCancelledReceived = Signal()
+    _exportGatingChanged = Signal(bool, str)
 
     def __init__(
         self,
@@ -128,11 +129,12 @@ class HistoricalView(QWidget):
         self._exportErrorReceived.connect(self._onExportError)
         self._exportProgressReceived.connect(self._onExportProgress)
         self._exportCancelledReceived.connect(self._onExportCancelled)
+        self._exportGatingChanged.connect(self._onExportGatingChanged)
         self._exportVM.add_complete_callback(self._exportCompleteReceived.emit)
         self._exportVM.add_error_callback(self._exportErrorReceived.emit)
         self._exportVM.add_progress_callback(self._exportProgressReceived.emit)
         self._exportVM.add_cancelled_callback(self._exportCancelledReceived.emit)
-        self._exportVM.add_gating_changed_callback(self._onExportGatingChanged)
+        self._exportVM.add_gating_changed_callback(self._exportGatingChanged.emit)
         self._filterBarVM.add_filter_applied_callback(
             lambda _: self._refreshSaveGating()
         )
