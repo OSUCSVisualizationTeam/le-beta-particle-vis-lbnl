@@ -16,9 +16,8 @@ gap between research and a real-time, portable detection system.
 
 ## Team Documentation and Research
 
-- Pre [kickoff questions](notes/InitialQuestions.md)
-- See [Notes here](notes/README.md)
-- Knowledgebase is [located here](research/README.md)
+- The [project wiki](https://github.com/OSUCSVisualizationTeam/le-beta-particle-vis-lbnl/wiki) is the source of truth for design docs, architecture decisions, and configuration keys.
+- Early research notes, pre-kickoff questions, and prototype experiments are preserved in `archive/` for historical reference.
 
 ## OSU Capstone Project Description
 
@@ -42,17 +41,18 @@ The project follows a "src-layout" to separate product code from research artifa
     - `common/`: Shared logic and data models (e.g., `CCDCaptureModel`) used by both Backend and Frontend.
     - `backend/`: The Unattended Ingress & Processing Pipeline services.
     - `frontend/`: The PySide6 Desktop GUI Application.
-- `experiments/`: Research scratchpads and prototyping scripts.
-- `cluster_demonstration/`: Jupyter notebooks for algorithm demonstrations.
-- `design/`: Design documents and assets.
-- `environment.yml`: The consolidated Conda environment file for the project.
+- `tests/`: Unit test suite (pure-Python ViewModel/service tests; CI runs headless).
+- `tools/`: Standalone maintenance/debug scripts (cluster ingestion, FITS export dumps, etc.).
+- `packaging/`: PyInstaller build tooling and platform installers (`build.py`, hooks, spec file).
+- `database-docker/`: Local MySQL setup (docker-compose) for the Event Persistence Service.
+- `wiki/`: Project design documentation (a separate git repository — see the Team Documentation section above).
+- `archive/`: Historical/pre-production artifacts (early research, prototypes, superseded design docs) — nothing here is imported by `src/`.
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/products/distribution) installed on your system.
-- [uv](https://docs.astral.sh/uv/) installed on your system if you prefer the alternative `uv` workflow.
+- [uv](https://docs.astral.sh/uv/) installed on your system.
 
 ### Installation
 
@@ -62,14 +62,7 @@ The project follows a "src-layout" to separate product code from research artifa
     cd le-beta-particle-vis-lbnl
     ```
 
-2.  **Create and activate the Conda environment:**
-    This installs the baseline dependencies used by the project.
-    ```bash
-    conda env create -f environment.yml
-    conda activate mlccd_viz
-    ```
-
-3.  **Alternative: create the `uv` environment and install dependencies:**
+2.  **Create the `uv` environment and install dependencies:**
     This installs the GUI stack, backend dependencies, and the LBNL
     `mlccd` packages used by the default clustering mode.
     ```bash
@@ -82,51 +75,27 @@ The project follows a "src-layout" to separate product code from research artifa
 
 The project uses [pre-commit](https://pre-commit.com/) to enforce code style automatically at commit time. Hooks run `autopep8` (auto-format), `docformatter` (Google-style docstrings), and `flake8` (lint) in that order. If a formatter modifies a file, the commit is aborted so you can review the changes before re-committing.
 
-The hooks are already included in `environment.yml`. After creating or updating the environment, register them with git once:
-
-#### Linux / macOS
+The tools they invoke (`autopep8`, `docformatter`, `flake8`, `pre-commit` itself) are installed via the `dev` extra. After running `uv sync --extra dev`, register the hooks with git once:
 
 ```bash
-conda activate mlccd_viz
-pre-commit install
-```
-
-#### Windows (Anaconda Prompt)
-
-```bat
-conda activate mlccd_viz
-pre-commit install
-```
-
-#### Windows (PowerShell)
-
-If `conda activate` fails in PowerShell, initialise conda first (one-time setup):
-
-```powershell
-conda init powershell
-# Restart PowerShell, then:
-conda activate mlccd_viz
-pre-commit install
+uv sync --extra dev
+uv run pre-commit install
 ```
 
 After installation the hooks run automatically on every `git commit`. To run them manually against all files:
 
 ```bash
-pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 ### Running the Application
 
 To launch the main Desktop GUI:
 
 ```bash
-python run_app.py
-```
-
-From the repository root, if you installed with `uv`, you can launch the app with:
-
-```bash
 uv run lbnlvis
 ```
+
+Alternatively, from the repository root: `uv run python run_app.py`
 
 ### Running Tests
 
@@ -139,19 +108,10 @@ QT_QPA_PLATFORM=offscreen uv run pytest tests
 
 ### Troubleshooting
 
-#### Rebuilding the Conda Environment
-If you encounter dependency issues or a broken environment, you can rebuild it from scratch:
+#### Rebuilding the UV Environment
+If you encounter dependency issues or a broken environment, remove the virtual environment and re-sync from the lockfile:
 
 ```bash
-# Deactivate current environment
-conda deactivate
-
-# Remove the existing environment
-conda env remove -n mlccd_viz
-
-# Recreate from environment.yml
-conda env create -f environment.yml
-
-# Activate again
-conda activate mlccd_viz
+rm -rf .venv
+uv sync --extra dev
 ```

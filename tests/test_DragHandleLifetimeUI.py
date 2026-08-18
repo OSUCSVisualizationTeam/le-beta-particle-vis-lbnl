@@ -2,7 +2,7 @@
 # reproducing the macOS crash recorded in issue #203.
 #
 # NOTE: This file requires a display server (QApplication). It is excluded
-# from headless CI via --ignore in python-package-conda.yml.
+# from headless CI via --ignore in python-package-uv.yml.
 
 import sys
 
