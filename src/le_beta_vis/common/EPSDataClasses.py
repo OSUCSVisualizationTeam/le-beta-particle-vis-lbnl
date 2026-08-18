@@ -1,8 +1,8 @@
 """Request/response DTOs for the Event Persistence Service (EPS) ZMQ protocol.
 
-Each class maps to a specific JSON message exchanged over the EPS IPC
-sockets.  All classes are frozen dataclasses with conversion helpers
-(``to_eps_dict`` for requests, ``from_eps_dict`` for responses).
+Each class maps to a specific JSON message exchanged over the EPS IPC sockets.  All classes are
+frozen dataclasses with conversion helpers (``to_eps_dict`` for requests, ``from_eps_dict`` for
+responses).
 """
 
 from dataclasses import dataclass, field
@@ -18,8 +18,8 @@ def _validate_date_range(
 ) -> None:
     """Shared validator for date_start/date_end pairs on EPS query DTOs.
 
-    Raises ``TypeError`` if either field is set but not a ``datetime``,
-    and ``ValueError`` if both are set and ``date_start > date_end``.
+    Raises ``TypeError`` if either field is set but not a ``datetime``, and ``ValueError`` if both
+    are set and ``date_start > date_end``.
     """
     if date_start is not None and not isinstance(date_start, datetime):
         raise TypeError(
@@ -48,8 +48,8 @@ def _validate_date_range(
 class ClusterQueryFilter:
     """Filter criteria for an EPS Cluster Retrieval request.
 
-    Any field left as ``None`` is omitted from the request, meaning
-    the EPS will not filter on that criterion.
+    Any field left as ``None`` is omitted from the request, meaning the EPS will not filter on that
+    criterion.
     """
 
     cluster_id: Optional[int] = None
@@ -122,9 +122,8 @@ class ClusterQueryFilter:
 class ClusterPagedQueryFilter:
     """Request for the EPS PagedRetrieval action.
 
-    Wraps a ``ClusterQueryFilter`` for filter criteria and adds
-    ``limit``/``offset`` pagination fields. ``limit`` of ``None`` means
-    the EPS should apply its configured server-side default.
+    Wraps a ``ClusterQueryFilter`` for filter criteria and adds ``limit``/``offset`` pagination
+    fields. ``limit`` of ``None`` means the EPS should apply its configured server-side default.
     """
 
     filters: ClusterQueryFilter = field(default_factory=ClusterQueryFilter)
@@ -162,9 +161,8 @@ class ClusterPagedQueryFilter:
 class ClusterRecentQueryFilter:
     """Request for the EPS RecentRetrieval action.
 
-    Returns clusters ordered by FITS date descending, paginated via
-    ``limit`` and ``offset``. Intended for the Live Mode fallback
-    provider and other newest-first consumers.
+    Returns clusters ordered by FITS date descending, paginated via ``limit`` and ``offset``.
+    Intended for the Live Mode fallback provider and other newest-first consumers.
     """
 
     limit: int
@@ -230,7 +228,7 @@ class FitsQueryFilter:
 
     @staticmethod
     def from_eps_dict(d: Dict[str, Any]) -> "FitsQueryFilter":
-        """Parses one FitsQueryFilter request"""
+        """Parses one FitsQueryFilter request."""
         date = d.get("date", None)
         return FitsQueryFilter(
             fits_id=d.get("fits_id", None),
@@ -281,7 +279,8 @@ class FitsClusterQueryFilter:
 
 @dataclass(frozen=True)
 class FitsStoreRequest:
-    """Payload for an EPS Fits Storage request"""
+    """Payload for an EPS Fits Storage request."""
+
     filename: str
     date: str
     min: float
@@ -289,7 +288,7 @@ class FitsStoreRequest:
     exposure_time: float
 
     def to_eps_dict(self) -> Dict[str, Any]:
-        """Builds the JSON dict expected by the EPS Fits socket"""
+        """Builds the JSON dict expected by the EPS Fits socket."""
         return {
             "Action": "Storage",
             "filename": self.filename,
@@ -357,6 +356,38 @@ class ClusterStoreRequest:
 
 
 @dataclass(frozen=True)
+class BulkClusterStoreRequest:
+    """Payload for an EPS BulkStorage request.
+
+    Wraps the clusters flushed together from a client-side ClusterStorageBuffer so they can be
+    persisted in a single transaction instead of one ``Storage`` request per cluster.
+    """
+
+    clusters: List[ClusterStoreRequest]
+
+    def __post_init__(self) -> None:
+        if not self.clusters:
+            raise ValueError("clusters must be non-empty")
+
+    def to_eps_dict(self) -> Dict[str, Any]:
+        """Builds the JSON dict expected by the EPS Cluster socket."""
+        return {
+            "Action": "BulkStorage",
+            "clusters": [c.to_eps_dict() for c in self.clusters],
+        }
+
+    @staticmethod
+    def from_eps_dict(d: Dict[str, Any]) -> "BulkClusterStoreRequest":
+        """Parses one BulkStorage request."""
+        return BulkClusterStoreRequest(
+            clusters=[
+                ClusterStoreRequest.from_eps_dict(c)
+                for c in d.get("clusters", [])
+            ]
+        )
+
+
+@dataclass(frozen=True)
 class ClassificationUpdateRequest:
     """Payload for updating a cluster's classification string."""
 
@@ -373,7 +404,7 @@ class ClassificationUpdateRequest:
 
     @staticmethod
     def from_eps_dict(d: Dict[str, Any]) -> "ClassificationUpdateRequest":
-        """Parses one ClassificationUpdateRequest"""
+        """Parses one ClassificationUpdateRequest."""
         return ClassificationUpdateRequest(
             cluster_id=(d.get("cluster_id", 0)),
             classification=(d.get("classification", ""))
@@ -425,11 +456,9 @@ class EPSClusterRecord:
     def from_db_row(row: Dict[str, Any]) -> "EPSClusterRecord":
         """Parses one ``clusters``/``fits_files`` join row from a dictionary cursor.
 
-        Unlike :meth:`from_eps_dict`, the source keys are database column
-        names (``fitsFile``, ``clusterID``, ``box_top``, ``totalEnergy``,
-        ``pixelCount``, ...) rather than the EPS wire-format keys. Pixel
-        data is never hydrated from the database — ``data`` is always
-        ``None``.
+        Unlike :meth:`from_eps_dict`, the source keys are database column names (``fitsFile``,
+        ``clusterID``, ``box_top``, ``totalEnergy``, ``pixelCount``, ...) rather than the EPS wire-
+        format keys. Pixel data is never hydrated from the database — ``data`` is always ``None``.
         """
         return EPSClusterRecord(
             fits_id=row["fitsFile"],
@@ -474,15 +503,33 @@ class EPSClusterRecord:
 class PagedRetrieveClustersResponse:
     """Typed envelope for a PagedRetrieval EPS response.
 
-    ``clusters`` holds the pre-serialized cluster dicts produced by
-    ``_format_cluster_rows`` so that ``dataclasses.asdict()`` round-trips
-    to JSON without any custom serialization logic.
+    ``clusters`` holds the pre-serialized cluster dicts produced by ``_format_cluster_rows`` so that
+    ``dataclasses.asdict()`` round-trips to JSON without any custom serialization logic.
     """
 
     result: str
     clusters: Optional[List[dict]]
     limit: int
     offset: int
+    error: Optional[str] = None
+
+    @property
+    def is_success(self) -> bool:
+        return self.result == "success"
+
+
+@dataclass(frozen=True)
+class BulkInsertClustersResponse:
+    """Typed envelope for a BulkStorage EPS response.
+
+    ``cluster_ids`` stays positionally aligned with the request's
+    cluster list: ``"success"`` yields all ints, ``"partial"``/
+    ``"failure"`` yield a mix of ints and ``None`` for rows that
+    could not be persisted even by the per-row fallback.
+    """
+
+    result: str
+    cluster_ids: Optional[List[Optional[int]]]
     error: Optional[str] = None
 
     @property
@@ -505,8 +552,7 @@ class EPSFitsRecord:
     def from_eps_dict(d: Dict[str, Any]) -> "EPSFitsRecord":
         """Parses one element of the EPS FITS response array.
 
-        The EPS returns ``"min"`` and ``"max"`` keys (not
-        ``"minimum"``/``"maximum"``).
+        The EPS returns ``"min"`` and ``"max"`` keys (not ``"minimum"``/``"maximum"``).
         """
         return EPSFitsRecord(
             fits_id=int(d.get("fits_id", 0)),

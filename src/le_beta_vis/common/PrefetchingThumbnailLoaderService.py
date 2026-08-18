@@ -117,7 +117,11 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
         if cluster.data is not None:
             on_ready(cluster.data)
             return
-        self._executor.submit(self._extract_data_worker, cluster, on_ready)
+        with self._lock:
+            generation = self._generation
+        self._executor.submit(
+            self._extract_data_worker, cluster, generation, on_ready
+        )
 
     def request_hdu_frame(
         self,
@@ -126,21 +130,27 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
         on_ready: Callable[[Optional[np.ndarray]], None],
     ) -> None:
         """Load the full 2-D pixel array for one HDU asynchronously."""
-        self._executor.submit(self._hdu_frame_worker, fits_filename, hdu_id, on_ready)
+        with self._lock:
+            generation = self._generation
+        self._executor.submit(
+            self._hdu_frame_worker, fits_filename, hdu_id, generation, on_ready
+        )
 
     def _hdu_frame_worker(
         self,
         fits_filename: str,
         hdu_id: int,
+        generation: int,
         on_ready: Callable[[Optional[np.ndarray]], None],
     ) -> None:
         try:
             with self._lock:
                 hdus = self._get_or_load_hdus(fits_filename)
-            if 0 <= hdu_id < len(hdus):
-                on_ready(np.asarray(hdus[hdu_id].rawData()))
-            else:
-                on_ready(None)
+            frame = (
+                np.asarray(hdus[hdu_id].rawData())
+                if 0 <= hdu_id < len(hdus)
+                else None
+            )
         except Exception:
             logger.warning(
                 "HDU frame load failed for %s hdu=%d",
@@ -148,20 +158,30 @@ class PrefetchingThumbnailLoaderService(ThumbnailLoaderService):
                 hdu_id,
                 exc_info=True,
             )
-            on_ready(None)
+            frame = None
+
+        with self._lock:
+            if generation != self._generation:
+                return
+        on_ready(frame)
 
     def _extract_data_worker(
         self,
         cluster: Cluster,
+        generation: int,
         on_ready: Callable[[Optional[np.ndarray]], None],
     ) -> None:
         """Background worker for one-shot cluster data extraction."""
         try:
             data = self._extract_data(cluster)
-            on_ready(data)
         except Exception:
             logger.warning("Cluster data extraction failed", exc_info=True)
-            on_ready(None)
+            data = None
+
+        with self._lock:
+            if generation != self._generation:
+                return
+        on_ready(data)
 
     def shutdown(self) -> None:
         """Release all resources (threads, timers, cached data)."""

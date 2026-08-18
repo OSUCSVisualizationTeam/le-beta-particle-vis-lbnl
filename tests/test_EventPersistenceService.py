@@ -5,6 +5,8 @@
 # Ensure that all functions, edge cases, and paths are tested for storage and retrieval.
 import zmq
 from le_beta_vis.common.EPSDataClasses import (
+    BulkClusterStoreRequest,
+    BulkInsertClustersResponse,
     ClassificationUpdateRequest,
     ClusterPagedQueryFilter,
     ClusterQueryFilter,
@@ -105,35 +107,35 @@ class TestParseDateFilter(unittest.TestCase):
 
 
 class TestFailedProcException(unittest.TestCase):
-    """Test cases for the FailedProcException custom exception"""
+    """Test cases for the FailedProcException custom exception."""
 
     def test_failed_proc_exception_default_message(self):
-        """Test FailedProcException with default message"""
+        """Test FailedProcException with default message."""
         exception = FailedProcException()
         self.assertEqual(str(exception), "There was an issue running the stored procedure.")
         self.assertEqual(exception.message, "There was an issue running the stored procedure.")
 
     def test_failed_proc_exception_custom_message(self):
-        """Test FailedProcException with custom message"""
+        """Test FailedProcException with custom message."""
         custom_msg = "Custom error message"
         exception = FailedProcException(custom_msg)
         self.assertEqual(str(exception), custom_msg)
         self.assertEqual(exception.message, custom_msg)
 
     def test_failed_proc_exception_is_exception(self):
-        """Test that FailedProcException is an Exception"""
+        """Test that FailedProcException is an Exception."""
         exception = FailedProcException()
         self.assertIsInstance(exception, Exception)
 
 
 class TestEventPersistenceInitialization(unittest.TestCase):
-    """Test cases for EventPersistence initialization"""
+    """Test cases for EventPersistence initialization."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     def test_initialization(self, mock_config, mock_db_connect, mock_init_server):
-        """Test EventPersistence initialization"""
+        """Test EventPersistence initialization."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -154,13 +156,13 @@ class TestEventPersistenceInitialization(unittest.TestCase):
 
 
 class TestEventPersistenceDatabaseConnection(unittest.TestCase):
-    """Test cases for database connection"""
+    """Test cases for database connection."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.mysql.connector.connect')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     def test_db_connect_success(self, mock_config, mock_init_server, mock_mysql_connect):
-        """Test successful database connection"""
+        """Test successful database connection."""
         mock_connection = MagicMock()
         mock_mysql_connect.return_value = mock_connection
 
@@ -187,7 +189,7 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     def test_db_connect_failure(self, mock_config, mock_init_server, mock_mysql_connect):
-        """Test database connection failure"""
+        """Test database connection failure."""
         import mysql.connector
         mock_mysql_connect.side_effect = mysql.connector.Error("Connection failed")
 
@@ -207,13 +209,13 @@ class TestEventPersistenceDatabaseConnection(unittest.TestCase):
 
 
 class TestEventPersistenceStoreFits(unittest.TestCase):
-    """Test cases for store_fits method"""
+    """Test cases for store_fits method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_store_fits_success(self, mock_db_connect, mock_init_server, mock_config):
-        """Test successful fits storage"""
+        """Test successful fits storage."""
         # Setup mocks
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
@@ -252,7 +254,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_store_fits_failed_proc(self, mock_db_connect, mock_init_server, mock_config):
-        """Test fits storage with failed procedure"""
+        """Test fits storage with failed procedure."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -287,7 +289,7 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     def test_store_fits_reconnect_on_no_connection(self, mock_init_server, mock_config):
-        """Test that store_fits reconnects if connection is lost"""
+        """Test that store_fits reconnects if connection is lost."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -317,13 +319,13 @@ class TestEventPersistenceStoreFits(unittest.TestCase):
 
 
 class TestEventPersistenceStoreClusters(unittest.TestCase):
-    """Test cases for store_cluster method"""
+    """Test cases for store_cluster method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_store_cluster_success(self, mock_db_connect, mock_init_server, mock_config):
-        """Test successful cluster storage"""
+        """Test successful cluster storage."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -373,7 +375,7 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_store_cluster_failed_proc(self, mock_db_connect, mock_init_server, mock_config):
-        """Test cluster storage with failed procedure"""
+        """Test cluster storage with failed procedure."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -417,13 +419,13 @@ class TestEventPersistenceStoreClusters(unittest.TestCase):
 
 
 class TestEventPersistenceRetrieveFits(unittest.TestCase):
-    """Test cases for retrieve_fits method"""
+    """Test cases for retrieve_fits method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_retrieve_fits_success(self, mock_db_connect, mock_init_server, mock_config):
-        """Test successful fits retrieval"""
+        """Test successful fits retrieval."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -476,7 +478,7 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_retrieve_fits_with_multiple_filters(self, mock_db_connect, mock_init_server, mock_config):
-        """Test fits retrieval with multiple filter parameters"""
+        """Test fits retrieval with multiple filter parameters."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -521,13 +523,13 @@ class TestEventPersistenceRetrieveFits(unittest.TestCase):
 
 
 class TestEventPersistenceRetrieveClusters(unittest.TestCase):
-    """Test cases for retrieve_clusters method"""
+    """Test cases for retrieve_clusters method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_retrieve_clusters_success(self, mock_db_connect, mock_init_server, mock_config):
-        """Test successful clusters retrieval"""
+        """Test successful clusters retrieval."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -805,14 +807,153 @@ class TestEventPersistencePagedRetrieval(unittest.TestCase):
         self.assertEqual(sent["result"], "failure")
 
 
+class TestEventPersistenceBulkStoreClusters(unittest.TestCase):
+    """Test cases for the BulkStorage endpoint (issue #140)."""
+
+    def _make_cluster_dict(self, fits_id=1):
+        return ClusterStoreRequest(
+            data=None, hdu_id=0,
+            bounding_box={"top": 1, "left": 2, "bottom": 3, "right": 4},
+            sigma_x=1.0, sigma_y=1.0,
+            total_energy=100.0, total_pixels=10,
+            fits_id=fits_id, classification="tritium",
+        ).to_eps_dict()
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService._bulk_insert_clusters')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_bulk_store_clusters_connects_lazily_and_delegates(
+        self, mock_db_connect, mock_bulk_insert, mock_init_server, mock_config,
+    ):
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key, default=None: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, default)
+
+        mock_connection = MagicMock()
+        mock_db_connect.return_value = mock_connection
+        mock_bulk_insert.return_value = BulkInsertClustersResponse(
+            result="success", cluster_ids=[1, 2]
+        )
+
+        ep = EventPersistence()
+        ep.conn = None
+        bulk_request = BulkClusterStoreRequest(
+            clusters=[ClusterStoreRequest.from_eps_dict(self._make_cluster_dict())]
+        )
+
+        result = ep.bulk_store_clusters(bulk_request)
+
+        # db_connect is called once in __init__ and once more here since
+        # conn was reset to None, proving the lazy-reconnect path is used.
+        self.assertEqual(mock_db_connect.call_count, 2)
+        mock_bulk_insert.assert_called_once_with(mock_connection, bulk_request.clusters)
+        self.assertTrue(result.is_success)
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch.object(EventPersistence, 'bulk_store_clusters')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_cluster_event_dispatches_bulk_storage_success(
+        self, mock_db_connect, mock_bulk_store, mock_init_server, mock_config,
+    ):
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key, default=None: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, default)
+
+        mock_socket = MagicMock()
+        mock_bulk_store.return_value = BulkInsertClustersResponse(
+            result="success", cluster_ids=[101, 102]
+        )
+
+        ep = EventPersistence()
+        request = {
+            "Action": "BulkStorage",
+            "clusters": [self._make_cluster_dict(1), self._make_cluster_dict(2)],
+        }
+        ep.cluster_event(request, mock_socket)
+
+        mock_bulk_store.assert_called_once()
+        bulk_request = mock_bulk_store.call_args.args[0]
+        self.assertIsInstance(bulk_request, BulkClusterStoreRequest)
+        self.assertEqual(len(bulk_request.clusters), 2)
+        mock_socket.send_json.assert_called_once()
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "success")
+        self.assertEqual(sent["cluster_ids"], [101, 102])
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch.object(EventPersistence, 'bulk_store_clusters')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_cluster_event_dispatches_bulk_storage_partial(
+        self, mock_db_connect, mock_bulk_store, mock_init_server, mock_config,
+    ):
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key, default=None: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, default)
+
+        mock_socket = MagicMock()
+        mock_bulk_store.return_value = BulkInsertClustersResponse(
+            result="partial", cluster_ids=[101, None], error="1/2 fallback rows failed"
+        )
+
+        ep = EventPersistence()
+        request = {
+            "Action": "BulkStorage",
+            "clusters": [self._make_cluster_dict(1), self._make_cluster_dict(2)],
+        }
+        ep.cluster_event(request, mock_socket)
+
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "partial")
+        self.assertEqual(sent["cluster_ids"], [101, None])
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_cluster_event_bulk_storage_empty_clusters_returns_failure(
+        self, mock_db_connect, mock_init_server, mock_config,
+    ):
+        """An empty clusters list surfaces as a failure response, not an uncaught exception."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key, default=None: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, default)
+
+        mock_socket = MagicMock()
+        ep = EventPersistence()
+        request = {"Action": "BulkStorage", "clusters": []}
+        ep.cluster_event(request, mock_socket)
+
+        mock_socket.send_json.assert_called_once()
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "failure")
+
+
 class TestEventPersistenceClassifyCluster(unittest.TestCase):
-    """Test cases for classify_cluster method"""
+    """Test cases for classify_cluster method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_classify_cluster_success(self, mock_db_connect, mock_init_server, mock_config):
-        """Test successful classification update"""
+        """Test successful classification update."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -848,7 +989,7 @@ class TestEventPersistenceClassifyCluster(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_classify_cluster_no_rows_updated(self, mock_db_connect, mock_init_server, mock_config):
-        """Test classification update where no row is changed"""
+        """Test classification update where no row is changed."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -881,7 +1022,7 @@ class TestEventPersistenceClassifyCluster(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_classify_cluster_failed_proc_output(self, mock_db_connect, mock_init_server, mock_config):
-        """Test classification update where procedure reports failure"""
+        """Test classification update where procedure reports failure."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -912,7 +1053,7 @@ class TestEventPersistenceClassifyCluster(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     def test_classify_cluster_reconnect_on_no_connection(self, mock_init_server, mock_config):
-        """Test classify_cluster reconnects when connection is missing"""
+        """Test classify_cluster reconnects when connection is missing."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -941,13 +1082,13 @@ class TestEventPersistenceClassifyCluster(unittest.TestCase):
 
 
 class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
-    """Test cases for process_retrieval_fits method"""
+    """Test cases for process_retrieval_fits method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_process_retrieval_fits_success(self, mock_db_connect, mock_init_server, mock_config):
-        """Test processing successful fits retrieval results"""
+        """Test processing successful fits retrieval results."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -990,7 +1131,7 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_process_retrieval_fits_empty_results(self, mock_db_connect, mock_init_server, mock_config):
-        """Test processing empty fits retrieval results"""
+        """Test processing empty fits retrieval results."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1011,7 +1152,7 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_process_retrieval_fits_error(self, mock_db_connect, mock_init_server, mock_config):
-        """Test processing fits retrieval with error"""
+        """Test processing fits retrieval with error."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1031,13 +1172,13 @@ class TestEventPersistenceProcessRetrievalFits(unittest.TestCase):
 
 
 class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
-    """Test cases for process_retrieval_clusters method"""
+    """Test cases for process_retrieval_clusters method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_process_retrieval_clusters_success(self, mock_db_connect, mock_init_server, mock_config):
-        """Test processing successful clusters retrieval results"""
+        """Test processing successful clusters retrieval results."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1098,7 +1239,7 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_process_retrieval_clusters_empty_results(self, mock_db_connect, mock_init_server, mock_config):
-        """Test processing empty clusters retrieval results"""
+        """Test processing empty clusters retrieval results."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1119,7 +1260,7 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_process_retrieval_clusters_error(self, mock_db_connect, mock_init_server, mock_config):
-        """Test processing clusters retrieval with error"""
+        """Test processing clusters retrieval with error."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1139,14 +1280,14 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
 
 
 class TestEventPersistenceClusterEvent(unittest.TestCase):
-    """Test cases for cluster_event method"""
+    """Test cases for cluster_event method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'store_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_cluster_event_storage_success(self, mock_db_connect, mock_store_cluster, mock_init_server, mock_config):
-        """Test cluster event with Storage action"""
+        """Test cluster event with Storage action."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1186,7 +1327,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch.object(EventPersistence, 'store_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_cluster_event_storage_failure(self, mock_db_connect, mock_store_cluster, mock_init_server, mock_config):
-        """Test cluster event with Storage action that fails"""
+        """Test cluster event with Storage action that fails."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1226,7 +1367,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch.object(EventPersistence, 'retrieve_clusters')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_cluster_event_retrieval(self, mock_db_connect, mock_retrieve_clusters, mock_init_server, mock_config):
-        """Test cluster event with Retrieval action"""
+        """Test cluster event with Retrieval action."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1265,7 +1406,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_cluster_event_update_classification_success(
             self, mock_db_connect, mock_classify_cluster, mock_init_server, mock_config):
-        """Test cluster event with UpdateClassification action"""
+        """Test cluster event with UpdateClassification action."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1299,7 +1440,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_cluster_event_update_classification_exception(
             self, mock_db_connect, mock_classify_cluster, mock_init_server, mock_config):
-        """Test UpdateClassification action when classify_cluster raises exception"""
+        """Test UpdateClassification action when classify_cluster raises exception."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1331,7 +1472,7 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
     @patch.object(EventPersistence, 'store_cluster')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_cluster_event_missing_required_field(self, mock_db_connect, mock_store_cluster, mock_init_server, mock_config):
-        """Test cluster event with missing required field"""
+        """Test cluster event with missing required field."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1356,16 +1497,47 @@ class TestEventPersistenceClusterEvent(unittest.TestCase):
         sent = mock_socket.send_json.call_args[0][0]
         self.assertEqual(sent["result"], "failure")
 
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    @patch('le_beta_vis.backend.EventPersistenceService.logger')
+    def test_cluster_event_unknown_action_logs_error_and_responds_failure(
+        self, mock_logger, mock_db_connect, mock_init_server, mock_config,
+    ):
+        """An unrecognized Action is logged as an error and does not leave the caller's REQ socket
+        hanging without a response."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key, default=None: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db",
+        }.get(key, default)
+
+        mock_socket = MagicMock()
+        ep = EventPersistence()
+
+        request = {"Action": "NotARealAction"}
+        ep.cluster_event(request, mock_socket)
+
+        mock_logger.error.assert_called_once()
+        self.assertIn("NotARealAction", mock_logger.error.call_args.args[0])
+
+        mock_socket.send_json.assert_called_once()
+        sent = mock_socket.send_json.call_args[0][0]
+        self.assertEqual(sent["result"], "failure")
+        self.assertIn("NotARealAction", sent["error"])
+
 
 class TestEventPersistenceFitsEvent(unittest.TestCase):
-    """Test cases for fits_event method"""
+    """Test cases for fits_event method."""
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
     @patch.object(EventPersistence, 'store_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_fits_event_storage_success(self, mock_db_connect, mock_store_fits, mock_init_server, mock_config):
-        """Test fits event with Storage action"""
+        """Test fits event with Storage action."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1401,7 +1573,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch.object(EventPersistence, 'store_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_fits_event_storage_failure(self, mock_db_connect, mock_store_fits, mock_init_server, mock_config):
-        """Test fits event with Storage action that fails"""
+        """Test fits event with Storage action that fails."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1437,7 +1609,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch.object(EventPersistence, 'retrieve_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_fits_event_retrieval(self, mock_db_connect, mock_retrieve_fits, mock_init_server, mock_config):
-        """Test fits event with Retrieval action"""
+        """Test fits event with Retrieval action."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1472,7 +1644,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_fits_event_clusters(self, mock_db_connect, mock_retrieve_clusters,
                                  mock_retrieve_fits, mock_init_server, mock_config):
-        """Test fits event with Clusters action"""
+        """Test fits event with Clusters action."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",
@@ -1506,7 +1678,7 @@ class TestEventPersistenceFitsEvent(unittest.TestCase):
     @patch.object(EventPersistence, 'store_fits')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
     def test_fits_event_missing_required_field(self, mock_db_connect, mock_store_fits, mock_init_server, mock_config):
-        """Test fits event with missing required field"""
+        """Test fits event with missing required field."""
         instance = mock_config.return_value
         instance.get.side_effect = lambda key: {
             "global:db:hostname": "localhost",

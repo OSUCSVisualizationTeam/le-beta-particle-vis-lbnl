@@ -7,7 +7,7 @@ unpins; clicking Details dismisses Live Mode and navigates to Historical.
 
 from typing import Optional
 
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, Signal
 from PySide6.QtWidgets import QHBoxLayout, QToolButton, QWidget
 
 from le_beta_vis.common.Cluster import Cluster
@@ -28,13 +28,16 @@ class _PinningMiniToolbar(QWidget):
     the active-pin unpins.
     """
 
+    _pinnedChanged = Signal(object)
+
     def __init__(self, vm: LiveModeViewModel, parent: QWidget = None) -> None:
         super().__init__(parent)
         self._vm = vm
         self._icon_size = self._compute_icon_size()
         self._build_ui()
         self._update_state(None)
-        vm.add_pinned_changed_callback(self._on_pinned_changed)
+        self._pinnedChanged.connect(self._on_pinned_changed)
+        vm.add_pinned_changed_callback(self._pinnedChanged.emit)
 
     # --- Build ---
 

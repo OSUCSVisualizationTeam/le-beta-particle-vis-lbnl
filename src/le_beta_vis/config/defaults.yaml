@@ -499,6 +499,17 @@ pipeline:ingress:process_file_timeout_seconds:
     forcibly cancellable and can remain alive after a timeout; ingestion
     moves on to the next queued file regardless.
 
+pipeline:ingress:max_concurrent_files:
+  type: int
+  default: 4
+  description: >-
+    Maximum number of FITS files processed concurrently by the ingestion
+    thread pool. Raising this speeds up client-side FITS I/O and
+    clustering (astropy/scipy release the GIL), but the EPS services
+    store requests off a single-threaded event loop and one MySQL
+    connection, so it does not proportionally increase end-to-end
+    throughput past that point. Clamped to [1, 16].
+
 # ---------------------------------------------------------------------------
 # Event Persistence Service (EPS)
 # ---------------------------------------------------------------------------
@@ -543,6 +554,15 @@ eps:retrieval_limit_max:
     Server-side hard cap for PagedRetrieval cluster queries. Requests
     with a `limit` <= 0 or > this value are rejected, closing the
     unbounded-result crash path regardless of client input.
+
+eps:cluster_storage_buffer_size:
+  type: int
+  default: 32
+  description: >-
+    Number of Cluster objects the client-side ClusterStorageBuffer
+    accumulates in FileProcessing before flushing them to the EPS
+    BulkStorage action in a single ZMQ round-trip / multi-row INSERT.
+    Bounded to [16, 2000] via ConfigurationService.get_int.
 
 # ---------------------------------------------------------------------------
 # Event Handler (pub/sub bus)

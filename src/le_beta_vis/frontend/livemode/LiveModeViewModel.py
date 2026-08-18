@@ -95,6 +95,7 @@ class LiveModeViewModel:
         self.pending_save_path: Optional[Path] = None
 
         self._active = False
+        self._generation = 0
 
     # --- Properties (config-driven) ---
 
@@ -302,12 +303,22 @@ class LiveModeViewModel:
     def deactivate(self) -> None:
         """Unsubscribe from EventHandler and stop accepting events.
 
+        Invalidates any outstanding background work so its completion
+        cannot notify the View after Live Mode has been left: bumps
+        ``_generation`` (silences a late ``_refill_worker`` completion) and
+        clears the shared ``ThumbnailLoaderService`` (silences late
+        ``request_cluster_data``/``request_hdu_frame`` deliveries via its
+        own generation gate).
+
         Safe to call when not active.
         """
         if not self._active:
             return
         self._active = False
+        self._generation += 1
         self._fresh_provider.deactivate()
+        if self._thumbnail_service is not None:
+            self._thumbnail_service.clear()
         logger.info("LiveModeViewModel deactivated")
 
     # --- Grid advancement ---
@@ -517,12 +528,14 @@ class LiveModeViewModel:
 
         thread = threading.Thread(
             target=self._refill_worker,
-            args=(needed + 1,),
+            args=(needed + 1, self._generation),
             daemon=True,
         )
         thread.start()
 
-    def _refill_worker(self, count: int) -> None:
+    def _refill_worker(
+        self, count: int, generation: Optional[int] = None,
+    ) -> None:
         """Background thread: fetch fallback clusters and append.
 
         Fetches ``count`` clusters from the fallback provider and
@@ -531,10 +544,18 @@ class LiveModeViewModel:
         Args:
             count: Number of clusters to request from the fallback
                 provider.
+            generation: The ``_generation`` value at schedule time.
+                ``deactivate()`` bumps ``_generation``, so a mismatch here
+                means Live Mode was left while this fetch was in flight —
+                the result is discarded and the View is not notified.
+                ``None`` (the default, used when called directly rather
+                than via ``_schedule_refill``) always passes the check.
         """
         try:
             clusters = self._fallback_provider.fetch(count)
-            if clusters:
+            if clusters and (
+                generation is None or generation == self._generation
+            ):
                 self._queue.append_fallback(clusters)
                 self._notify_grid_changed()
                 logger.info(

@@ -7,7 +7,7 @@ as part of the layout — no floating window, no auto-hide.
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -28,12 +28,15 @@ _BORDER_RADIUS_PX = 8
 class _LiveModeControlStrip(QWidget):
     """Compact icon-only control strip for the Live Mode top row."""
 
+    _pausedChanged = Signal(bool)
+
     def __init__(self, vm: LiveModeViewModel, parent: QWidget = None) -> None:
         super().__init__(parent)
         self._vm = vm
         self._icon_size = self._compute_icon_size()
         self._build_ui()
-        vm.add_paused_changed_callback(self._on_paused_changed)
+        self._pausedChanged.connect(self._on_paused_changed)
+        vm.add_paused_changed_callback(self._pausedChanged.emit)
 
     # --- Build ---
 

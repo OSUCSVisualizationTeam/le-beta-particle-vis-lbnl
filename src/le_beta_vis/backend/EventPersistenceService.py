@@ -1,4 +1,3 @@
-from le_beta_vis.common.ZMQEventHandlerClient import DEFAULT_EVENT_PUB_ENDPOINT
 import dataclasses
 import mysql.connector
 from le_beta_vis.common.YAMLBackedConfigurationService import (
@@ -10,20 +9,20 @@ from le_beta_vis.common.EPSDataClasses import (
     ClusterQueryFilter,
     ClusterRecentQueryFilter,
     FitsQueryFilter,
-    FitsClusterQueryFilter,
     FitsStoreRequest,
     ClusterStoreRequest,
+    BulkClusterStoreRequest,
+    BulkInsertClustersResponse,
     ClassificationUpdateRequest,
-    EPSClusterRecord,
-    EPSFitsRecord,
     PagedRetrieveClustersResponse,
 )
 from le_beta_vis.backend.PagedClusterRetrieval import (
     paged_retrieve_clusters as _paged_retrieve_clusters,
 )
-import os
+from le_beta_vis.backend.BulkClusterInsert import (
+    bulk_insert_clusters as _bulk_insert_clusters,
+)
 import zmq
-import numpy as np
 import logging
 from datetime import datetime
 from typing import Optional, Tuple
@@ -40,12 +39,10 @@ def _parse_date_filter(
 ) -> Optional[Tuple[datetime, datetime]]:
     """Validates and parses a date-range filter from an EPS request.
 
-    Returns ``(start, end)`` as ``datetime`` objects when both keys are
-    present and well-formed, or ``None`` when no date filter was supplied
-    (``None``, empty dict, or both keys ``None``). Raises ``ValueError``
-    or ``TypeError`` on malformed input so the calling retrieve_* method
-    can surface a clean failure response to the client instead of a
-    confusing MySQL error.
+    Returns ``(start, end)`` as ``datetime`` objects when both keys are present and well-formed, or
+    ``None`` when no date filter was supplied (``None``, empty dict, or both keys ``None``). Raises
+    ``ValueError`` or ``TypeError`` on malformed input so the calling retrieve_* method can surface
+    a clean failure response to the client instead of a confusing MySQL error.
     """
     if not date:
         return None
@@ -56,16 +53,12 @@ def _parse_date_filter(
     if start is None or end is None:
         raise ValueError("date filter requires both 'start' and 'end'")
     if not isinstance(start, str) or not isinstance(end, str):
-        raise TypeError(
-            "date filter 'start' and 'end' must be strings"
-        )
+        raise TypeError("date filter 'start' and 'end' must be strings")
     try:
         start_dt = datetime.strptime(start, _DATE_FILTER_FORMAT)
         end_dt = datetime.strptime(end, _DATE_FILTER_FORMAT)
     except ValueError as exc:
-        raise ValueError(
-            f"date filter must use format '{_DATE_FILTER_FORMAT}': {exc}"
-        )
+        raise ValueError(f"date filter must use format '{_DATE_FILTER_FORMAT}': {exc}")
     if start_dt > end_dt:
         raise ValueError("date filter 'start' must be <= 'end'")
     return start_dt, end_dt
@@ -176,60 +169,89 @@ class EventPersistence:
 
     def cluster_event(self, request: dict, socket: zmq.Socket):
         """Processes a requested cluster event and calls storage or retrieval of cluster."""
-        logger.info("Cluster request received by EPS.")
-        if request.get("Action") == "Storage":
-            # Reassemble JSON as dict for storage in object
-            try:
-                cluster_to_store = ClusterStoreRequest.from_eps_dict(request)
-                response = self.store_cluster(cluster_to_store)
-                if response:
-                    socket.send_json({"result": "success", "cluster_id": response})
-                else:
-                    raise FailedProcException
-            except FailedProcException as err:
-                socket.send_json(
-                    {"result": "failure", "cluster_id": None, "error": str(err)}
-                )
+        # logger.info("Cluster request received by EPS.")
+        action = request.get("Action")
+        if action == "Storage":
+            self._handle_storage(request, socket)
+        elif action == "BulkStorage":
+            self._handle_bulk_storage(request, socket)
+        elif action == "Retrieval":
+            self._handle_retrieval(request, socket)
+        elif action == "RecentRetrieval":
+            self._handle_recent_retrieval(request, socket)
+        elif action == "UpdateClassification":
+            self._handle_update_classification(request, socket)
+        elif action == "PagedRetrieval":
+            self._handle_paged_retrieval(request, socket)
+        else:
+            logger.error(f"Unknown cluster Action received: {action!r}")
+            socket.send_json(
+                {"result": "failure", "error": f"Unknown Action: {action!r}"}
+            )
 
-        elif request.get("Action") == "Retrieval":
-            try:
-                retrieval_clusters = ClusterQueryFilter.from_eps_dict(request)
-                response = self.retrieve_clusters(retrieval_clusters)
-                socket.send_json(response)
-            except Exception as err:
-                socket.send_json(
-                    {"result": "failure", "clusters": None, "error": str(err)}
-                )
+    def _handle_storage(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, persists, and responds to a single-cluster Storage action."""
+        try:
+            cluster_to_store = ClusterStoreRequest.from_eps_dict(request)
+            response = self.store_cluster(cluster_to_store)
+            if response:
+                socket.send_json({"result": "success", "cluster_id": response})
+            else:
+                raise FailedProcException
+        except FailedProcException as err:
+            socket.send_json(
+                {"result": "failure", "cluster_id": None, "error": str(err)}
+            )
 
-        elif request.get("Action") == "RecentRetrieval":
-            try:
-                recent_clusters = ClusterRecentQueryFilter.from_eps_dict(request)
-                response = self.retrieve_recent_clusters(recent_clusters)
-                socket.send_json(response)
-            except Exception as err:
-                socket.send_json(
-                    {"result": "failure", "clusters": None, "error": str(err)}
-                )
+    def _handle_bulk_storage(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, persists, and responds to a BulkStorage cluster action.
 
-        elif request.get("Action") == "UpdateClassification":
-            try:
-                cluster_to_classify = ClassificationUpdateRequest.from_eps_dict(request)
-                response = self.classify_cluster(cluster_to_classify)
-                socket.send_json(response)
-            except Exception as err:
-                socket.send_json(
-                    {"result": "failure", "error": str(err)}
-                )
+        Split out of cluster_event to keep that method's branching complexity from growing further.
+        """
+        try:
+            bulk_request = BulkClusterStoreRequest.from_eps_dict(request)
+            response = self.bulk_store_clusters(bulk_request)
+            socket.send_json(dataclasses.asdict(response))
+        except Exception as err:
+            socket.send_json(
+                {"result": "failure", "cluster_ids": None, "error": str(err)}
+            )
 
-        elif request.get("Action") == "PagedRetrieval":
-            try:
-                paged_filter = ClusterPagedQueryFilter.from_eps_dict(request)
-                response = self.paged_retrieve_clusters(paged_filter)
-                socket.send_json(dataclasses.asdict(response))
-            except Exception as err:
-                socket.send_json(
-                    {"result": "failure", "clusters": None, "error": str(err)}
-                )
+    def _handle_retrieval(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, queries, and responds to a cluster Retrieval action."""
+        try:
+            retrieval_clusters = ClusterQueryFilter.from_eps_dict(request)
+            response = self.retrieve_clusters(retrieval_clusters)
+            socket.send_json(response)
+        except Exception as err:
+            socket.send_json({"result": "failure", "clusters": None, "error": str(err)})
+
+    def _handle_recent_retrieval(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, queries, and responds to a RecentRetrieval action."""
+        try:
+            recent_clusters = ClusterRecentQueryFilter.from_eps_dict(request)
+            response = self.retrieve_recent_clusters(recent_clusters)
+            socket.send_json(response)
+        except Exception as err:
+            socket.send_json({"result": "failure", "clusters": None, "error": str(err)})
+
+    def _handle_update_classification(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, updates, and responds to an UpdateClassification action."""
+        try:
+            cluster_to_classify = ClassificationUpdateRequest.from_eps_dict(request)
+            response = self.classify_cluster(cluster_to_classify)
+            socket.send_json(response)
+        except Exception as err:
+            socket.send_json({"result": "failure", "error": str(err)})
+
+    def _handle_paged_retrieval(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, queries, and responds to a PagedRetrieval action."""
+        try:
+            paged_filter = ClusterPagedQueryFilter.from_eps_dict(request)
+            response = self.paged_retrieve_clusters(paged_filter)
+            socket.send_json(dataclasses.asdict(response))
+        except Exception as err:
+            socket.send_json({"result": "failure", "clusters": None, "error": str(err)})
 
     def fits_event(self, request: dict, socket: zmq.Socket):
         """Processes a requested cluster event and calls storage or retrieval of cluster."""
@@ -269,7 +291,9 @@ class EventPersistence:
                     "fits_list": cluster_retrieval_ids,
                 }
 
-                retrieval_clusters = ClusterQueryFilter.from_eps_dict(retrieval_cluster_dict)
+                retrieval_clusters = ClusterQueryFilter.from_eps_dict(
+                    retrieval_cluster_dict
+                )
                 response = self.retrieve_clusters(retrieval_clusters)
                 socket.send_json(response)
             except Exception as err:
@@ -278,8 +302,8 @@ class EventPersistence:
                 )
 
     def store_fits(self, fits: FitsStoreRequest) -> int:
-        """Uses the persistent EPS DB connection to call the stored procedure insert_fits on the database with the values from
-        the request."""
+        """Uses the persistent EPS DB connection to call the stored procedure insert_fits on the
+        database with the values from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -306,8 +330,8 @@ class EventPersistence:
             logger.warning(f"Could not connect: {str(err)}")
 
     def store_cluster(self, cluster: ClusterStoreRequest) -> int:
-        """Uses the persistent EPS DB connection to call the stored procedure insert_cluster on the database with the values
-        from the request."""
+        """Uses the persistent EPS DB connection to call the stored procedure insert_cluster on the
+        database with the values from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -351,7 +375,8 @@ class EventPersistence:
             logger.warning(f"Could not connect: {str(err)}")
 
     def retrieve_fits(self, fits: FitsQueryFilter) -> dict:
-        """Selects from the database all values from the fits table that match any and all values from the request."""
+        """Selects from the database all values from the fits table that match any and all values
+        from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -401,7 +426,8 @@ class EventPersistence:
             logger.warning(f"Could not connect: {str(err)}")
 
     def retrieve_clusters(self, clusters: ClusterQueryFilter) -> dict:
-        """Selects from the database all values from the clusters table that match any and all values from the request."""
+        """Selects from the database all values from the clusters table that match any and all
+        values from the request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -428,7 +454,12 @@ class EventPersistence:
                 select_argv.append(hdu)
             if bounding_box:
                 select_args.extend(
-                    ["box_top = %s", "box_left = %s", "box_bottom = %s", "box_right = %s"]
+                    [
+                        "box_top = %s",
+                        "box_left = %s",
+                        "box_bottom = %s",
+                        "box_right = %s",
+                    ]
                 )
                 select_argv.extend(
                     [
@@ -474,7 +505,9 @@ class EventPersistence:
 
             cursor.execute(select_query, tuple(select_argv))
             # saving results into a list of tuples
-            results = cursor.fetchall()  # Temporarily limit result set size to avoid a crash in macOS
+            results = (
+                cursor.fetchall()
+            )  # Temporarily limit result set size to avoid a crash in macOS
 
             cursor.close()
             return self.process_retrieval_clusters(results)
@@ -484,8 +517,7 @@ class EventPersistence:
 
     def classify_cluster(self, cluster: ClassificationUpdateRequest) -> dict:
         """Executes the insert_classifications stored procedure in the database based on the EPS
-            UpdateClassification request.
-        """
+        UpdateClassification request."""
         try:
             if not self.conn:
                 self.conn = self.db_connect()
@@ -502,7 +534,10 @@ class EventPersistence:
             elif rows_updated == 0:
                 self.conn.commit()
                 cursor.close()
-                return {"result": "failure", "error": "No clusters were updated, incorrect ID or classification."}
+                return {
+                    "result": "failure",
+                    "error": "No clusters were updated, incorrect ID or classification.",
+                }
             else:
                 self.conn.close()
                 self.conn = None
@@ -511,11 +546,12 @@ class EventPersistence:
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
 
-    def retrieve_recent_clusters(self, recent_clusters: ClusterRecentQueryFilter) -> dict:
+    def retrieve_recent_clusters(
+        self, recent_clusters: ClusterRecentQueryFilter
+    ) -> dict:
         """Selects the newest clusters ordered by FITS date, paginated.
 
-        Uses the ``limit`` and ``offset`` stored in
-        ``self.retrieval_recent_clusters``. Reuses
+        Uses the ``limit`` and ``offset`` stored in ``self.retrieval_recent_clusters``. Reuses
         ``process_retrieval_clusters`` to shape the response.
         """
         try:
@@ -542,23 +578,40 @@ class EventPersistence:
         except mysql.connector.Error as err:
             logger.warning(f"Could not connect: {str(err)}")
 
-    def paged_retrieve_clusters(self, paged_filter: ClusterPagedQueryFilter) -> PagedRetrieveClustersResponse:
+    def bulk_store_clusters(
+        self, bulk_request: BulkClusterStoreRequest
+    ) -> BulkInsertClustersResponse:
+        """Persists all clusters in bulk_request via one multi-row INSERT.
+
+        Falls back to per-row inserts on failure. Delegates to
+        BulkClusterInsert.bulk_insert_clusters so this file doesn't keep growing (mirrors
+        paged_retrieve_clusters).
+        """
+        if not self.conn:
+            self.conn = self.db_connect()
+        return _bulk_insert_clusters(self.conn, bulk_request.clusters)
+
+    def paged_retrieve_clusters(
+        self, paged_filter: ClusterPagedQueryFilter
+    ) -> PagedRetrieveClustersResponse:
         """Selects clusters matching ``paged_filter`` with bounded pagination.
 
-        Defaults and caps the effective ``limit`` from
-        ``eps:retrieval_limit_default`` / ``eps:retrieval_limit_max`` so an
-        unbounded or excessive client request cannot return the entire
-        table. Delegates the query and formatting to
+        Defaults and caps the effective ``limit`` from ``eps:retrieval_limit_default`` /
+        ``eps:retrieval_limit_max`` so an unbounded or excessive client request cannot return the
+        entire table. Delegates the query and formatting to
         ``PagedClusterRetrieval.paged_retrieve_clusters``.
         """
         if not self.conn:
             self.conn = self.db_connect()
         default_limit = int(self.config.get("eps:retrieval_limit_default", 500))
         max_limit = int(self.config.get("eps:retrieval_limit_max", 2000))
-        return _paged_retrieve_clusters(self.conn, paged_filter, default_limit, max_limit)
+        return _paged_retrieve_clusters(
+            self.conn, paged_filter, default_limit, max_limit
+        )
 
     def process_retrieval_fits(self, results) -> dict:
-        """Takes the results from a fits retrieval SELECT statement and formats the EPS response into JSON.
+        """Takes the results from a fits retrieval SELECT statement and formats the EPS response
+        into JSON.
 
         args:
             results: list of results from the retrieve_fits function, collection of mySQL fetches
@@ -585,7 +638,8 @@ class EventPersistence:
         return response
 
     def process_retrieval_clusters(self, results) -> dict:
-        """Takes the results from a fits retrieval SELECT statement and formats the EPS response into JSON.
+        """Takes the results from a fits retrieval SELECT statement and formats the EPS response
+        into JSON.
 
         args:
             results: list of results from the retrieve_fits function, collection of mySQL fetches
@@ -614,7 +668,7 @@ class EventPersistence:
                     "classification": result["classification"],
                     "total_pixels": result["pixelCount"],
                     "filename": result["filename"],
-                    "date": str(result["date"])
+                    "date": str(result["date"]),
                 }
             )
         response = {"result": "success", "clusters": clusters_list}

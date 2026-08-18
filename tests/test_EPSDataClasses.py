@@ -2,6 +2,7 @@
 
 Pure data-mapping tests — no ZMQ dependency.
 """
+
 import json
 from datetime import datetime
 
@@ -9,6 +10,8 @@ import numpy as np
 import pytest
 
 from le_beta_vis.common.EPSDataClasses import (
+    BulkClusterStoreRequest,
+    BulkInsertClustersResponse,
     ClassificationUpdateRequest,
     ClusterPagedQueryFilter,
     ClusterQueryFilter,
@@ -77,7 +80,7 @@ class TestClusterQueryFilter:
         }
 
     def test_date_filter_strips_microseconds(self):
-        """strftime("%Y-%m-%d %H:%M:%S") drops microseconds and tz."""
+        """Strftime("%Y-%m-%d %H:%M:%S") drops microseconds and tz."""
         qf = ClusterQueryFilter(
             date_start=datetime(2025, 6, 15, 12, 30, 0, 123456),
             date_end=datetime(2025, 6, 16, 0, 0, 0, 999999),
@@ -350,6 +353,73 @@ class TestClusterStoreRequest:
         assert isinstance(d["total_energy"], float) and not isinstance(d["total_energy"], np.floating)
         for val in d["bounding_box"].values():
             assert isinstance(val, int) and not isinstance(val, np.integer)
+
+
+# -------------------------------------------------------------------
+# BulkClusterStoreRequest
+# -------------------------------------------------------------------
+
+class TestBulkClusterStoreRequest:
+
+    def _make_cluster(self, fits_id=1):
+        return ClusterStoreRequest(
+            data=[1, 2, 3], hdu_id=0,
+            bounding_box={"top": 0, "left": 0, "bottom": 5, "right": 5},
+            sigma_x=1.0, sigma_y=1.0,
+            total_energy=100.0, total_pixels=25,
+            fits_id=fits_id, classification="tritium",
+        )
+
+    def test_empty_clusters_raises(self):
+        with pytest.raises(ValueError):
+            BulkClusterStoreRequest(clusters=[])
+
+    def test_to_eps_dict_action_and_clusters(self):
+        req = BulkClusterStoreRequest(
+            clusters=[self._make_cluster(fits_id=1), self._make_cluster(fits_id=2)]
+        )
+        d = req.to_eps_dict()
+        assert d["Action"] == "BulkStorage"
+        assert len(d["clusters"]) == 2
+        assert d["clusters"][0]["fits_id"] == 1
+        assert d["clusters"][1]["fits_id"] == 2
+        assert d["clusters"][0]["Action"] == "Storage"
+
+    def test_round_trip_from_eps_dict(self):
+        req = BulkClusterStoreRequest(
+            clusters=[self._make_cluster(fits_id=1), self._make_cluster(fits_id=2)]
+        )
+        parsed = BulkClusterStoreRequest.from_eps_dict(req.to_eps_dict())
+        assert len(parsed.clusters) == 2
+        assert parsed.clusters[0].fits_id == 1
+        assert parsed.clusters[1].fits_id == 2
+
+    def test_json_serializable(self):
+        req = BulkClusterStoreRequest(clusters=[self._make_cluster()])
+        json.dumps(req.to_eps_dict())
+
+
+# -------------------------------------------------------------------
+# BulkInsertClustersResponse
+# -------------------------------------------------------------------
+
+class TestBulkInsertClustersResponse:
+
+    def test_is_success_true_for_success(self):
+        resp = BulkInsertClustersResponse(result="success", cluster_ids=[1, 2, 3])
+        assert resp.is_success is True
+
+    def test_is_success_false_for_partial(self):
+        resp = BulkInsertClustersResponse(result="partial", cluster_ids=[1, None, 3], error="1/3 failed")
+        assert resp.is_success is False
+
+    def test_is_success_false_for_failure(self):
+        resp = BulkInsertClustersResponse(result="failure", cluster_ids=None, error="boom")
+        assert resp.is_success is False
+
+    def test_default_error_is_none(self):
+        resp = BulkInsertClustersResponse(result="success", cluster_ids=[1])
+        assert resp.error is None
 
 
 # -------------------------------------------------------------------

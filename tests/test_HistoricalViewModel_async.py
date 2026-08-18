@@ -90,7 +90,7 @@ def physics():
 # --- Concurrency ---
 
 
-def test_load_events_concurrent_no_double_start(config, physics):
+def test_load_events_concurrent_no_double_start(config, physics, caplog):
     """Second loadEvents while first is in flight should be a no-op."""
     repo = SlowRepository()
     vm = HistoricalViewModel(
@@ -99,13 +99,15 @@ def test_load_events_concurrent_no_double_start(config, physics):
         repo,
         MockThumbnailLoaderService(),
     )
-    vm.loadEvents()
-    assert repo.wait_started()
-    vm.loadEvents()  # should be ignored
+    with caplog.at_level("INFO"):
+        vm.loadEvents()
+        assert repo.wait_started()
+        vm.loadEvents()  # should be ignored
     repo.release()
     # Allow callback thread to complete and clear loading.
     assert vm.isLoading is False or repo.wait_started(timeout=0.1)
     assert repo.fetch_count == 1
+    assert "already in flight" in caplog.text
 
 
 def test_load_events_concurrent_loading_states(config, physics):

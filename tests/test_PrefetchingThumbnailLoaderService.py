@@ -497,3 +497,70 @@ def test_request_cluster_data_returns_none_on_failure():
     assert _wait_for_event(done)
     assert result["arr"] is None
     service.shutdown()
+
+
+# --- test_clear_cancels_pending_cluster_data_request ---
+
+
+def test_clear_cancels_pending_cluster_data_request():
+    """request_cluster_data must not deliver on_ready after an intervening clear()."""
+    service = PrefetchingThumbnailLoaderService(max_workers=2)
+
+    block1 = threading.Event()
+    block2 = threading.Event()
+    release = threading.Event()
+
+    def blocker_task(ready_event):
+        ready_event.set()
+        release.wait(timeout=5.0)
+
+    service._executor.submit(blocker_task, block1)
+    service._executor.submit(blocker_task, block2)
+    assert block1.wait(timeout=5.0)
+    assert block2.wait(timeout=5.0)
+
+    callbacks_fired = []
+    cluster = _make_cluster(data=None, fits_filename=None)
+    service.request_cluster_data(cluster, lambda arr: callbacks_fired.append(arr))
+
+    # Queued behind the blockers, not yet started — clear() invalidates it
+    # before its worker ever runs.
+    service.clear()
+    release.set()
+    time.sleep(0.5)
+
+    assert callbacks_fired == []
+    service.shutdown()
+
+
+# --- test_clear_cancels_pending_hdu_frame_request ---
+
+
+def test_clear_cancels_pending_hdu_frame_request():
+    """request_hdu_frame must not deliver on_ready after an intervening clear()."""
+    service = PrefetchingThumbnailLoaderService(max_workers=2)
+
+    block1 = threading.Event()
+    block2 = threading.Event()
+    release = threading.Event()
+
+    def blocker_task(ready_event):
+        ready_event.set()
+        release.wait(timeout=5.0)
+
+    service._executor.submit(blocker_task, block1)
+    service._executor.submit(blocker_task, block2)
+    assert block1.wait(timeout=5.0)
+    assert block2.wait(timeout=5.0)
+
+    callbacks_fired = []
+    service.request_hdu_frame(
+        "/fake/file.fits", 0, lambda arr: callbacks_fired.append(arr)
+    )
+
+    service.clear()
+    release.set()
+    time.sleep(0.5)
+
+    assert callbacks_fired == []
+    service.shutdown()

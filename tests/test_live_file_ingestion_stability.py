@@ -41,7 +41,7 @@ def test_live_slow_write_is_not_processed_until_stable(tmp_path):
     truncated intermediate size."""
     seen_sizes = []
 
-    def _fake_process_file(config_service, file):
+    def _fake_process_file(config_service, file, cluster_storage_buffer_factory):
         seen_sizes.append(os.path.getsize(file))
 
     # The poll interval must exceed the writer's inter-chunk gap, or the

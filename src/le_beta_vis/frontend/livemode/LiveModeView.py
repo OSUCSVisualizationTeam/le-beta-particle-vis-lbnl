@@ -10,11 +10,13 @@ import logging
 from typing import Optional
 
 import numpy as np
+from shiboken6 import isValid
 
 from PySide6.QtCore import (
     QMetaObject,
     QTimer,
     Qt,
+    Signal,
     Slot,
 )
 from PySide6.QtGui import QKeyEvent, QMouseEvent
@@ -53,6 +55,8 @@ class LiveModeView(QDialog):
         viewModel: The Live Mode ViewModel instance.
         parent: Optional parent widget.
     """
+
+    _pausedChanged = Signal(bool)
 
     def __init__(
         self,
@@ -108,7 +112,8 @@ class LiveModeView(QDialog):
         """Registers ViewModel callbacks for cross-thread notification."""
         self._vm.add_grid_changed_callback(self._onGridChangedFromBg)
         self._vm.add_featured_changed_callback(self._onFeaturedChangedFromBg)
-        self._vm.add_paused_changed_callback(self._onPausedChanged)
+        self._pausedChanged.connect(self._onPausedChanged)
+        self._vm.add_paused_changed_callback(self._pausedChanged.emit)
         self._clusterCollection.set_cell_click_handler(self._onCellClicked)
 
     def _onGridChangedFromBg(self) -> None:
@@ -130,6 +135,8 @@ class LiveModeView(QDialog):
         mid-slide pixmap restamping cannot cause visible jitter when
         a fallback refill or a FITS data load completes.
         """
+        if not isValid(self):
+            return
         self._clusterCollection.scheduleRepaint(self._vm.grid)
 
     def _onFeaturedChangedFromBg(
@@ -147,6 +154,8 @@ class LiveModeView(QDialog):
     @Slot()
     def _onFeaturedChanged(self) -> None:
         """Main-thread slot: updates left panel with new featured cluster."""
+        if not isValid(self):
+            return
         cluster = self._pending_featured_update
         self._pending_featured_update = None
         self._updateFeaturedPanel(cluster)
@@ -259,6 +268,8 @@ class LiveModeView(QDialog):
     @Slot()
     def _applyFeaturedData(self) -> None:
         """Main-thread slot: applies extracted cluster data."""
+        if not isValid(self):
+            return
         data = self._pending_featured_data
         self._pending_featured_data = None
         if data is None or self._featured_cluster is None:

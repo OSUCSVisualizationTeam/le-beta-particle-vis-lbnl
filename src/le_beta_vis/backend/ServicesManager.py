@@ -9,8 +9,10 @@ from .InitializePolling import PollingThread
 
 logger = logging.getLogger(__name__)
 
+
 class ServicesManager:
     """Intializes backend services, handles starting daemons."""
+
     def __init__(self):
         self.EPS = EPSRunner()
         self.Polling = PollingRunner()
@@ -25,9 +27,15 @@ class ServicesManager:
             logger.error(f"There was an issue starting the EPS and file ingest. {e}")
 
     def stop_all(self):
-        """Stop EPS and Polling threads from service manager."""
-        self.EPS.stop()
+        """Stop EPS and Polling threads from service manager.
+
+        Polling must stop first: it drains in-flight ingestion work that
+        talks to EPS over ZMQ, and that only returns promptly while EPS is
+        still alive to reply. Stopping EPS first leaves those requests
+        waiting on a server that's already gone.
+        """
         self.Polling.stop()
+        self.EPS.stop()
 
     def restart(self):
         """Restart EPS and Polling threads from service manager."""
