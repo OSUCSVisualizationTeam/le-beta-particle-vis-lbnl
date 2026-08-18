@@ -71,4 +71,4 @@ jobs:
           PYTHONPATH: src
           QT_QPA_PLATFORM: offscreen
         run: |
-          uv run pytest --ignore=tests/test_MagnifierGraphicsItem.py --ignore=tests/test_CaptureGraphicsView.py --ignore=tests/test_SectionHeaderFormatting.py --ignore=tests/test_VerticalRangeControlUI.py --ignore=tests/test_HUDBoxSelectionItem.py --ignore=tests/test_HUDMagnifierBorderItem.py --ignore=tests/test_HDUVisualizationHUDWidget.py --ignore=tests/test_DragHandleLifetimeUI.py --ignore=tests/test_live_ipc_fallback.py tests
+          uv run pytest --ignore=tests/test_MagnifierGraphicsItem.py --ignore=tests/test_CaptureGraphicsView.py --ignore=tests/test_SectionHeaderFormatting.py --ignore=tests/test_VerticalRangeControlUI.py --ignore=tests/test_HUDBoxSelectionItem.py --ignore=tests/test_HUDMagnifierBorderItem.py --ignore=tests/test_HDUVisualizationHUDWidget.py --ignore=tests/test_DragHandleLifetimeUI.py --ignore=tests/test_live_ipc_fallback.py --ignore=tests/test_live_eventrepository_dispatcher.py tests

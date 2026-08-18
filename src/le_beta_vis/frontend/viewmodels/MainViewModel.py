@@ -1,6 +1,7 @@
 import logging
+from typing import Callable
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, Qt, Signal
 
 from le_beta_vis.common.EventHandler import EventHandler
 from le_beta_vis.common.EventHandlerInterface import EventHandlerInterface
@@ -23,8 +24,13 @@ logger = logging.getLogger(__name__)
 
 
 class MainViewModel(QObject):
+    _dispatchToMainThread = Signal(object)
+
     def __init__(self) -> None:
         super().__init__()
+        self._dispatchToMainThread.connect(
+            self._runDispatched, Qt.AutoConnection
+        )
         self.configService = YAMLBackedConfigurationService()
         self.physicsManager = PhysicsConversionManagerImpl(self.configService)
         self.isLiveMode = False
@@ -34,9 +40,15 @@ class MainViewModel(QObject):
         self.eventSource: ZMQEventHandlerSource = self._createEventSource()
         self.eventSource.start()
 
+    def _runDispatched(self, fn: Callable[[], None]) -> None:
+        fn()
+
     def _createEventRepository(self) -> EventRepository:
         """Build the ZMQ-backed event repository from configuration."""
-        return ZMQBasedEventRepository(self.configService)
+        return ZMQBasedEventRepository(
+            self.configService,
+            dispatcher=lambda fn: self._dispatchToMainThread.emit(fn),
+        )
 
     def _createThumbnailService(self) -> ThumbnailLoaderService:
         """Build the prefetching thumbnail loader from configuration."""
