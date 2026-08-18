@@ -251,7 +251,7 @@ class RawDataView(QWidget):
 
     def _onClassifyRequested(self, clusters: List[ClusteredEventInfo]) -> None:
         # TODO(#XXX): Replace MockClassifierService with the production
-        # ZMQBasedClassifierService once it is wired through ServicesManager.
+        # ZMQBasedClassifierServer once it is wired through ServicesManager.
         from le_beta_vis.common import MockClassifierService
         from ...viewmodels.RawClusterClassificationViewModel import (
             RawClusterClassificationViewModel,
