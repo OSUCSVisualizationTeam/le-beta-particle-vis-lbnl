@@ -62,9 +62,22 @@ def is_ipc_bind_supported(context: Optional[zmq.Context] = None) -> bool:
 
 
 def any_startup_key_uses_ipc_scheme(config: ConfigurationService) -> bool:
-    """Return whether any startup IPC bind key is still configured as ``ipc://``."""
+    """Return whether any startup IPC bind key is still configured as ``ipc://``.
+
+    Resolves each key's schema default via ``config.get_metadata()`` before
+    checking, rather than calling ``config.get(key)`` bare. A key freshly
+    added to :data:`STARTUP_IPC_BIND_KEYS` may not exist yet in an existing
+    on-disk config written before that key was introduced — without a
+    default, ``.get()`` returns ``None`` for a missing key indistinguishably
+    from an explicitly-cleared one, which would silently skip the fallback
+    dialog for a returning user instead of detecting the still-``ipc://``
+    default.
+    """
+    metadata = config.get_metadata()
     return any(
-        str(config.get(key) or "").startswith("ipc://")
+        str(
+            config.get(key, metadata.get(key, {}).get("default", ""))
+        ).startswith("ipc://")
         for key in STARTUP_IPC_BIND_KEYS
     )
 

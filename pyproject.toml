@@ -70,6 +70,7 @@ le_beta_vis = [
     "resources/icons/*.png",
     "resources/icons/*.svg",
     "resources/icons/LICENSE_MATERIAL_SYMBOLS",
+    "resources/images/*.png",
     "resources/qss/**/*.qss",
     "export/fonts/*.ttf",
     "export/fonts/LICENSE_DEJAVU",

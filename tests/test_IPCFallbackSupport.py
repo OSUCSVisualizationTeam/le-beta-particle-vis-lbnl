@@ -9,6 +9,7 @@ never touch a real socket.
 
 from unittest.mock import patch
 
+import yaml
 import zmq
 
 from le_beta_vis.common.IPCFallbackSupport import (
@@ -16,6 +17,9 @@ from le_beta_vis.common.IPCFallbackSupport import (
     find_free_tcp_ports,
     is_ipc_bind_supported,
     should_show_ipc_fallback_dialog,
+)
+from le_beta_vis.common.YAMLBackedConfigurationService import (
+    YAMLBackedConfigurationService,
 )
 from mock_configuration_service import MockConfigurationService
 
@@ -45,7 +49,40 @@ class TestAnyStartupKeyUsesIpcScheme:
         config.set("eps:fits_ipc", "tcp://127.0.0.1:5556")
         config.set("eps:cluster_ipc", "tcp://127.0.0.1:5557")
         config.set("eps:command_ipc", "tcp://127.0.0.1:5558")
+        config.set("eps:status_pub_endpoint", "tcp://127.0.0.1:5559")
         assert any_startup_key_uses_ipc_scheme(config) is False
+
+    def test_true_when_key_absent_from_existing_config(self, tmp_path):
+        """Regression test: a key missing from an existing on-disk config
+        (not even set to ``ipc://``) must still be detected as needing the
+        fallback, via its schema default in ``defaults.yaml`` — not
+        silently skipped because ``config.get(key)`` without a default
+        returns ``None`` for it.
+
+        Reproduces a returning user whose ``mlccd_viz.yaml`` predates
+        ``eps:status_pub_endpoint`` being added to ``STARTUP_IPC_BIND_KEYS``:
+        the four legacy keys are already migrated to ``tcp://`` on disk, but
+        the new key was never persisted at all. Uses the real
+        ``YAMLBackedConfigurationService`` rather than
+        ``MockConfigurationService`` — the mock's ``get_metadata()`` is
+        derived from its own value store, so a key absent from the store is
+        also absent from its metadata, unlike the real service, whose
+        ``get_metadata()`` always reflects the full bundled ``defaults.yaml``
+        schema regardless of what's been persisted to disk.
+        """
+        yaml_path = tmp_path / "mlccd_viz.yaml"
+        with open(yaml_path, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(
+                {
+                    "event_handler:zmq_pub_endpoint": "tcp://127.0.0.1:5555",
+                    "eps:fits_ipc": "tcp://127.0.0.1:5556",
+                    "eps:cluster_ipc": "tcp://127.0.0.1:5557",
+                    "eps:command_ipc": "tcp://127.0.0.1:5558",
+                },
+                fh,
+            )
+        config = YAMLBackedConfigurationService(yaml_path=yaml_path)
+        assert any_startup_key_uses_ipc_scheme(config) is True
 
 
 class TestShouldShowIpcFallbackDialog:
@@ -63,6 +100,7 @@ class TestShouldShowIpcFallbackDialog:
         config.set("eps:fits_ipc", "tcp://127.0.0.1:5556")
         config.set("eps:cluster_ipc", "tcp://127.0.0.1:5557")
         config.set("eps:command_ipc", "tcp://127.0.0.1:5558")
+        config.set("eps:status_pub_endpoint", "tcp://127.0.0.1:5559")
         with patch("le_beta_vis.common.IPCFallbackSupport.platform.system", return_value="Windows"), \
                 patch("le_beta_vis.common.IPCFallbackSupport.is_ipc_bind_supported") as probe:
             assert should_show_ipc_fallback_dialog(config) is False
@@ -85,6 +123,31 @@ class TestShouldShowIpcFallbackDialog:
                     return_value=True,
         ):
             assert should_show_ipc_fallback_dialog(config) is False
+
+    def test_true_when_windows_and_new_key_absent_from_existing_config(self, tmp_path):
+        """End-to-end regression test for the reported crash: a returning
+        Windows user whose config already migrated the four legacy keys to
+        ``tcp://``, but whose file predates ``eps:status_pub_endpoint``, must
+        still get the fallback dialog rather than proceeding straight into
+        an ``ipc://`` bind crash."""
+        yaml_path = tmp_path / "mlccd_viz.yaml"
+        with open(yaml_path, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(
+                {
+                    "event_handler:zmq_pub_endpoint": "tcp://127.0.0.1:5555",
+                    "eps:fits_ipc": "tcp://127.0.0.1:5556",
+                    "eps:cluster_ipc": "tcp://127.0.0.1:5557",
+                    "eps:command_ipc": "tcp://127.0.0.1:5558",
+                },
+                fh,
+            )
+        config = YAMLBackedConfigurationService(yaml_path=yaml_path)
+        with patch("le_beta_vis.common.IPCFallbackSupport.platform.system", return_value="Windows"), \
+                patch(
+                    "le_beta_vis.common.IPCFallbackSupport.is_ipc_bind_supported",
+                    return_value=False,
+        ):
+            assert should_show_ipc_fallback_dialog(config) is True
 
 
 class TestFindFreeTcpPorts:

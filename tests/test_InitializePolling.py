@@ -150,6 +150,32 @@ class TestPollingThread:
 
             assert polling.config_service is mock_config
 
+    def test_polling_thread_initialization_when_key_never_persisted(self):
+        """Regression test: `.get()` must be called with a default.
+
+        A blanket `mock_config.get.return_value = "/tmp"` mock (as used in
+        `test_polling_thread_initialization_with_default_config` above)
+        can't distinguish `get(key)` from `get(key, default)`, so it can't
+        catch a missing default. This test uses a real config whose `.get`
+        behaves like the real `YAMLBackedConfigurationService` — returning
+        `None` when the key was never persisted and no default is passed —
+        to catch `os.path.normpath(None)`/`os.path.expanduser(None)`
+        crashing when `pipeline:ingress:polling_location` has never been
+        written to disk yet.
+        """
+        config = MagicMock()
+        config.get.side_effect = lambda key, default=None: default
+        config.get_int.side_effect = (
+            lambda key, default, minimum=None, maximum=None: default
+        )
+
+        with patch('os.path.exists', return_value=False):
+            polling = PollingThread(config)
+
+        assert polling.polling_location == os.path.normpath(
+            os.path.expanduser("~/fits-data")
+        )
+
     def test_polling_thread_begin(self, mock_config):
         """Test PollingThread.begin() creates and starts threads"""
         with patch('os.path.exists', return_value=True), \

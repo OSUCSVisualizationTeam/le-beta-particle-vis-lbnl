@@ -73,6 +73,8 @@ class MockConfigurationService(ConfigurationService):
             "eps:timeout_ms": 5000,
             # Event Handler bus
             "event_handler:zmq_pub_endpoint": "ipc:///tmp/EPCEvents.ipc",
+            # EPS startup-readiness status bus
+            "eps:status_pub_endpoint": "ipc:///tmp/EPCStatus.ipc",
         }
 
     def get(self, key: str, default: Any = None) -> Any:

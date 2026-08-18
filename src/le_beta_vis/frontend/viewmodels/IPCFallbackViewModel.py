@@ -1,8 +1,9 @@
 """Pure-Python ViewModel for the Windows IPC fallback dialog.
 
-Presents the four startup ``ipc://`` endpoints as editable host/port pairs
-pre-filled with free TCP ports, and persists them as ``tcp://host:port``
-on save. No Qt dependencies — testable in headless CI. See issue #204.
+Presents the startup ``ipc://`` endpoints (see ``STARTUP_IPC_BIND_KEYS``) as
+editable host/port pairs pre-filled with free TCP ports, and persists them
+as ``tcp://host:port`` on save. No Qt dependencies — testable in headless
+CI. See issue #204.
 
 Logging in this module is console-only (plain
 ``logging.getLogger(__name__)``), for the same reason as
@@ -27,6 +28,7 @@ _ENDPOINT_LABELS: List[tuple] = [
     ("eps:fits_ipc", "FITS Service"),
     ("eps:cluster_ipc", "Cluster Service"),
     ("eps:command_ipc", "Command Service"),
+    ("eps:status_pub_endpoint", "Status Service"),
 ]
 
 assert tuple(key for key, _ in _ENDPOINT_LABELS) == STARTUP_IPC_BIND_KEYS, (
@@ -51,8 +53,8 @@ class IPCFallbackEndpointRow:
 class IPCFallbackViewModel:
     """ViewModel for the Windows IPC fallback dialog.
 
-    On construction, precomputes four distinct free TCP ports on
-    ``127.0.0.1`` and builds one row per startup IPC bind key. ``save()``
+    On construction, precomputes one distinct free TCP port per startup IPC
+    bind key on ``127.0.0.1`` and builds one row per key. ``save()``
     validates all rows before persisting any of them to the config
     service; ``quit()`` is a no-op kept for symmetry with ``save()`` so
     the View can call either without branching.
