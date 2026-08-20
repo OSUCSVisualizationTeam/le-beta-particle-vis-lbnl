@@ -484,6 +484,11 @@ class RawDataViewModel:
         return self._physics_manager
 
     @property
+    def config(self) -> ConfigurationService:
+        """Returns the configuration service instance."""
+        return self._config
+
+    @property
     def kevConversionFactor(self) -> float:
         return self._physics_manager.kev_conversion_factor
 
