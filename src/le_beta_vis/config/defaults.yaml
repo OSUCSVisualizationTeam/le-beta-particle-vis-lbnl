@@ -835,3 +835,38 @@ classifier:command_ipc:
   default: "ipc:///tmp/EPCClassifierCommand.ipc"
   description: >-
     ZMQ IPC address for the classifier service commands.
+
+classifier:service_backend:
+  type: enum
+  choices: ["mock", "lbnl_tritium"]
+  default: "mock"
+  description: >-
+    Backend used to classify clusters, both from the interactive
+    Raw Data classification dialog and from file-ingestion. Values:
+    mock (random scores, no trained weights needed), lbnl_tritium
+    (real CNN/NRG/BDT inference via LBNLTritiumClassifierService,
+    reads classifier:lbnl_model_weights_dir).
+
+classifier:lbnl_model_weights_dir:
+  type: str
+  default: "~/lbnlvis-models/lbnl_tritium"
+  description: >-
+    Directory containing the trained CNN/NRG/BDT artifacts produced by
+    tools/training/train_cnn.py, train_nrg.py, and train_bdt.py
+    (cnn.keras + cnn.meta.json, nrg.weights.h5 + nrg.meta.json,
+    bdt.joblib). These are external, lab-scale training artifacts and
+    are never shipped in this repo. Only read when
+    classifier:service_backend is lbnl_tritium.
+
+classifier:inference_workers:
+  type: int
+  default: 1
+  description: >-
+    Size of the bounded worker pool LBNLTritiumClassifierService routes
+    all model inference through, shared across every FileProcessing
+    thread and dialog invocation using the same service instance. File
+    ingestion concurrency (pipeline:ingress:max_concurrent_files) is
+    sized for I/O-bound FITS reads, not ML inference — this key exists
+    so a tritium-dense or noisy sensor placement handing hundreds of
+    clusters to classify_* at once can't spin up unbounded concurrent
+    model inference. Clamped to [1, 4].

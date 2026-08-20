@@ -74,3 +74,15 @@ class ClassifierService(ABC):
         on_complete: CompletionCallback,
         on_error: Optional[ErrorCallback] = None,
     ) -> None: ...
+
+    def unavailable_models(self) -> list[str]:
+        """Names of models this instance could not load (e.g. missing weight files).
+
+        Empty by default. A backend that loads real artifacts (e.g.
+        LBNLTritiumClassifierService) overrides this so callers can surface a
+        non-fatal degraded-mode warning without needing a dedicated
+        readiness/status channel — see wiki/Front-Design-Startup-Readiness.md's
+        pre-warm discussion for why this is a plain synchronous check rather
+        than an EventEnvelope broadcast.
+        """
+        return []
