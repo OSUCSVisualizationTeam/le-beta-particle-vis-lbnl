@@ -15,6 +15,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 from le_beta_vis.common.YAMLBackedConfigurationService import (  # noqa E402
     YAMLBackedConfigurationService,
 )
+from le_beta_vis.common.ClassifierServiceFactory import create_classifier_service  # noqa E402
 from le_beta_vis.backend.FileProcessing import process_file  # noqa E402
 from le_beta_vis.backend.FileStabilityCheck import wait_for_file_stable  # noqa E402
 from le_beta_vis.backend.InMemoryClusterStorageBuffer import (
@@ -74,6 +75,11 @@ class PollingThread:
         self.executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="FileIngestion"
         )
+        # Built once here (not per file) since the lbnl_tritium backend eagerly
+        # loads three trained models — shared by every file this thread pool
+        # processes, with its own internal classifier:inference_workers pool
+        # bounding concurrent model inference across them.
+        self.classifier_service = create_classifier_service(self.config_service)
         # Do not call begin here, let PollingRunner manage
 
     def __call__(self):
@@ -114,7 +120,9 @@ class PollingThread:
                 ]  # return extension of file in queue
                 if file_type.lower() != ".fits":
                     continue
-                self.executor.submit(_wait_and_process, path, config, stop_event)
+                self.executor.submit(
+                    _wait_and_process, path, config, stop_event, self.classifier_service
+                )
             except Exception as e:
                 logger.exception(f"file_uploaded processing error {e}")
                 continue
@@ -125,6 +133,7 @@ def _wait_and_process(
     path: str,
     config: YAMLBackedConfigurationService,
     stop_event: threading.Event,
+    classifier_service,
 ) -> None:
     """Gate process_file() behind a file-stability check, then run it with a timeout."""
     poll_ms = config.get_int(
@@ -140,11 +149,11 @@ def _wait_and_process(
     if not wait_for_file_stable(path, poll_ms, max_wait_ms, stop_event):
         logger.warning(f"Skipping {path}: did not stabilize within {max_wait_ms}ms.")
         return
-    _process_file_with_timeout(config, path, timeout_s)
+    _process_file_with_timeout(config, path, timeout_s, classifier_service)
 
 
 def _process_file_with_timeout(
-    config: YAMLBackedConfigurationService, path: str, timeout_seconds: float
+    config: YAMLBackedConfigurationService, path: str, timeout_seconds: float, classifier_service,
 ) -> None:
     """Run process_file() on a daemon thread and give up waiting after timeout_seconds.
 
@@ -158,11 +167,13 @@ def _process_file_with_timeout(
             # The concrete ClusterStorageBuffer implementation is chosen
             # here, at the top of the ingestion call chain, and injected
             # down through process_file/cluster_fits so FileProcessing.py
-            # never depends on a specific implementation.
+            # never depends on a specific implementation. classifier_service
+            # is injected the same way, built once in PollingThread.__init__.
             process_file(
                 config_service=config,
                 file=path,
                 cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+                classifier_service=classifier_service,
             )
         except Exception:
             logger.exception(f"file_uploaded processing error for {path}")

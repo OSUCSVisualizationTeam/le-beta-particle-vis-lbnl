@@ -12,8 +12,31 @@ from le_beta_vis.backend.FileProcessing import (
     store_fits,
 )
 from le_beta_vis.backend.InMemoryClusterStorageBuffer import InMemoryClusterStorageBuffer
+from le_beta_vis.common.ClassifierService import (
+    ClassificationBatchResult,
+    ClassificationResult,
+    ClassifierService,
+)
 from le_beta_vis.common.Cluster import Cluster
 from mock_configuration_service import MockConfigurationService
+
+
+class _NoOpClassifierService(ClassifierService):
+    """Deterministic ClassifierService stand-in for tests that don't care about
+    classification — every cluster comes back unscored (score=None), synchronously."""
+
+    def _classify(self, clusters, on_complete, on_error=None):
+        results = [ClassificationResult(i, "NOOP", None) for i in range(len(clusters))]
+        on_complete(ClassificationBatchResult(results=results, total=len(clusters), failed=len(clusters)))
+
+    def classify_cnn(self, clusters, on_complete, on_error=None):
+        self._classify(clusters, on_complete, on_error)
+
+    def classify_nrg(self, clusters, on_complete, on_error=None):
+        self._classify(clusters, on_complete, on_error)
+
+    def classify_bdt(self, clusters, on_complete, on_error=None):
+        self._classify(clusters, on_complete, on_error)
 
 
 def _make_capture_info(min_val, max_val, date="2026-01-01", exposure="1.0"):
@@ -50,6 +73,9 @@ def _make_context_and_socket():
     return context, socket
 
 
+classifier_service = _NoOpClassifierService()
+
+
 class TestProcessFile:
     @patch("le_beta_vis.backend.FileProcessing.cluster_fits")
     @patch("le_beta_vis.backend.FileProcessing.store_fits")
@@ -74,6 +100,7 @@ class TestProcessFile:
             config_service=config,
             file="test.fits",
             cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+            classifier_service=classifier_service,
         )
 
         mock_load.assert_called_once_with("test.fits")
@@ -94,6 +121,7 @@ class TestProcessFile:
             1.0,
             1.0,
             InMemoryClusterStorageBuffer,
+            classifier_service,
         )
         zmq_context.term.assert_called_once()
 
@@ -114,6 +142,7 @@ class TestProcessFile:
                 config_service=config,
                 file="bad.fits",
                 cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+                classifier_service=classifier_service,
             )
 
         zmq_context.term.assert_called_once()
@@ -282,6 +311,7 @@ class TestClusterFits:
                 kev=1.0,
                 ped_width=1.0,
                 cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+                classifier_service=classifier_service,
             )
 
         socket.connect.assert_called_once_with("ipc:///tmp/test-cluster.ipc")
@@ -312,6 +342,7 @@ class TestClusterFits:
             kev=1.0,
             ped_width=1.0,
             cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+            classifier_service=classifier_service,
         )
 
         socket.setsockopt.assert_any_call(zmq.LINGER, 0)
@@ -344,6 +375,7 @@ class TestClusterFits:
             kev=1.0,
             ped_width=1.0,
             cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+            classifier_service=classifier_service,
         )
 
         socket.send_json.assert_called_once()
@@ -377,6 +409,7 @@ class TestClusterFits:
             kev=1.0,
             ped_width=1.0,
             cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+            classifier_service=classifier_service,
         )
 
         socket.send_json.assert_called_once()
@@ -418,6 +451,7 @@ class TestClusterFits:
                 kev=1.0,
                 ped_width=1.0,
                 cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+                classifier_service=classifier_service,
             )
 
         assert len(created) == 2
@@ -456,6 +490,7 @@ class TestClusterFits:
                 kev=1.0,
                 ped_width=1.0,
                 cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+                classifier_service=classifier_service,
             )
 
         assert len(created) == 1
@@ -493,6 +528,7 @@ class TestClusterFits:
                 kev=1.0,
                 ped_width=1.0,
                 cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+                classifier_service=classifier_service,
             )
 
         assert len(created) == 1
@@ -525,6 +561,7 @@ class TestClusterFits:
             kev=1.0,
             ped_width=1.0,
             cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+            classifier_service=classifier_service,
         )
 
         socket.send_json.assert_not_called()
@@ -555,6 +592,7 @@ class TestClusterFits:
             kev=1.0,
             ped_width=1.0,
             cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+            classifier_service=classifier_service,
         )
 
         socket.send_json.assert_not_called()
@@ -614,6 +652,7 @@ class TestClusterStorageBufferInjection:
             kev=1.0,
             ped_width=1.0,
             cluster_storage_buffer_factory=fake_factory,
+            classifier_service=classifier_service,
         )
 
         assert len(built_buffers) == 1
