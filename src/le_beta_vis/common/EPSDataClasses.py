@@ -438,6 +438,9 @@ class EPSClusterRecord:
     sigma_x: float
     sigma_y: float
     classification: str
+    cnn_classification: float
+    nrg_classification: float
+    bdt_classification: float
     total_pixels: int
     filename: str
     date: str
@@ -456,6 +459,9 @@ class EPSClusterRecord:
             sigma_x=float(d.get("sigmaX", 0.0)),
             sigma_y=float(d.get("sigmaY", 0.0)),
             classification=str(d.get("classification", "")),
+            cnn_classification=float(d.get("cnn_classification") or 0.0),
+            nrg_classification=float(d.get("nrg_classification") or 0.0),
+            bdt_classification=float(d.get("bdt_classification") or 0.0),
             total_pixels=int(d.get("total_pixels", 0)),
             filename=str(d.get("filename", "")),
             date=str(d.get("date", "")),
@@ -485,6 +491,9 @@ class EPSClusterRecord:
             sigma_x=row["sigmaX"],
             sigma_y=row["sigmaY"],
             classification=row["classification"],
+            cnn_classification=float(row.get("cnn_classification") or 0.0),
+            nrg_classification=float(row.get("nrg_classification") or 0.0),
+            bdt_classification=float(row.get("bdt_classification") or 0.0),
             total_pixels=row["pixelCount"],
             filename=row["filename"],
             date=str(row["date"]),
@@ -502,6 +511,9 @@ class EPSClusterRecord:
             "sigmaX": self.sigma_x,
             "sigmaY": self.sigma_y,
             "classification": self.classification,
+            "cnn_classification": self.cnn_classification,
+            "nrg_classification": self.nrg_classification,
+            "bdt_classification": self.bdt_classification,
             "total_pixels": self.total_pixels,
             "filename": self.filename,
             "date": self.date,

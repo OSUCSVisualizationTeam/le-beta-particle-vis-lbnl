@@ -595,7 +595,9 @@ class TestMapToCluster:
             bounding_box={"top": 1, "left": 2, "bottom": 4, "right": 5},
             data=[0, 0, 0, 0, 0, 99, 0, 0, 0],
             total_energy=99.0, sigma_x=1.5, sigma_y=2.0,
-            classification="tritium", total_pixels=9,
+            classification="tritium",
+            cnn_classification=0.0, nrg_classification=0.0, bdt_classification=0.0,
+            total_pixels=9,
             filename="test.fits", date="2026-03-12",
         )
         cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
@@ -625,6 +627,9 @@ class TestMapToCluster:
             sigma_x=1.0,
             sigma_y=1.0,
             classification="",
+            cnn_classification=0.0,
+            nrg_classification=0.0,
+            bdt_classification=0.0,
             total_pixels=16,
             filename="test.fits",
             date="2026-03-12",
@@ -637,7 +642,9 @@ class TestMapToCluster:
         assert bb.bottom == 4
         assert bb.right == 4
 
-    def test_classification_scores_default_to_zero(self):
+    def test_classification_scores_pass_through(self):
+        """Regression test: real per-model scores stored in EPS must reach the domain
+        Cluster, not be silently zeroed on retrieval."""
         record = EPSClusterRecord(
             fits_id=1,
             fits_list=None,
@@ -649,6 +656,36 @@ class TestMapToCluster:
             sigma_x=1.0,
             sigma_y=1.0,
             classification="tritium",
+            cnn_classification=0.83,
+            nrg_classification=0.42,
+            bdt_classification=0.91,
+            total_pixels=4,
+            filename="test.fits",
+            date="2026-03-12",
+        )
+        cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
+        assert cluster is not None
+        assert cluster.cnnClassification == 0.83
+        assert cluster.nrgClassification == 0.42
+        assert cluster.bdtClassification == 0.91
+
+    def test_classification_scores_none_coerced_to_zero(self):
+        """Belt-and-suspenders: a record built with None scores (nullable DB columns)
+        must still map to 0.0, never None, on the domain Cluster."""
+        record = EPSClusterRecord(
+            fits_id=1,
+            fits_list=None,
+            hdu_id=0,
+            cluster_id=1,
+            bounding_box={"top": 0, "left": 0, "bottom": 2, "right": 2},
+            data=[1.0, 4.0, 9.0, 16.0],
+            total_energy=30.0,
+            sigma_x=1.0,
+            sigma_y=1.0,
+            classification="tritium",
+            cnn_classification=None,
+            nrg_classification=None,
+            bdt_classification=None,
             total_pixels=4,
             filename="test.fits",
             date="2026-03-12",
@@ -666,7 +703,9 @@ class TestMapToCluster:
             fits_list=None,
             bounding_box={"top": 0, "left": 0, "bottom": 0, "right": 0},
             data=[], total_energy=0.0, sigma_x=0.0, sigma_y=0.0,
-            classification="", total_pixels=0,
+            classification="",
+            cnn_classification=0.0, nrg_classification=0.0, bdt_classification=0.0,
+            total_pixels=0,
             filename="test.fits", date="2026-03-12",
         )
         cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
@@ -684,7 +723,9 @@ class TestMapToCluster:
             bounding_box={"top": 0, "left": 0, "bottom": 2, "right": 2},
             data=arr.tobytes(), total_energy=30.0,
             sigma_x=1.0, sigma_y=1.0,
-            classification="", total_pixels=4,
+            classification="",
+            cnn_classification=0.0, nrg_classification=0.0, bdt_classification=0.0,
+            total_pixels=4,
             filename="test.fits", date="2026-03-12",
         )
         cluster = ZMQBasedEventRepository._map_to_cluster(record, record.filename, record.date)
