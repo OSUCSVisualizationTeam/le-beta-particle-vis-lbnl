@@ -62,9 +62,9 @@ def _row_values(cluster: ClusterStoreRequest) -> Dict[str, Any]:
         "sigmaX": cluster.sigma_x,
         "sigmaY": cluster.sigma_y,
         "classification": cluster.classification,
-        "cnn_classification": None,
-        "bdt_classification": None,
-        "nrg_classification": None,
+        "cnn_classification": cluster.cnn_classification,
+        "bdt_classification": cluster.bdt_classification,
+        "nrg_classification": cluster.nrg_classification,
         "pixelCount": cluster.total_pixels,
     }
 

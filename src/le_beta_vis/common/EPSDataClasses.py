@@ -323,6 +323,9 @@ class ClusterStoreRequest:
     total_pixels: int
     fits_id: int
     classification: str = ""
+    cnn_classification: Optional[float] = None
+    nrg_classification: Optional[float] = None
+    bdt_classification: Optional[float] = None
 
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS Cluster socket."""
@@ -337,6 +340,9 @@ class ClusterStoreRequest:
             "total_pixels": self.total_pixels,
             "fits_id": self.fits_id,
             "classification": self.classification,
+            "cnn_classification": self.cnn_classification,
+            "nrg_classification": self.nrg_classification,
+            "bdt_classification": self.bdt_classification,
         }
 
     @staticmethod
@@ -352,6 +358,9 @@ class ClusterStoreRequest:
             total_pixels=int(d.get("total_pixels", 0)),
             fits_id=d.get("fits_id", 0),
             classification=str(d.get("classification", "")),
+            cnn_classification=d.get("cnn_classification"),
+            nrg_classification=d.get("nrg_classification"),
+            bdt_classification=d.get("bdt_classification"),
         )
 
 

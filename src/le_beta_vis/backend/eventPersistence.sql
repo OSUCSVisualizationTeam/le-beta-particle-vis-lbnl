@@ -84,9 +84,9 @@ CREATE PROCEDURE insert_cluster(
     IN in_sigmaX FLOAT,
     IN in_sigmaY FLOAT,
     IN in_classification VARCHAR(255),
-    IN in_cnnclassification VARCHAR(255),
-    IN in_bdtclassification VARCHAR(255),
-    IN in_nrgclassification VARCHAR(255),
+    IN in_cnnclassification FLOAT,
+    IN in_bdtclassification FLOAT,
+    IN in_nrgclassification FLOAT,
     IN in_pixelCount INT,
     OUT out_clusterID INT
 )
