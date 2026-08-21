@@ -196,6 +196,21 @@ class TestGating:
         assert reason == ""
         assert vm.can_export() is True
 
+    def test_enabled_with_default_all_time_preset(self):
+        """Regression guard: ``time_preset`` must never gate Save again.
+
+        ``gui:historical:default_time_preset`` defaults to ``"all"``,
+        which is also the state on a fresh Historical view — this is
+        the exact combination that previously left Save disabled.
+        """
+        vm, fb = _build_vm()
+        assert fb.time_preset == "all"
+        vm.set_result_count(2)
+        ok, reason = vm.gating_reason()
+        assert ok is True
+        assert reason == ""
+        assert vm.can_export() is True
+
 
 class TestColormapResolution:
     def test_returns_enum_for_valid_config_value(self):
