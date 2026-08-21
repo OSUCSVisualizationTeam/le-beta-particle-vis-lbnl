@@ -580,6 +580,10 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
         self.assertEqual(result["clusters"][0]["fits_id"], 1)
         self.assertEqual(result["clusters"][0]["cluster_id"], 1)
 
+        sql, _ = mock_cursor.execute.call_args[0]
+        self.assertIn("ORDER BY clusters.clusterID", sql)
+        self.assertLess(sql.index("ORDER BY"), sql.index("LIMIT 2000"))
+
 
 class TestEventPersistenceRecentRetrieval(unittest.TestCase):
     """Test cases for the RecentRetrieval sorted/paginated endpoint."""

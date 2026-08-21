@@ -583,7 +583,7 @@ class EventPersistence:
             if len(select_args) > 0:
                 select_query += " WHERE " + " AND ".join(select_args)
 
-            select_query += " LIMIT 2000"
+            select_query += " ORDER BY clusters.clusterID LIMIT 2000"
 
             cursor.execute(select_query, tuple(select_argv))
             # saving results into a list of tuples
