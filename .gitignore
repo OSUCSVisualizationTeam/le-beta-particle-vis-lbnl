@@ -7,3 +7,6 @@ packaging/lbnlvis.icns
 .packaging-venv/
 memray*
 src/le_beta_vis_lbnl.egg-info/
+debug-logs/
+build/
+dist/
