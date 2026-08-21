@@ -34,9 +34,10 @@ _DEFAULT_TRAIN_FRACTION = 0.7
 _DEFAULT_VALIDATION_FRACTION = 0.15
 _DEFAULT_TEST_FRACTION = 0.15
 _DEFAULT_SEED = 42
-_DEFAULT_N_ESTIMATORS = 200
+_DEFAULT_N_ESTIMATORS = 500
 _DEFAULT_MAX_DEPTH = 3
-_DEFAULT_LEARNING_RATE = 0.1
+_DEFAULT_LEARNING_RATE = 0.05
+_DEFAULT_N_ITER_NO_CHANGE = 20
 _OUTPUT_FILENAME = "bdt.joblib"
 
 
@@ -48,6 +49,7 @@ def main() -> None:
     parser.add_argument("--n-estimators", type=int, default=_DEFAULT_N_ESTIMATORS)
     parser.add_argument("--max-depth", type=int, default=_DEFAULT_MAX_DEPTH)
     parser.add_argument("--learning-rate", type=float, default=_DEFAULT_LEARNING_RATE)
+    parser.add_argument("--n-iter-no-change", type=int, default=_DEFAULT_N_ITER_NO_CHANGE)
     parser.add_argument("--train-fraction", type=float, default=_DEFAULT_TRAIN_FRACTION)
     parser.add_argument("--validation-fraction", type=float, default=_DEFAULT_VALIDATION_FRACTION)
     parser.add_argument("--test-fraction", type=float, default=_DEFAULT_TEST_FRACTION)
@@ -66,6 +68,7 @@ def main() -> None:
         n_estimators=args.n_estimators,
         max_depth=args.max_depth,
         learning_rate=args.learning_rate,
+        n_iter_no_change=args.n_iter_no_change,
         random_state=args.seed,
     )
     model.fit(ccd_data.x_train_bdt, ccd_data.y_train)

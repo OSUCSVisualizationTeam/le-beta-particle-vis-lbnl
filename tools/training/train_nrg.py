@@ -140,7 +140,9 @@ def main() -> None:
         F_sizes=args.f_sizes,
         output_dim=1,
     )
-    model.fit(ccd_data, epochs=args.epochs, batch_size=args.batch_size)
+    class_weight = ccd_data.training_class_weights()
+    print(f"Training with class_weight={class_weight}")
+    model.fit(ccd_data, epochs=args.epochs, batch_size=args.batch_size, class_weight=class_weight)
 
     test_predictions = (model.predict(ccd_data.x_test_energyflow).ravel() >= 0.5).astype(int)
     test_accuracy = float(np.mean(test_predictions == ccd_data.y_test))

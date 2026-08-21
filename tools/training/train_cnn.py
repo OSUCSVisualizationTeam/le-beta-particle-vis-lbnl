@@ -86,7 +86,7 @@ def main() -> None:
     model = mlccd_models.CNNModel(ccd_data.IMAGE_WIDTH, ccd_data.IMAGE_HEIGHT, ccd_data.IMAGE_CHANNELS)
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate),
-        loss="binary_crossentropy",
+        loss=tf.keras.losses.BinaryFocalCrossentropy(apply_class_balancing=True),
     )
 
     mlccd_models.train(
