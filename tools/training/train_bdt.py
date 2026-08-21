@@ -1,23 +1,11 @@
 """Trains the BDT tritium classifier and saves it for LBNLTritiumClassifierService.
 
-``mlccd_models`` ships no boosted-tree model at all (only ``CCDData.x_train_bdt``
-as a feature-prep helper for a BDT that would live outside the package) — the
-lab's actual BDT training code isn't in this dependency. This trains a plain
-``sklearn.ensemble.GradientBoostingClassifier`` from scratch as a stand-in,
-using the same three features ``CCDData.x_train_bdt`` already selects
-(``clusterEnergy``, ``clusterSigmaX``, ``clusterSigmaY``) — which are also
-exactly the fields already present on ``ClassificationRequestCluster``
-(``total_energy``, ``sigmaX``, ``sigmaY``), so ``classify_bdt()`` needs no
-pixel math at inference time, just those three numbers per cluster.
-
-Usage::
-
-    uv run python tools/training/train_bdt.py \\
-        --dataset ~/Downloads/10x10_clusters_fermilab_bkg_and_tritium/\\
-fermilab_upnoised_quadrant_0_and_3_baseline_cut_balanced.pkl \\
-        --output-dir ~/lbnlvis-models/lbnl_tritium
-
-Output is a single ``bdt.joblib`` file under ``--output-dir``.
+NOT a reproduction of a lab model: ``mlccd_models`` has no boosted-tree
+implementation at all, so this trains a plain
+``sklearn.ensemble.GradientBoostingClassifier`` from scratch on
+``[clusterEnergy, clusterSigmaX, clusterSigmaY]`` as a stand-in. Output is a
+single ``bdt.joblib`` file under ``--output-dir``. See
+``tools/training/README.md`` for usage and rationale.
 """
 
 import argparse

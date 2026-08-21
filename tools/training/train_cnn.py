@@ -1,29 +1,9 @@
 """Trains the CNN tritium classifier and saves it for LBNLTritiumClassifierService.
 
-Wraps ``mlccd_models.CNNModel`` (a raw-pixel Keras CNN over the 10x10 cluster
-image) as-is, training it against one of the Fermilab background / tritium
-datasets shared by Dr. Rofors. Output is ``cnn.keras`` plus a ``cnn.meta.json``
-sidecar under ``--output-dir`` — these are the files
-``LBNLTritiumClassifierService`` loads from ``classifier:lbnl_model_weights_dir``.
-
-Usage::
-
-    uv run python tools/training/train_cnn.py \\
-        --dataset ~/Downloads/10x10_clusters_fermilab_bkg_and_tritium/\\
-fermilab_upnoised_quadrant_0_and_3_baseline_cut_balanced.pkl \\
-        --output-dir ~/lbnlvis-models/lbnl_tritium
-
-Raw cluster pixel values are keV, ranging up to ~1e6 for hot outlier pixels
-(the same outlier-domination problem documented for thumbnail colormap
-scaling). Fed directly into the CNN, this produces enormous unstable
-binary-crossentropy loss (~1200 in early testing). ``--normalize-percentile``
-clips at that percentile of the training set's pixel distribution and rescales
-to [0, 1] via ``CCDData.normalize()`` before training, which brought the same
-run's loss down to ~0.34 and falling. The same ``threshold_high`` must be
-reapplied at inference time — a runtime config key would silently drift from
-whatever a given weights file was actually trained with, so (mirroring the
-NRG trainer's ``nrg.meta.json``) the exact value used here is written to
-``cnn.meta.json`` and ``classify_cnn()`` reads it from there.
+Wraps ``mlccd_models.CNNModel`` as-is against a Fermilab background/tritium
+dataset. Output is ``cnn.keras`` plus a ``cnn.meta.json`` sidecar under
+``--output-dir``. See ``tools/training/README.md`` for usage and rationale
+(pixel normalization, class balancing, the ``*.meta.json`` contract).
 """
 
 import argparse

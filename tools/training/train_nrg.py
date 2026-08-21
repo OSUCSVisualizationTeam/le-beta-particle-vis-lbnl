@@ -1,46 +1,11 @@
 """Trains the NRG (energy-flow) tritium classifier and saves it for LBNLTritiumClassifierService.
 
 Wraps ``mlccd_models.PFNModel`` (an energyflow Particle Flow Network over a
-per-pixel energy+position point cloud, via ``GetPixelClusterData``) as-is,
-training it against one of the Fermilab background / tritium datasets shared
-by Dr. Rofors.
-
-Usage::
-
-    uv run python tools/training/train_nrg.py \\
-        --dataset ~/Downloads/10x10_clusters_fermilab_bkg_and_tritium/\\
-fermilab_upnoised_quadrant_0_and_3_baseline_cut_balanced.pkl \\
-        --output-dir ~/lbnlvis-models/lbnl_tritium
-
-Output is ``nrg.weights.h5`` plus a ``nrg.meta.json`` sidecar recording the
-exact preprocessing/architecture parameters used (``normalize_threshold_low``,
-``normalize_threshold_high``, ``threshold``, ``pixels_around_brightest_pixel``,
-``input_dim``, ``phi_sizes``, ``f_sizes``). ``classify_nrg()`` must reconstruct
-the identical preprocessing + ``GetPixelClusterData`` call + ``PFNModel``
-architecture before calling ``load_weights()`` — a runtime config key would
-silently drift from whatever a given weights file was actually trained with,
-so the sidecar (shipped alongside the weights) is the single source of truth
-instead.
-
-Raw cluster pixel values are keV, ranging up to ~1e6 for hot outlier pixels.
-``mlccd_models.GetPixelClusterData`` (lab code, used as-is) hardcodes
-``np.clip(intensity, 0, 2.0)`` on whatever pixel values it's given — with raw
-keV inputs, 99.9%+ of real in-cluster pixels blow past that ceiling and
-collapse to the same clipped value, destroying the intensity signal (measured
-directly: NRG stuck at ~51% test accuracy, chance level, with raw keV
-inputs). Same root cause the CNN script already handles via
-``CCDData.normalize()`` — NRG just never had that step. ``--normalize-percentile``
-clips at that percentile of the training set's pixel distribution and
-rescales to [0, 1] via ``CCDData.normalize()`` *before* ``prepare_energyflow_format()``,
-so real signal pixels land inside ``GetPixelClusterData``'s clip range instead
-of all collapsing to it.
-
-``--energy-threshold-kev`` (still expressed in raw keV on the CLI, for the
-same "4 sigma" Fermilab-noise-level convention used elsewhere in this
-project) is rescaled by the same ``normalize_threshold_high`` before being
-passed to ``GetPixelClusterData`` as ``threshold`` — that function compares
-its ``threshold`` argument against whatever pixel values it's actually given,
-which are the *normalized* ones once ``ccd_data.normalize()`` has run.
+per-pixel energy+position point cloud) as-is against a Fermilab
+background/tritium dataset. Output is ``nrg.weights.h5`` plus a
+``nrg.meta.json`` sidecar under ``--output-dir``. See
+``tools/training/README.md`` for usage and rationale (pixel normalization,
+class balancing, the ``*.meta.json`` contract, energy threshold rescaling).
 """
 
 import argparse
