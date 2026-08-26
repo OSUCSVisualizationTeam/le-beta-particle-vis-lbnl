@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "le-beta-vis-lbnl"
-version = "0.1.0"
+version = "0.2.0"
 description = "Interactive desktop tool for visualizing and classifying low-energy beta particle tracks in CCD sensor data — built for LBNL's Applied Nuclear Physics program."
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
