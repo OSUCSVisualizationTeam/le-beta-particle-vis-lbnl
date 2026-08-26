@@ -52,9 +52,13 @@ def bind_tracked_ipc_socket(
     """Bind *socket* to the endpoint stored under *key*, guarded by the registry.
 
     Resolves the endpoint from *config* internally rather than accepting a pre-resolved string, so the registry-checked key and
-    the bound key can never drift apart.
+    the bound key can never drift apart. Resolves the schema default via ``config.get_metadata()`` before reading, rather than
+    calling ``config.get(key)`` bare. A key freshly added to :data:`STARTUP_IPC_BIND_KEYS` may not exist yet in an existing on-
+    disk config written before that key was introduced — without a default, ``.get()`` returns ``None`` for a missing key,
+    which would crash ``socket.bind(None)`` instead of falling back to the schema default.
     """
     assert_ipc_bind_key_registered(key)
-    endpoint = config.get(key)
+    default = config.get_metadata().get(key, {}).get("default", "")
+    endpoint = config.get(key, default)
     socket.bind(endpoint)
     logger.debug("bind_tracked_ipc_socket: bound %s -> %s", key, endpoint)
