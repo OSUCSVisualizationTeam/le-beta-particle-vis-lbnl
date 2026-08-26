@@ -1,11 +1,10 @@
 """Compact filter toolbar for the Historical Analysis tab.
 
-Provides quick access to the most common filter fields (time range,
-minimum energy, minimum pixel count) and an Advanced button that
-opens the full filter dialog.
+Provides quick access to the most common filter fields (time range, minimum energy, minimum pixel count) and an Advanced button
+that opens the full filter dialog.
 """
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -148,8 +147,7 @@ _TIME_PRESETS = [
 class HistoricalFilterBar(QFrame):
     """Horizontal filter toolbar for the Historical Analysis tab.
 
-    Presents the most-used filter fields inline and delegates
-    to ``HistoricalAdvancedFilterDialog`` for the full set.
+    Presents the most-used filter fields inline and delegates to ``HistoricalAdvancedFilterDialog`` for the full set.
     """
 
     # Emitted when the user clicks Save/Cancel (issue #56). The owning
@@ -276,8 +274,7 @@ class HistoricalFilterBar(QFrame):
     def setSaveEnabled(self, enabled: bool, reason: str = "") -> None:
         """Owner view uses this to reflect the export gating state.
 
-        ``reason`` populates the tooltip when disabled so scientists see
-        why (fewer than 2 results in the current filter).
+        ``reason`` populates the tooltip when disabled so scientists see why (fewer than 2 results in the current filter).
         """
         # During an export the button is the Cancel action — keep it
         # enabled regardless of gating.
@@ -288,12 +285,12 @@ class HistoricalFilterBar(QFrame):
 
     # --- Export lock (issue #56) ---
 
+    @Slot(bool)
     def _onExportLockChanged(self, running: bool) -> None:
         """Called when the filter-bar VM's export lock toggles.
 
-        Disables every filter input + Apply so the filter cannot mutate
-        while an export is in flight, keeping the Save/Cancel toggle
-        unambiguous. Save button flips to its Cancel state.
+        Disables every filter input + Apply so the filter cannot mutate while an export is in flight, keeping the Save/Cancel
+        toggle unambiguous. Save button flips to its Cancel state.
         """
         self._setFilterInputsEnabled(not running)
         if running:
@@ -359,9 +356,8 @@ class HistoricalFilterBar(QFrame):
     def _pushToViewModel(self) -> None:
         """Writes inline widget values into the VM fields.
 
-        For non-custom time presets the VM also resolves the preset to a
-        fresh ``[now-window, now]`` range so clicking Apply always queries
-        the most recent window.
+        For non-custom time presets the VM also resolves the preset to a fresh ``[now-window, now]`` range so clicking Apply
+        always queries the most recent window.
         """
         energy = self._energySpin.value()
         self._vm.min_total_energy = energy if energy > 0.0 else None

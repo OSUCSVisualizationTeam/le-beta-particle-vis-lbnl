@@ -43,10 +43,8 @@ logger = logging.getLogger(__name__)
 class HistoricalView(QWidget):
     """View for the Historical Event Analysis tab.
 
-    Provides a two-panel layout with an event grid browser
-    on the left and a detail inspector on the right, connected
-    via a ``QSplitter``.  A filter toolbar between the header
-    and splitter lets scientists constrain queries.
+    Provides a two-panel layout with an event grid browser on the left and a detail inspector on the right, connected via a
+    ``QSplitter``.  A filter toolbar between the header and splitter lets scientists constrain queries.
     """
 
     _exportProgressReceived = Signal(int, int, str)
@@ -207,8 +205,7 @@ class HistoricalView(QWidget):
     def _configureInspector(self) -> None:
         """Applies view-level settings to the inspector.
 
-        Configuration (physics, threshold, keV toggle) is passed
-        via the ``HistoricalEventInspectorViewModel`` constructor.
+        Configuration (physics, threshold, keV toggle) is passed via the ``HistoricalEventInspectorViewModel`` constructor.
         Only the colormap (a view concern) is set here.
         """
         self._inspector.setColormap(self.viewModel.thumbnailColormap)
@@ -331,8 +328,7 @@ class HistoricalView(QWidget):
     def _buildMetadataLabels(self) -> ClusterMetadataLabels:
         """Pre-translates the PNG metadata labels via Qt's tr().
 
-        Services in common/ stay headless — Qt's translation layer lives
-        here in the View.
+        Services in common/ stay headless — Qt's translation layer lives here in the View.
         """
         return ClusterMetadataLabels(
             energy=self.tr("Energy"),
@@ -448,9 +444,8 @@ class HistoricalView(QWidget):
     def _onFilterApplied(self, query_filter) -> None:
         """Receives filter from the filter bar VM and triggers load.
 
-        Stores the filter and uses ``QMetaObject.invokeMethod``
-        with ``Qt.AutoConnection`` to marshal to the main thread
-        when the callback fires from a background thread.
+        Stores the filter and uses ``QMetaObject.invokeMethod`` with ``Qt.AutoConnection`` to marshal to the main thread when
+        the callback fires from a background thread.
         """
         self._pendingFilter = query_filter
         QMetaObject.invokeMethod(self, "_applyPendingFilter", Qt.AutoConnection)
