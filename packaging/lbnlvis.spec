@@ -36,6 +36,17 @@ a = Analysis(
     hiddenimports=[
         "mlccd_models",
         "astropy.io.fits",
+        # Lazy-imported inside LBNLTritiumClassifierService.py's functions
+        # (CNN/NRG/BDT model loading + inference) — invisible to
+        # PyInstaller's static analysis since they're not imported at
+        # module scope. tensorflow/energyflow are also mlccd_models'
+        # own top-level dependencies, but listed explicitly here since
+        # they back a second, independent lazy-import path.
+        "tensorflow",
+        "energyflow",
+        "sklearn",
+        "joblib",
+        "pandas",
     ],
     hookspath=[str(ROOT / "packaging" / "hooks")],
     hooksconfig={},

@@ -580,6 +580,10 @@ class TestEventPersistenceRetrieveClusters(unittest.TestCase):
         self.assertEqual(result["clusters"][0]["fits_id"], 1)
         self.assertEqual(result["clusters"][0]["cluster_id"], 1)
 
+        sql, _ = mock_cursor.execute.call_args[0]
+        self.assertIn("ORDER BY clusters.clusterID", sql)
+        self.assertLess(sql.index("ORDER BY"), sql.index("LIMIT 2000"))
+
 
 class TestEventPersistenceRecentRetrieval(unittest.TestCase):
     """Test cases for the RecentRetrieval sorted/paginated endpoint."""
@@ -1234,6 +1238,77 @@ class TestEventPersistenceProcessRetrievalClusters(unittest.TestCase):
         self.assertEqual(response["clusters"][0]["fits_id"], 1)
         self.assertEqual(response["clusters"][0]["cluster_id"], 1)
         self.assertEqual(response["clusters"][0]["classification"], "alpha")
+
+    @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')
+    @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.db_connect')
+    def test_process_retrieval_clusters_includes_per_model_scores(
+        self, mock_db_connect, mock_init_server, mock_config
+    ):
+        """Regression test: per-model cnn/nrg/bdt scores present in the DB row must
+        reach the EPS wire response, not be dropped in favor of only the aggregate
+        classification string."""
+        instance = mock_config.return_value
+        instance.get.side_effect = lambda key: {
+            "global:db:hostname": "localhost",
+            "global:db:username": "test_user",
+            "global:db:password": "test_pass",
+            "global:db:database": "test_db"
+        }.get(key, None)
+
+        ep = EventPersistence()
+
+        results = [
+            {
+                "fitsFile": 1,
+                "clusterID": 1,
+                "hdu_id": 0,
+                "box_top": 10,
+                "box_left": 20,
+                "box_bottom": 30,
+                "box_right": 40,
+                "data": b"data1",
+                "totalEnergy": 5000,
+                "sigmaX": 1.5,
+                "sigmaY": 1.5,
+                "classification": "tritium",
+                "cnn_classification": 0.83,
+                "nrg_classification": 0.42,
+                "bdt_classification": 0.91,
+                "pixelCount": 100,
+                "filename": "test1.fits",
+                "date": "2022-10-03",
+            },
+            {
+                "fitsFile": 1,
+                "clusterID": 2,
+                "hdu_id": 0,
+                "box_top": 15,
+                "box_left": 25,
+                "box_bottom": 35,
+                "box_right": 45,
+                "data": b"data2",
+                "totalEnergy": 6000,
+                "sigmaX": 2.0,
+                "sigmaY": 2.0,
+                "classification": "",
+                "cnn_classification": None,
+                "nrg_classification": None,
+                "bdt_classification": None,
+                "pixelCount": 150,
+                "filename": "test2.fits",
+                "date": "2022-10-04",
+            },
+        ]
+
+        response = ep.process_retrieval_clusters(results)
+
+        self.assertEqual(response["clusters"][0]["cnn_classification"], 0.83)
+        self.assertEqual(response["clusters"][0]["nrg_classification"], 0.42)
+        self.assertEqual(response["clusters"][0]["bdt_classification"], 0.91)
+        self.assertEqual(response["clusters"][1]["cnn_classification"], 0.0)
+        self.assertEqual(response["clusters"][1]["nrg_classification"], 0.0)
+        self.assertEqual(response["clusters"][1]["bdt_classification"], 0.0)
 
     @patch('le_beta_vis.backend.EventPersistenceService.YAMLBackedConfigurationService')
     @patch('le_beta_vis.backend.EventPersistenceService.EventPersistence.initialize_server')

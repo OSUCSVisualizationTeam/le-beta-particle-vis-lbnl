@@ -42,6 +42,10 @@ def _physics() -> PhysicsConversionManagerImpl:
     return PhysicsConversionManagerImpl(cfg)
 
 
+def _config() -> MockConfigurationService:
+    return MockConfigurationService()
+
+
 class _FakeRepo(EventRepository):
     def __init__(self, clusters: List[Cluster], error: Optional[str] = None) -> None:
         self._clusters = clusters
@@ -49,6 +53,13 @@ class _FakeRepo(EventRepository):
 
     def fetch_events(self, callback, on_error):
         callback(list(self._clusters))
+
+    def fetch_clusters_sync(self, query_filter=None, limit=None, offset=0):
+        if self._error is not None:
+            raise Exception(self._error)
+        if limit is None:
+            return list(self._clusters[offset:])
+        return list(self._clusters[offset:offset + limit])
 
     def query_clusters(self, query_filter, callback, on_error):
         if self._error is not None:
@@ -176,7 +187,7 @@ class TestHistoricalExportService:
         png = _FakePNG()
         labels = ClusterMetadataLabels.default_english()
         svc = HistoricalExportService(
-            _FakeRepo(clusters), _FakeStorage(), png, _physics(), _FakeThumbnailService()
+            _FakeRepo(clusters), _FakeStorage(), png, _physics(), _FakeThumbnailService(), _config()
         )
         completed: List[Path] = []
 
@@ -200,7 +211,7 @@ class TestHistoricalExportService:
         png = _FakePNG()
         labels = ClusterMetadataLabels.default_english()
         svc = HistoricalExportService(
-            _FakeRepo(clusters), _FakeStorage(), png, _physics(), _FakeThumbnailService()
+            _FakeRepo(clusters), _FakeStorage(), png, _physics(), _FakeThumbnailService(), _config()
         )
         completed: List[Path] = []
         request = ExportRequest(
@@ -228,7 +239,7 @@ class TestHistoricalExportService:
         token = CancelToken()
         token.cancel()
         svc = HistoricalExportService(
-            _FakeRepo([_cluster(1)]), _FakeStorage(), _FakePNG(), _physics(), _FakeThumbnailService()
+            _FakeRepo([_cluster(1)]), _FakeStorage(), _FakePNG(), _physics(), _FakeThumbnailService(), _config()
         )
 
         _run_and_wait(svc, _request(out), token)
@@ -240,7 +251,7 @@ class TestHistoricalExportService:
         token = CancelToken()
         token.cancel()
         svc = HistoricalExportService(
-            _FakeRepo([_cluster(1)]), _FakeStorage(), _FakePNG(), _physics(), _FakeThumbnailService()
+            _FakeRepo([_cluster(1)]), _FakeStorage(), _FakePNG(), _physics(), _FakeThumbnailService(), _config()
         )
         cancelled: List[bool] = []
         errors: List[str] = []
@@ -264,7 +275,7 @@ class TestHistoricalExportService:
         out = tmp_path / "e.h5"
         errors: List[str] = []
         svc = HistoricalExportService(
-            _FakeRepo([], error="db down"), _FakeStorage(), _FakePNG(), _physics(), _FakeThumbnailService()
+            _FakeRepo([], error="db down"), _FakeStorage(), _FakePNG(), _physics(), _FakeThumbnailService(), _config()
         )
 
         _run_and_wait(
@@ -286,6 +297,7 @@ class TestHistoricalExportService:
             _FakePNG(),
             _physics(),
             _FakeThumbnailService(),
+            _config(),
         )
         request = ExportRequest(
             out_path=out,
@@ -319,6 +331,7 @@ class TestHistoricalExportService:
             _FakePNG(),
             _physics(),
             _FakeThumbnailService(),
+            _config(),
         )
 
         _run_and_wait(
@@ -346,6 +359,7 @@ class TestHistoricalExportService:
             _FakePNG(),
             _physics(),
             _FakeThumbnailService(),
+            _config(),
         )
 
         _run_and_wait(svc, _request(out), CancelToken())
@@ -370,6 +384,7 @@ class TestHistoricalExportService:
             _FakePNG(),
             _physics(),
             _FakeThumbnailService(),
+            _config(),
         )
         request = ExportRequest(
             out_path=out,
@@ -413,6 +428,7 @@ class TestHistoricalExportService:
             _FakePNG(),
             _physics(),
             _NoDataThumbnails(),
+            _config(),
         )
 
         _run_and_wait(svc, _request(out), CancelToken(), on_complete=completed.append, on_error=errors.append)
@@ -420,3 +436,25 @@ class TestHistoricalExportService:
         assert not errors
         assert completed == [out]
         assert storage.written_clusters[0].data is None
+
+    def test_collects_clusters_across_multiple_pages(self, tmp_path: Path) -> None:
+        """A result set larger than one page must be fully accumulated."""
+        out = tmp_path / "e.h5"
+        storage = _FakeStorage()
+        clusters = [_cluster(i) for i in range(1, 6)]  # 5 clusters
+        cfg = MockConfigurationService()
+        cfg.set("eps:retrieval_limit_max", 2)  # forces 3 pages: 2, 2, 1
+        completed: List[Path] = []
+        svc = HistoricalExportService(
+            _FakeRepo(clusters),
+            storage,
+            _FakePNG(),
+            _physics(),
+            _FakeThumbnailService(),
+            cfg,
+        )
+
+        _run_and_wait(svc, _request(out), CancelToken(), on_complete=completed.append)
+
+        assert completed == [out]
+        assert {c.clusterId for c in storage.written_clusters} == {1, 2, 3, 4, 5}

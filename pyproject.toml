@@ -11,6 +11,7 @@ requires-python = ">=3.10,<3.11"
 dependencies = [
     "astropy",
     "h5py>=3.10",
+    "joblib",
     "matplotlib",
     "mlccd-diffusion",
     "mlccd-models",
@@ -23,6 +24,7 @@ dependencies = [
     "pyyaml",
     "pyzmq",
     "scikit-image",
+    "scikit-learn",
     "scipy",
     "superqt",
     "jsonschema",

@@ -73,6 +73,19 @@ class TestPagedRetrieveClusters(unittest.TestCase):
         self.assertIn("LIMIT %s OFFSET %s", sql)
         self.assertEqual(params[-2:], (10, 0))
 
+    def test_query_orders_by_cluster_id_before_limit(self):
+        mock_conn, mock_cursor = _make_conn([_make_row(1)])
+
+        paged_filter = ClusterPagedQueryFilter(
+            filters=ClusterQueryFilter(min_total_energy=500.0),
+            limit=10,
+        )
+        paged_retrieve_clusters(mock_conn, paged_filter, default_limit=500, max_limit=2000)
+
+        sql, _ = mock_cursor.execute.call_args[0]
+        self.assertIn("ORDER BY clusters.clusterID", sql)
+        self.assertLess(sql.index("ORDER BY"), sql.index("LIMIT %s OFFSET %s"))
+
     def test_second_page_uses_offset(self):
         mock_conn, mock_cursor = _make_conn([_make_row(3)])
 

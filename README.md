@@ -106,6 +106,13 @@ uv sync --extra dev
 QT_QPA_PLATFORM=offscreen uv run pytest tests
 ```
 
+### Training Classifier Models
+
+The CNN/NRG/BDT tritium classifiers consumed by `LBNLTritiumClassifierService`
+are trained from Fermilab background/tritium datasets via standalone scripts
+under `tools/training/`, not shipped with the repo. See
+[`tools/training/README.md`](tools/training/README.md) for usage.
+
 ### Troubleshooting
 
 #### Rebuilding the UV Environment

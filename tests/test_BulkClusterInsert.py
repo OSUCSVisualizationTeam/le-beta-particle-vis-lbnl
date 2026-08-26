@@ -92,6 +92,32 @@ class TestBulkInsertClustersFastPath(unittest.TestCase):
         values = mock_cursor.execute.call_args.args[1]
         self.assertEqual(len(values), len(CLUSTER_INSERT_COLUMNS) * len(clusters))
 
+    def test_per_model_classification_scores_are_not_nulled(self):
+        """Regression test for issue #54: cnn/nrg/bdt scores must reach the INSERT, not be
+        hardcoded to None as they were before LBNLTritiumClassifierService existed."""
+        mock_conn, mock_cursor = _make_conn(lastrowid=1)
+        cluster = ClusterStoreRequest(
+            data=None,
+            hdu_id=0,
+            bounding_box={"top": 1, "left": 2, "bottom": 3, "right": 4},
+            sigma_x=1.0,
+            sigma_y=1.0,
+            total_energy=100.0,
+            total_pixels=10,
+            fits_id=1,
+            classification="TRITIUM",
+            cnn_classification=0.91,
+            nrg_classification=0.82,
+            bdt_classification=0.77,
+        )
+        bulk_insert_clusters(mock_conn, [cluster])
+
+        values = mock_cursor.execute.call_args.args[1]
+        row = dict(zip(CLUSTER_INSERT_COLUMNS, values))
+        self.assertEqual(row["cnn_classification"], 0.91)
+        self.assertEqual(row["nrg_classification"], 0.82)
+        self.assertEqual(row["bdt_classification"], 0.77)
+
 
 class TestBulkInsertClustersFallback(unittest.TestCase):
 

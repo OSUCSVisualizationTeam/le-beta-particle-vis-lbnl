@@ -254,6 +254,7 @@ class TestPollingThread:
                 config_service=mock_config,
                 file="test.fits",
                 cluster_storage_buffer_factory=InMemoryClusterStorageBuffer,
+                classifier_service=polling.classifier_service,
             )
 
     def test_file_uploaded_skips_unstable_file(self, mock_config, caplog):
@@ -284,7 +285,7 @@ class TestPollingThread:
 
     def test_file_uploaded_logs_and_continues_on_process_timeout(self, mock_config, caplog):
         """Test a hung process_file logs an error and doesn't block the consumer loop"""
-        def _slow_process_file(config_service, file, cluster_storage_buffer_factory):
+        def _slow_process_file(config_service, file, cluster_storage_buffer_factory, classifier_service):
             time.sleep(1.2)
 
         # get_int() clamps this to its minimum=1, so the timeout wrapper
@@ -358,7 +359,7 @@ class TestPollingThread:
         state_lock = threading.Lock()
         state = {"current": 0, "peak": 0}
 
-        def _tracking_process_file(config_service, file, cluster_storage_buffer_factory):
+        def _tracking_process_file(config_service, file, cluster_storage_buffer_factory, classifier_service):
             with state_lock:
                 state["current"] += 1
                 state["peak"] = max(state["peak"], state["current"])

@@ -459,8 +459,9 @@ class ZMQBasedEventRepository(EventRepository):
 
         - **bounding box**: synthesised from data shape (EPS does not
           include it in the response).
-        - **classification scores**: defaulted to 0.0 (EPS stores a
-          single string, not per-model floats).
+        - **classification scores**: per-model cnn/nrg/bdt floats round-trip
+          from the DB via ``record``; ``None`` (nullable columns, e.g. rows
+          classified before this feature existed) is coerced to 0.0.
         """
         try:
             bbox = BoundingBox(
@@ -484,9 +485,9 @@ class ZMQBasedEventRepository(EventRepository):
                 fitsId=record.fits_id,
                 clusterId=record.cluster_id,
                 classification=record.classification,
-                cnnClassification=0.0,
-                nrgClassification=0.0,
-                bdtClassification=0.0,
+                cnnClassification=record.cnn_classification or 0.0,
+                nrgClassification=record.nrg_classification or 0.0,
+                bdtClassification=record.bdt_classification or 0.0,
                 hdu_id=record.hdu_id,
             )
         except Exception:

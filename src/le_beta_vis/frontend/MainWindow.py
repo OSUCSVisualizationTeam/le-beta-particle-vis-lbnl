@@ -208,6 +208,7 @@ class MainWindow(QMainWindow):
             self.rawDataViewModel,
             repository=self.viewModel.eventRepository,
         )
+        self._reportClassifierAvailability()
         self.historicalView = HistoricalView(
             self.historicalViewModel,
             statusViewModel=self.statusViewModel,
@@ -215,6 +216,24 @@ class MainWindow(QMainWindow):
         )
         self.tabs.addTab(self.rawDataView, self.tr("Raw Data Analysis"))
         self.tabs.addTab(self.historicalView, self.tr("Historical Analysis"))
+
+    def _reportClassifierAvailability(self) -> None:
+        """Surfaces a degraded-mode warning if the classifier service loaded here failed to load one or more models.
+
+        Runs synchronously right after RawDataView (and the ClassifierService it eagerly constructs) is built, i.e. before
+        window.show() — the same "before the user can interact" guarantee the EPS startup-readiness banner provides, but via a
+        plain method call rather than a second EventEnvelope/pub-sub channel: model loading is synchronous, in-process, and has
+        no external-resource race to solve. See wiki/Front-Design-Startup-Readiness.md.
+        """
+        unavailable = self.rawDataView.classifierService.unavailable_models()
+        if unavailable:
+            self.statusViewModel.set_message(
+                self.tr(
+                    "Tritium classifier model(s) unavailable: {models}. "
+                    "Check classifier:lbnl_model_weights_dir."
+                ).format(models=", ".join(unavailable)),
+                severity=Severity.WARNING,
+            )
 
     # -- Menu bar ------------------------------------------------------------
 
@@ -418,10 +437,9 @@ class MainWindow(QMainWindow):
     def _openClusterInRawData(self, cluster: Cluster) -> None:
         """Navigates from the Historical Inspector to Raw Data Analysis.
 
-        Performs a preflight check on the cluster's FITS path, switches
-        to the Raw Data Analysis tab, computes a padded ROI rectangle
-        around the cluster's bounding box, and delegates the load /
-        HDU select / fit-to-ROI sequence to ``RawDataView``.
+        Performs a preflight check on the cluster's FITS path, switches to the Raw Data Analysis tab, computes a padded ROI
+        rectangle around the cluster's bounding box, and delegates the load / HDU select / fit-to-ROI sequence to
+        ``RawDataView``.
         """
         path = cluster.fitsFilename
         if not path or not Path(path).exists():

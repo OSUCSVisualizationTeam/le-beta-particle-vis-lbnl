@@ -106,6 +106,8 @@ def _build_cluster_select(filters: ClusterQueryFilter) -> Tuple[str, List[Any]]:
     if select_args:
         select_query += " WHERE " + " AND ".join(select_args)
 
+    select_query += " ORDER BY clusters.clusterID"
+
     return select_query, select_argv
 
 
