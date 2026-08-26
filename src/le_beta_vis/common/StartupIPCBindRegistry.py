@@ -1,12 +1,9 @@
 """Registry of configuration keys bound to an ``ipc://`` endpoint at startup.
 
-``ipc://`` transport is unsupported by ``pyzmq`` on Windows (see issue #204).
-Every startup-time ``.bind()`` call for one of these keys must be reachable
-by the Windows fallback dialog (:mod:`IPCFallbackSupport`,
-:mod:`IPCFallbackViewModel`) so it can be redirected to ``tcp://``. This
-module exists so that adding a fifth startup bind without registering it
-here fails loudly instead of silently reintroducing partial Windows
-breakage.
+``ipc://`` transport is unsupported by ``pyzmq`` on Windows (see issue #204). Every startup-time ``.bind()`` call for one of
+these keys must be reachable by the Windows fallback dialog (:mod:`IPCFallbackSupport`, :mod:`IPCFallbackViewModel`) so it can
+be redirected to ``tcp://``. This module exists so that adding a fifth startup bind without registering it here fails loudly
+instead of silently reintroducing partial Windows breakage.
 """
 
 import logging
@@ -26,17 +23,17 @@ STARTUP_IPC_BIND_KEYS: Tuple[str, ...] = (
     "eps:command_ipc",
     "eps:status_pub_endpoint",
 )
-"""Configuration keys whose value is ``.bind()``-ed as an ``ipc://`` socket
-during application startup. Keep in sync with the Windows fallback dialog —
-see ``wiki/Front-Design-IPC-Fallback-Dialog.md``."""
+"""Configuration keys whose value is ``.bind()``-ed as an ``ipc://`` socket during application startup.
+
+Keep in sync with the Windows fallback dialog — see ``wiki/Front-Design-IPC-Fallback-Dialog.md``.
+"""
 
 
 def assert_ipc_bind_key_registered(key: str) -> None:
     """Raise ``RuntimeError`` if *key* is not in :data:`STARTUP_IPC_BIND_KEYS`.
 
-    A new startup-time ``ipc://`` bind must be added to the registry before
-    it can be bound through :func:`bind_tracked_ipc_socket`, so the Windows
-    fallback dialog cannot silently miss it.
+    A new startup-time ``ipc://`` bind must be added to the registry before it can be bound through
+    :func:`bind_tracked_ipc_socket`, so the Windows fallback dialog cannot silently miss it.
     """
     if key not in STARTUP_IPC_BIND_KEYS:
         raise RuntimeError(
@@ -54,9 +51,8 @@ def bind_tracked_ipc_socket(
 ) -> None:
     """Bind *socket* to the endpoint stored under *key*, guarded by the registry.
 
-    Resolves the endpoint from *config* internally rather than accepting a
-    pre-resolved string, so the registry-checked key and the bound key can
-    never drift apart.
+    Resolves the endpoint from *config* internally rather than accepting a pre-resolved string, so the registry-checked key and
+    the bound key can never drift apart.
     """
     assert_ipc_bind_key_registered(key)
     endpoint = config.get(key)

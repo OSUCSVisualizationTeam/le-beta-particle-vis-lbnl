@@ -1,7 +1,6 @@
 """Unit tests for StartupIPCBindRegistry.
 
-Uses ``MagicMock(spec=zmq.Socket)`` — no real sockets touched, so the tests
-run headless in CI.
+Uses ``MagicMock(spec=zmq.Socket)`` — no real sockets touched, so the tests run headless in CI.
 """
 
 from unittest.mock import MagicMock
@@ -31,11 +30,9 @@ class TestAssertIpcBindKeyRegistered:
 class TestIPCFallbackViewModelStaysInSync:
     """Named tripwire for the registry/ViewModel invariant.
 
-    ``IPCFallbackViewModel`` already asserts this at import time, but that
-    surfaces as a collateral ``AssertionError`` in whatever test happens to
-    import the module first. This test gives CI an unambiguous signal that
-    a new ``STARTUP_IPC_BIND_KEYS`` entry was added without a matching
-    ``IPCFallbackViewModel._ENDPOINT_LABELS`` row (or vice versa).
+    ``IPCFallbackViewModel`` already asserts this at import time, but that surfaces as a collateral ``AssertionError`` in
+    whatever test happens to import the module first. This test gives CI an unambiguous signal that a new
+    ``STARTUP_IPC_BIND_KEYS`` entry was added without a matching ``IPCFallbackViewModel._ENDPOINT_LABELS`` row (or vice versa).
     """
 
     def test_endpoint_labels_match_registry(self):
