@@ -116,6 +116,7 @@ class HistoricalView(QWidget):
             png_renderer=png,
             physics=physics,
             thumbnail_service=self.viewModel.thumbnail_service,
+            config=self.viewModel._config,
             png_render_workers=n_workers,
         )
         self._exportVM = HistoricalExportViewModel(
@@ -132,11 +133,6 @@ class HistoricalView(QWidget):
         self._exportVM.add_error_callback(self._exportErrorReceived.emit)
         self._exportVM.add_progress_callback(self._exportProgressReceived.emit)
         self._exportVM.add_cancelled_callback(self._exportCancelledReceived.emit)
-        self._exportVM.add_gating_changed_callback(self._onExportGatingChanged)
-        self._filterBarVM.add_filter_applied_callback(
-            lambda _: self._refreshSaveGating()
-        )
-        self._filterBarVM.add_filter_reset_callback(self._refreshSaveGating)
 
     def _buildSplitter(self) -> QSplitter:
         """Creates the horizontal splitter with grid and inspector."""
@@ -246,6 +242,9 @@ class HistoricalView(QWidget):
             lbl.setText(self.tr("1 event"))
         else:
             lbl.setText(self.tr("{count} events").format(count=count))
+        if self._exportVM is not None:
+            self._exportVM.set_result_count(count)
+            self._refreshSaveGating()
 
     @Slot()
     def _updateSelection(self) -> None:
@@ -390,9 +389,6 @@ class HistoricalView(QWidget):
         self._endProgress()
         self._pendingExportError = message
         self._showExportError()
-
-    def _onExportGatingChanged(self, enabled: bool, reason: str) -> None:
-        self._filterBar.setSaveEnabled(enabled, self.tr(reason) if reason else "")
 
     def _endProgress(self) -> None:
         if self._statusVM is not None and self._progressToken is not None:

@@ -471,6 +471,24 @@ class TestEPSClusterRecord:
         assert rec.total_energy == 0.0
         assert rec.classification == ""
         assert rec.data == []
+        assert rec.cnn_classification == 0.0
+        assert rec.nrg_classification == 0.0
+        assert rec.bdt_classification == 0.0
+
+    def test_from_eps_dict_reads_per_model_classification_scores(self):
+        raw = {"cnn_classification": 0.83, "nrg_classification": 0.42, "bdt_classification": 0.91}
+        rec = EPSClusterRecord.from_eps_dict(raw)
+        assert rec.cnn_classification == 0.83
+        assert rec.nrg_classification == 0.42
+        assert rec.bdt_classification == 0.91
+
+    def test_from_eps_dict_coerces_explicit_null_classification_scores_to_zero(self):
+        """JSON null (explicit key present, value None) must coerce to 0.0, not surface as None."""
+        raw = {"cnn_classification": None, "nrg_classification": None, "bdt_classification": None}
+        rec = EPSClusterRecord.from_eps_dict(raw)
+        assert rec.cnn_classification == 0.0
+        assert rec.nrg_classification == 0.0
+        assert rec.bdt_classification == 0.0
 
     def test_from_partial_dict(self):
         raw = {"fits_id": 99, "total_energy": 42.0}
@@ -540,10 +558,45 @@ class TestEPSClusterRecord:
             "sigmaX": 1.5,
             "sigmaY": 2.0,
             "classification": "tritium",
+            "cnn_classification": 0.0,
+            "nrg_classification": 0.0,
+            "bdt_classification": 0.0,
             "total_pixels": 20,
             "filename": "test.fits",
             "date": "2026-01-01",
         }
+
+    def test_from_db_row_reads_per_model_classification_scores(self):
+        """Regression test: real cnn/nrg/bdt scores must round-trip out of the DB row,
+        not be dropped in favor of only the aggregate classification string."""
+        row = {
+            "fitsFile": 1, "clusterID": 10, "hdu_id": 0,
+            "box_top": 1, "box_left": 2, "box_bottom": 3, "box_right": 4,
+            "data": None, "totalEnergy": 500.0, "sigmaX": 1.5, "sigmaY": 2.0,
+            "classification": "tritium", "pixelCount": 20, "filename": "test.fits",
+            "date": "2026-01-01",
+            "cnn_classification": 0.83, "nrg_classification": 0.42, "bdt_classification": 0.91,
+        }
+        rec = EPSClusterRecord.from_db_row(row)
+        assert rec.cnn_classification == 0.83
+        assert rec.nrg_classification == 0.42
+        assert rec.bdt_classification == 0.91
+
+    def test_from_db_row_coerces_null_classification_scores_to_zero(self):
+        """Nullable FLOAT columns (clusters classified before this feature existed) must
+        default to 0.0, not surface as None."""
+        row = {
+            "fitsFile": 1, "clusterID": 10, "hdu_id": 0,
+            "box_top": 1, "box_left": 2, "box_bottom": 3, "box_right": 4,
+            "data": None, "totalEnergy": 0.0, "sigmaX": 0.0, "sigmaY": 0.0,
+            "classification": "", "pixelCount": 0, "filename": "f.fits",
+            "date": "2026-01-01",
+            "cnn_classification": None, "nrg_classification": None, "bdt_classification": None,
+        }
+        rec = EPSClusterRecord.from_db_row(row)
+        assert rec.cnn_classification == 0.0
+        assert rec.nrg_classification == 0.0
+        assert rec.bdt_classification == 0.0
 
 
 # -------------------------------------------------------------------

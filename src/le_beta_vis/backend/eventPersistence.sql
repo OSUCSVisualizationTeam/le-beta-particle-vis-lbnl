@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS `clusters` (
   `nrg_classification` FLOAT,
   `pixelCount` INT NOT NULL,
   INDEX `fk_fits_files` (`fitsFile` ASC) VISIBLE,
+  INDEX `idx_total_energy` (`totalEnergy` ASC) VISIBLE,
+  INDEX `idx_sigma_x` (`sigmaX` ASC) VISIBLE,
+  INDEX `idx_sigma_y` (`sigmaY` ASC) VISIBLE,
+  INDEX `idx_pixel_count` (`pixelCount` ASC) VISIBLE,
+  INDEX `idx_classification` (`classification` ASC) VISIBLE,
   PRIMARY KEY (`clusterID`),
   CONSTRAINT `fits_files`
     FOREIGN KEY (`fitsFile`)
@@ -84,9 +89,9 @@ CREATE PROCEDURE insert_cluster(
     IN in_sigmaX FLOAT,
     IN in_sigmaY FLOAT,
     IN in_classification VARCHAR(255),
-    IN in_cnnclassification VARCHAR(255),
-    IN in_bdtclassification VARCHAR(255),
-    IN in_nrgclassification VARCHAR(255),
+    IN in_cnnclassification FLOAT,
+    IN in_bdtclassification FLOAT,
+    IN in_nrgclassification FLOAT,
     IN in_pixelCount INT,
     OUT out_clusterID INT
 )

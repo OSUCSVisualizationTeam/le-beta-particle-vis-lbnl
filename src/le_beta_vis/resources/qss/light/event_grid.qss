@@ -35,7 +35,12 @@ EventGridSectionHeaderWidget QToolButton {
 EventGridSectionHeaderWidget QToolButton:hover { background: #4a4a4a; }
 EventGridSectionHeaderWidget QToolButton:disabled { color: #555555; }
 
-/* ClusteredEventWidget — standalone list widget reused by both Historical
-   and Raw Data Analysis; grouped here with the grid/browse experience. */
+/* ClusteredEventWidget — standalone list widget used by Raw Data Analysis's
+   right sidebar (ClusterAnalysisView); grouped here with the grid/browse
+   experience. The entry rule is anchored to QFrame#rightSidebar so its
+   selector specificity (1 ID, 1 attribute) beats core.qss's
+   "QFrame#rightSidebar QWidget" catch-all (1 ID, 0 attribute) — otherwise
+   the catch-all wins regardless of file order and paints every row opaque,
+   hiding the QListWidget::item:selected highlight underneath. */
 ClusteredEventWidget QPushButton:disabled { color: #a0a0a0; }
-ClusteredEventWidget QWidget[class="entry"] { background: transparent; border: 0; }
+QFrame#rightSidebar ClusteredEventWidget QWidget[class="entry"] { background: transparent; border: 0; }

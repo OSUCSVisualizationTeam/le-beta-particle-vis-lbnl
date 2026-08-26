@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from le_beta_vis.common.ClassifierServiceFactory import create_classifier_service
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
 from le_beta_vis.common.EPSDataClasses import (
@@ -43,6 +44,11 @@ class RawDataView(QWidget):
             Tuple[Optional[int], Tuple[int, int, int, int]]
         ] = None
         self._pendingClusterRoiAdded: bool = False
+        # Built once and reused across every dialog open — the lbnl_tritium
+        # backend eagerly loads three trained models, so constructing a fresh
+        # instance per click (as this used to do for MockClassifierService)
+        # would reload them from disk every time the user classifies clusters.
+        self._classifierService = create_classifier_service(self.viewModel.config)
         self.initUI()
         self.bindViewModel()
 
@@ -50,6 +56,11 @@ class RawDataView(QWidget):
     def _cavm(self):
         """Shorthand accessor for the ClusterAnalysisViewModel sub-VM."""
         return self.viewModel.clusterAnalysisViewModel
+
+    @property
+    def classifierService(self):
+        """The ClassifierService instance used for cluster classification requests."""
+        return self._classifierService
 
     def initUI(self):
         """Initializes the UI components and layout."""
@@ -250,9 +261,6 @@ class RawDataView(QWidget):
         return clusters
 
     def _onClassifyRequested(self, clusters: List[ClusteredEventInfo]) -> None:
-        # TODO(#XXX): Replace MockClassifierService with the production
-        # ZMQBasedClassifierServer once it is wired through ServicesManager.
-        from le_beta_vis.common import MockClassifierService
         from ...viewmodels.RawClusterClassificationViewModel import (
             RawClusterClassificationViewModel,
         )
@@ -260,7 +268,7 @@ class RawDataView(QWidget):
 
         vm = RawClusterClassificationViewModel(
             clusters=clusters,
-            service=MockClassifierService(),
+            service=self._classifierService,
             physics=self.viewModel.physics_manager,
         )
         dialog = _RawClusterClassificationDialog(vm, parent=self.window())

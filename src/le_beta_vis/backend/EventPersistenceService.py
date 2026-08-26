@@ -436,9 +436,9 @@ class EventPersistence:
                 cluster.sigma_x,
                 cluster.sigma_y,
                 cluster.classification,
-                None,  # null values for per model classifications
-                None,
-                None,
+                cluster.cnn_classification,
+                cluster.bdt_classification,
+                cluster.nrg_classification,
                 cluster.total_pixels,
                 None,
             )
@@ -583,7 +583,7 @@ class EventPersistence:
             if len(select_args) > 0:
                 select_query += " WHERE " + " AND ".join(select_args)
 
-            select_query += " LIMIT 2000"
+            select_query += " ORDER BY clusters.clusterID LIMIT 2000"
 
             cursor.execute(select_query, tuple(select_argv))
             # saving results into a list of tuples
@@ -748,6 +748,9 @@ class EventPersistence:
                     "sigmaX": result["sigmaX"],
                     "sigmaY": result["sigmaY"],
                     "classification": result["classification"],
+                    "cnn_classification": result.get("cnn_classification") or 0.0,
+                    "nrg_classification": result.get("nrg_classification") or 0.0,
+                    "bdt_classification": result.get("bdt_classification") or 0.0,
                     "total_pixels": result["pixelCount"],
                     "filename": result["filename"],
                     "date": str(result["date"]),
