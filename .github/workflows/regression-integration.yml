@@ -1,0 +1,61 @@
+name: Regression Integration Tests
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 9 * * 1"   # Mondays only, 09:00 UTC, off-hours
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: lbnlfits
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Load EPS schema into MySQL
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root --password=root lbnlfits < src/le_beta_vis/backend/eventPersistence.sql
+
+      - name: Install project dependencies
+        run: uv sync --extra dev
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgl1 libegl1
+
+      - name: Run regression/integration tests
+        env:
+          LBNLVIS_LIVE_TESTS: "1"
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          uv run pytest tests/test_live_eps_mysql_roundtrip.py -v
