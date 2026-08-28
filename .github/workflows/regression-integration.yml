@@ -9,6 +9,10 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   regression:
     runs-on: ubuntu-latest
@@ -59,3 +63,46 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           uv run pytest tests/test_live_eps_mysql_roundtrip.py -v
+
+      - name: Ensure regression-failure label exists
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create regression-failure \
+            --repo "${{ github.repository }}" \
+            --color "B60205" \
+            --description "Automated regression/integration test failure" \
+            --force
+
+      - name: Check for an existing open regression-failure issue
+        id: check_existing_issue
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OPEN_COUNT=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --label regression-failure \
+            --state open \
+            --json number \
+            --jq 'length')
+          echo "open_count=${OPEN_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: File GitHub issue for scheduled regression failure
+        if: failure() && github.event_name == 'schedule' && steps.check_existing_issue.outputs.open_count == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Regression Integration Tests failed - $(date -u +'%Y-%m-%d')" \
+            --body "The scheduled Monday regression/integration run failed.
+
+          Workflow run: ${RUN_URL}
+          Commit: ${{ github.sha }}
+
+          See the run logs for failure details." \
+            --label regression-failure \
+            --project "Visualization Team Sprint Planning"
