@@ -1,8 +1,9 @@
 """Unit tests for RawClusterLabelingViewModel (no QApplication required)."""
 
+import json
 import threading
 from typing import List, Optional
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -231,6 +232,37 @@ def test_build_request_data_field_is_none():
         cluster, hdu_id=0, fits_id=1, label=ParticleType.TRITIUM
     )
     assert req.data is None
+
+
+def test_build_request_converts_numpy_fields_to_json_serializable_natives():
+    """Real extractors (e.g. LBNLClassicalClusterExtractor) hand off numpy-typed sigmaX/sigmaY/energy/pixelCount and bounding-
+    box corners -- _build_request's int()/float() casts are the actual fix for the numpy-TypeError bug class (issue #196).
+
+    Pin that the casts hold for numpy input, not just native input.
+    """
+    cluster = ClusteredEventInfo(
+        boundingBox=BoundingBox(
+            top=np.int64(5), left=np.int64(10),
+            bottom=np.int64(10), right=np.int64(15),
+        ),
+        data=np.ones((5, 5), dtype=float),
+        centerX=np.int64(12), centerY=np.int64(7),
+        sigmaX=np.float64(1.8), sigmaY=np.float64(1.4),
+        energy=np.float64(3000.0), pixelCount=np.int64(30),
+    )
+
+    req = RawClusterLabelingViewModel._build_request(
+        cluster, hdu_id=2, fits_id=7, label=ParticleType.TRITIUM
+    )
+    d = req.to_eps_dict()
+    json.dumps(d)
+
+    assert isinstance(d["sigmaX"], float) and not isinstance(d["sigmaX"], np.floating)
+    assert isinstance(d["sigmaY"], float) and not isinstance(d["sigmaY"], np.floating)
+    assert isinstance(d["total_energy"], float) and not isinstance(d["total_energy"], np.floating)
+    assert isinstance(d["total_pixels"], int) and not isinstance(d["total_pixels"], np.integer)
+    for val in d["bounding_box"].values():
+        assert isinstance(val, int) and not isinstance(val, np.integer)
 
 
 def test_has_any_label_false_when_all_unclassified():
