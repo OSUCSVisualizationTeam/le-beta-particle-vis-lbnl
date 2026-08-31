@@ -31,7 +31,7 @@ from .EPSDataClasses import (
     BulkInsertClustersResponse,
 )
 from .ClusterProvider import ClusterBatch, ClusterProvider, NoOpClusterProvider
-from .EventRepository import EventRepository
+from .EventRepository import EventRepository, fetch_all_hdu_clusters_sync
 from .MockEventRepository import MockEventRepository
 from .NoOpEventRepository import NoOpEventRepository
 from .ZMQBasedEventRepository import ZMQBasedEventRepository

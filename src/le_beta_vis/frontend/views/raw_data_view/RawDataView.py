@@ -18,11 +18,10 @@ from le_beta_vis.common.ClassifierServiceFactory import create_classifier_servic
 from le_beta_vis.common.Cluster import Cluster
 from le_beta_vis.common.ClusterExtractor import ClusteredEventInfo
 from le_beta_vis.common.EPSDataClasses import (
-    ClusterQueryFilter,
     FitsQueryFilter,
     FitsStoreRequest,
 )
-from le_beta_vis.common.EventRepository import EventRepository
+from le_beta_vis.common.EventRepository import EventRepository, fetch_all_hdu_clusters_sync
 from ...viewmodels.ClusterAnalysisViewModel import ClusteringState
 from ...viewmodels.RawDataViewModel import RawDataViewModel
 from ..MosaicView import MosaicView
@@ -118,8 +117,7 @@ class RawDataView(QWidget):
         self.updateMosaicVisibility()
 
     def _bindRangeAndFocusCallbacks(self) -> None:
-        """Register a single image-changed handler for rangeControl and
-        any pending cluster-focus pan."""
+        """Register a single image-changed handler for rangeControl and any pending cluster-focus pan."""
         self._leftToolbar.rangeControl.setValues(*self.viewModel.visualizationRange)
         self._leftToolbar.rangeControl.setColormap(self.viewModel.colormap)
 
@@ -218,11 +216,9 @@ class RawDataView(QWidget):
     def _onAnnotationFitsLookup(self, fits_path: str) -> Optional[int]:
         """Resolves a FITS path to its EPS fits_id, or None if not ingested.
 
-        Matches on the full path, not the basename: the ingestion pipeline
-        (``PollingThread``/``process_file``) registers each FITS file under
-        the exact path the filesystem watcher observed it at
-        (``pipeline:ingress:polling_location`` + filename), and EPS matches
-        ``fileName`` with SQL equality, not a LIKE/substring query.
+        Matches on the full path, not the basename: the ingestion pipeline (``PollingThread``/``process_file``) registers each
+        FITS file under the exact path the filesystem watcher observed it at (``pipeline:ingress:polling_location`` +
+        filename), and EPS matches ``fileName`` with SQL equality, not a LIKE/substring query.
         """
         records = self._repository.query_fits_sync(
             FitsQueryFilter(filename=fits_path)
@@ -234,7 +230,14 @@ class RawDataView(QWidget):
     def _onAnnotationClusterFetch(
         self, fits_id: int, hdu_id: int
     ) -> List[Cluster]:
-        """Fetches clusters for a FITS/HDU and hydrates their pixel data.
+        """Fetches every cluster for a FITS/HDU and hydrates their pixel data.
+
+        Pages through the full stored result set via
+        ``fetch_all_hdu_clusters_sync`` rather than a single bounded
+        ``fetch_clusters_sync`` call — a HDU can hold more clusters than
+        ``eps:retrieval_limit_default``, and a single unpaged fetch used to
+        silently truncate the displayed annotations to whatever was inserted
+        first (issue #241).
 
         Slices pixel data from the already-loaded raw HDU array rather than
         re-reading the FITS file from disk, since Raw Data Analysis already
@@ -247,8 +250,11 @@ class RawDataView(QWidget):
         ``ClusterLocationMapWidget._draw_bbox``), so the row span is
         normalized with min/max rather than assumed ordered.
         """
-        clusters = self._repository.fetch_clusters_sync(
-            ClusterQueryFilter(fits_id=fits_id, hdu_id=hdu_id)
+        page_limit = self.viewModel.config.get_int(
+            "eps:retrieval_limit_max", 2000, minimum=1
+        )
+        clusters = fetch_all_hdu_clusters_sync(
+            self._repository, fits_id=fits_id, hdu_id=hdu_id, page_limit=page_limit
         )
         raw = self.viewModel.activeRawData
         if raw is None:
@@ -308,9 +314,8 @@ class RawDataView(QWidget):
     def _consumePendingClusterFocus(self) -> None:
         """Adds the ROI and pans the captureView to its center.
 
-        Invoked via image-changed callback after ``openClusterForAnalysis``
-        sets ``_pendingClusterFocus``. Latched via ``_pendingClusterRoiAdded``
-        so multiple renders (auto-HDU-0 + explicit-HDU) only add the ROI once.
+        Invoked via image-changed callback after ``openClusterForAnalysis`` sets ``_pendingClusterFocus``. Latched via
+        ``_pendingClusterRoiAdded`` so multiple renders (auto-HDU-0 + explicit-HDU) only add the ROI once.
         """
         if self._pendingClusterFocus is None:
             return
