@@ -2,6 +2,7 @@
 
 Verifies that all methods return safe defaults and emit warnings.
 """
+
 import logging
 
 from le_beta_vis.common.NoOpEventRepository import NoOpEventRepository
@@ -50,7 +51,7 @@ def test_fetch_clusters_returns_empty(caplog):
 def test_fetch_clusters_sync_returns_empty(caplog):
     repo = _make_repo()
     with caplog.at_level(logging.WARNING):
-        result = repo.fetch_clusters_sync()
+        result = repo.fetch_clusters_sync(limit=10, offset=0)
     assert result == []
     assert "fetch_clusters_sync" in caplog.text
 
