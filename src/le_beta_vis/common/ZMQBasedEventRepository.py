@@ -7,19 +7,15 @@ is down — they return empty/default values and log warnings.
 
 import json
 import logging
-import math
 import warnings
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 import threading
 
-import numpy as np
 import zmq
 
 from .BoundingBox import BoundingBox
 from .Cluster import Cluster
 from .ConfigurationService import ConfigurationService
-from .CCDCaptureModel import CCDCaptureModel
 from .EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterPagedQueryFilter,
@@ -72,6 +68,7 @@ class ZMQBasedEventRepository(EventRepository):
                    on_error: Callable
                    ) -> None:
         """Helper method to run Event Repository retrieval functions asynchronously."""
+
         def async_wrapper():
             try:
                 result = function()

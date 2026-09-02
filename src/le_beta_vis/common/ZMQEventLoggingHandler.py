@@ -156,7 +156,7 @@ def attach_to_root_logger(
     """
     # Import here to avoid a circular dependency at module load time:
     # ZMQEventHandlerClient → zmq → (potentially) logging.
-    from .ZMQEventHandlerClient import ZMQEventHandlerClient, DEFAULT_EVENT_PUB_ENDPOINT
+    from .ZMQEventHandlerClient import ZMQEventHandlerClient
 
     client = ZMQEventHandlerClient(
         endpoint=endpoint,
