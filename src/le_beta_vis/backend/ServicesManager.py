@@ -1,10 +1,7 @@
-import sys
-import os
 import logging
 
 from .EPSRunner import EPSRunner
 from .PollingRunner import PollingRunner
-from .EventPersistenceService import EventPersistence
 from .InitializePolling import PollingThread
 
 logger = logging.getLogger(__name__)
