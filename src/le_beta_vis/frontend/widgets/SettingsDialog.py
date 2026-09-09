@@ -166,74 +166,87 @@ class SettingsDialog(QDialog):
     ) -> QWidget:
         """Return a type-dispatched input widget for *key*."""
         if type_str == "bool":
-            cb = QCheckBox()
-            cb.setChecked(bool(value))
-            cb.toggled.connect(
-                lambda checked, k=key: self._vm.set_pending(k, checked),
-            )
-            return cb
-
+            return self._createBoolWidget(key, value)
         if type_str == "enum":
-            combo = QComboBox()
-            if choices:
-                combo.addItems([str(c) for c in choices])
-            if value is not None:
-                combo.setCurrentText(str(value))
-            combo.currentTextChanged.connect(
-                lambda text, k=key: self._vm.set_pending(k, text),
-            )
-            return combo
-
+            return self._createEnumWidget(key, value, choices)
         if type_str == "int":
-            spin = QSpinBox()
-            spin.setRange(-999999, 999999)
-            spin.setValue(int(value) if value is not None else 0)
-            spin.valueChanged.connect(
-                lambda v, k=key: self._vm.set_pending(k, v),
-            )
-            return spin
-
+            return self._createIntWidget(key, value)
         if type_str == "float":
-            spin = QDoubleSpinBox()
-            spin.setRange(-999999.0, 999999.0)
-            spin.setDecimals(4)
-            spin.setValue(float(value) if value is not None else 0.0)
-            spin.valueChanged.connect(
-                lambda v, k=key: self._vm.set_pending(k, v),
-            )
-            return spin
-
+            return self._createFloatWidget(key, value)
         if type_str in ("directory_path", "file_path"):
-            container = QWidget()
-            layout = QHBoxLayout(container)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(4)
+            return self._createPathWidget(key, value, type_str)
+        return self._createStringWidget(key, value)
 
-            edit = QLineEdit()
-            edit.setText(str(value) if value is not None else "")
-            edit.textChanged.connect(
-                lambda text, k=key: self._vm.set_pending(k, text),
-            )
-            layout.addWidget(edit, stretch=1)
+    def _createBoolWidget(self, key: str, value) -> QCheckBox:
+        cb = QCheckBox()
+        cb.setChecked(bool(value))
+        cb.toggled.connect(
+            lambda checked, k=key: self._vm.set_pending(k, checked),
+        )
+        return cb
 
-            browseBtn = QPushButton(self.tr("Browse..."))
-            browseBtn.setObjectName("settingsBrowseButton")
-            browseBtn.setProperty("styleRole", "secondary")
+    def _createEnumWidget(self, key: str, value, choices: list = None) -> QComboBox:
+        combo = QComboBox()
+        if choices:
+            combo.addItems([str(c) for c in choices])
+        if value is not None:
+            combo.setCurrentText(str(value))
+        combo.currentTextChanged.connect(
+            lambda text, k=key: self._vm.set_pending(k, text),
+        )
+        return combo
 
-            def browse(checked=False, edit_widget=edit, t=type_str):
-                current_path = edit_widget.text()
-                if t == "directory_path":
-                    path = QFileDialog.getExistingDirectory(self, self.tr("Select Directory"), current_path)
-                else:
-                    path, _ = QFileDialog.getOpenFileName(self, self.tr("Select File"), current_path)
-                if path:
-                    edit_widget.setText(path)
+    def _createIntWidget(self, key: str, value) -> QSpinBox:
+        spin = QSpinBox()
+        spin.setRange(-999999, 999999)
+        spin.setValue(int(value) if value is not None else 0)
+        spin.valueChanged.connect(
+            lambda v, k=key: self._vm.set_pending(k, v),
+        )
+        return spin
 
-            browseBtn.clicked.connect(browse)
-            layout.addWidget(browseBtn)
-            return container
+    def _createFloatWidget(self, key: str, value) -> QDoubleSpinBox:
+        spin = QDoubleSpinBox()
+        spin.setRange(-999999.0, 999999.0)
+        spin.setDecimals(4)
+        spin.setValue(float(value) if value is not None else 0.0)
+        spin.valueChanged.connect(
+            lambda v, k=key: self._vm.set_pending(k, v),
+        )
+        return spin
 
-        # Default: str
+    def _createPathWidget(self, key: str, value, type_str: str) -> QWidget:
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        edit = QLineEdit()
+        edit.setText(str(value) if value is not None else "")
+        edit.textChanged.connect(
+            lambda text, k=key: self._vm.set_pending(k, text),
+        )
+        layout.addWidget(edit, stretch=1)
+
+        browseBtn = QPushButton(self.tr("Browse..."))
+        browseBtn.setObjectName("settingsBrowseButton")
+        browseBtn.setProperty("styleRole", "secondary")
+        browseBtn.clicked.connect(
+            lambda checked=False, edit_widget=edit, t=type_str: self._browsePath(edit_widget, t),
+        )
+        layout.addWidget(browseBtn)
+        return container
+
+    def _browsePath(self, edit_widget: QLineEdit, type_str: str) -> None:
+        current_path = edit_widget.text()
+        if type_str == "directory_path":
+            path = QFileDialog.getExistingDirectory(self, self.tr("Select Directory"), current_path)
+        else:
+            path, _ = QFileDialog.getOpenFileName(self, self.tr("Select File"), current_path)
+        if path:
+            edit_widget.setText(path)
+
+    def _createStringWidget(self, key: str, value) -> QLineEdit:
         edit = QLineEdit()
         edit.setText(str(value) if value is not None else "")
         if "password" in key.lower():

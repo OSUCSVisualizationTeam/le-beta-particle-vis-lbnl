@@ -27,7 +27,7 @@ from le_beta_vis.backend.BulkClusterInsert import (
 import zmq
 import logging
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,89 @@ def _parse_date_filter(
     if start_dt > end_dt:
         raise ValueError("date filter 'start' must be <= 'end'")
     return start_dt, end_dt
+
+
+# Simple equality/threshold filters for the fits table: (attribute, SQL clause).
+_FITS_FILTER_CLAUSES: List[Tuple[str, str]] = [
+    ("filename", "fileName = %s"),
+    ("fits_id", "fitsID = %s"),
+    ("minimum", "min = %s"),
+    ("maximum", "max = %s"),
+    ("exposure_time", "exposureTime = %s"),
+]
+
+
+def _build_fits_filter_clauses(fits: FitsQueryFilter) -> Tuple[List[str], List[Any]]:
+    """Builds the WHERE-clause fragments and bind values for a fits-table filter."""
+    select_args: List[str] = []
+    select_argv: List[Any] = []
+
+    for attr, clause in _FITS_FILTER_CLAUSES:
+        value = getattr(fits, attr)
+        if value:
+            select_args.append(clause)
+            select_argv.append(value)
+
+    date_start = str(fits.date_start) if fits.date_start else None
+    date_end = str(fits.date_end) if fits.date_start else None
+    date_range = _parse_date_filter({"start": date_start, "end": date_end})
+    if date_range is not None:
+        select_args.append("date BETWEEN %s AND %s")
+        select_argv.extend(date_range)
+
+    return select_args, select_argv
+
+
+# Simple equality/threshold filters for the clusters table: (attribute, SQL clause).
+_CLUSTER_FILTER_CLAUSES: List[Tuple[str, str]] = [
+    ("hdu_id", "hdu_id = %s"),
+    ("fits_id", "fitsFile = %s"),
+    ("cluster_id", "clusterId = %s"),
+    ("min_sigma_x", "sigmaX >= %s"),
+    ("min_sigma_y", "sigmaY >= %s"),
+    ("min_total_energy", "totalEnergy >= %s"),
+    ("min_total_pixels", "pixelCount >= %s"),
+    ("classification", "classification = %s"),
+]
+
+
+def _build_cluster_filter_clauses(clusters: ClusterQueryFilter) -> Tuple[List[str], List[Any]]:
+    """Builds the WHERE-clause fragments and bind values for a clusters-table filter."""
+    select_args: List[str] = []
+    select_argv: List[Any] = []
+
+    for attr, clause in _CLUSTER_FILTER_CLAUSES:
+        value = getattr(clusters, attr)
+        if value:
+            select_args.append(clause)
+            select_argv.append(value)
+
+    if clusters.bounding_box:
+        select_args.extend(
+            ["box_top = %s", "box_left = %s", "box_bottom = %s", "box_right = %s"]
+        )
+        select_argv.extend(
+            [
+                clusters.bounding_box["top"],
+                clusters.bounding_box["left"],
+                clusters.bounding_box["bottom"],
+                clusters.bounding_box["right"],
+            ]
+        )
+
+    if clusters.fits_list:
+        placeholder = ", ".join(["%s"] * len(clusters.fits_list))
+        select_args.append(f"fitsFile in ({placeholder})")
+        select_argv.extend(clusters.fits_list)
+
+    date_start = str(clusters.date_start) if clusters.date_start else None
+    date_end = str(clusters.date_end) if clusters.date_end else None
+    date_range = _parse_date_filter({"start": date_start, "end": date_end})
+    if date_range is not None:
+        select_args.append("fits_files.date BETWEEN %s AND %s")
+        select_argv.extend(date_range)
+
+    return select_args, select_argv
 
 
 class FailedProcException(Exception):
@@ -120,7 +203,9 @@ class EventPersistence:
     ) -> Tuple[Optional[float], float]:
         """Re-publishes status on the broadcast cadence, mitigating the ZMQ
         pub/sub "slow joiner" race for a subscriber that connects after the
-        first publish. Returns the updated ``(broadcast_deadline,
+        first publish.
+
+        Returns the updated ``(broadcast_deadline,
         next_broadcast_at)``; ``broadcast_deadline`` becomes ``None`` once
         the broadcast window elapses, after which this is a no-op.
         """
@@ -139,10 +224,54 @@ class EventPersistence:
     def initialize_server(self):
         """Initialize the zmq server endpoint socket to listen for requests."""
         context_manager = zmq.Context()
+        fits_socket, cluster_socket, command_socket, socket_poller = (
+            self._bind_eps_sockets(context_manager)
+        )
+
+        EPS_is_active = True
+        broadcast_deadline, broadcast_interval_s, next_broadcast_at = (
+            self._publish_initial_status()
+        )
+
+        try:
+            while True:
+                try:
+                    # timeout can be adjusted for performance
+                    sockets = dict(socket_poller.poll(timeout=100))
+
+                    broadcast_deadline, next_broadcast_at = self._maybe_rebroadcast_status(
+                        broadcast_deadline, next_broadcast_at, broadcast_interval_s
+                    )
+
+                    if cluster_socket in sockets:
+                        self._service_data_socket(cluster_socket, self.cluster_event, EPS_is_active)
+
+                    if fits_socket in sockets:
+                        self._service_data_socket(fits_socket, self.fits_event, EPS_is_active)
+
+                    if command_socket in sockets:
+                        EPS_is_active, should_stop = self._handle_eps_command(
+                            command_socket, EPS_is_active
+                        )
+                        if should_stop:
+                            break
+                except zmq.ZMQError as err:
+                    print(f"ERROR: {str(err)}")
+        finally:
+            cluster_socket.close()
+            fits_socket.close()
+            command_socket.close()
+            context_manager.term()
+
+    def _bind_eps_sockets(self, context_manager: "zmq.Context"):
+        """Creates and binds the fits/cluster/command REP sockets and registers a poller.
+
+        Closes any socket already created and terminates the context before re-raising, so a
+        bind failure never leaks a partially-set-up socket or context.
+        """
         fits_socket = None
         cluster_socket = None
         command_socket = None
-
         try:
             fits_socket = context_manager.socket(zmq.REP)
             bind_tracked_ipc_socket(fits_socket, self.config, "eps:fits_ipc")
@@ -155,59 +284,55 @@ class EventPersistence:
             socket_poller.register(fits_socket, zmq.POLLIN)
             socket_poller.register(cluster_socket, zmq.POLLIN)
             socket_poller.register(command_socket, zmq.POLLIN)
-
-            EPS_is_active = True
-
-            broadcast_deadline, broadcast_interval_s, next_broadcast_at = (
-                self._publish_initial_status()
-            )
-
-            while True:
-                try:
-                    # timeout can be adjusted for performance
-                    sockets = dict(socket_poller.poll(timeout=100))
-
-                    broadcast_deadline, next_broadcast_at = self._maybe_rebroadcast_status(
-                        broadcast_deadline, next_broadcast_at, broadcast_interval_s
-                    )
-
-                    if cluster_socket in sockets:
-                        request = cluster_socket.recv_json()
-                        if not EPS_is_active:
-                            cluster_socket.send_json({"Error": "Server is stopped."})
-                        else:
-                            self.cluster_event(request, cluster_socket)
-
-                    if fits_socket in sockets:
-                        request = fits_socket.recv_json()
-                        if not EPS_is_active:
-                            fits_socket.send_json({"Error": "Server is stopped."})
-                        else:
-                            self.fits_event(request, fits_socket)
-
-                    if command_socket in sockets:
-                        request = command_socket.recv_json()
-                        if request.get("Command") == "Kill":
-                            command_socket.send_json({"Action": "Killed"})
-                            break
-                        elif request.get("Command") == "Stop":
-                            EPS_is_active = False
-                            command_socket.send_json({"Action": "Server stopped"})
-                        elif request.get("Command") == "Start" and not EPS_is_active:
-                            EPS_is_active = True
-                            command_socket.send_json({"Action": "Server started"})
-                        else:
-                            command_socket.send_json({"Error": "Invalid request"})
-                except zmq.ZMQError as err:
-                    print(f"ERROR: {str(err)}")
-        finally:
-            if cluster_socket:
-                cluster_socket.close()
+            return fits_socket, cluster_socket, command_socket, socket_poller
+        except Exception:
             if fits_socket:
                 fits_socket.close()
+            if cluster_socket:
+                cluster_socket.close()
             if command_socket:
                 command_socket.close()
             context_manager.term()
+            raise
+
+    def _service_data_socket(
+        self,
+        socket: "zmq.Socket",
+        handler: Callable[[dict, "zmq.Socket"], None],
+        EPS_is_active: bool,
+    ) -> None:
+        """Handles one pending request on a data (cluster/fits) socket.
+
+        Replies with a "stopped" error when the server is paused; otherwise dispatches to
+        ``handler(request, socket)``.
+        """
+        request = socket.recv_json()
+        if not EPS_is_active:
+            socket.send_json({"Error": "Server is stopped."})
+        else:
+            handler(request, socket)
+
+    def _handle_eps_command(
+        self, command_socket: "zmq.Socket", EPS_is_active: bool
+    ) -> Tuple[bool, bool]:
+        """Handles one pending request on the command socket.
+
+        Returns the (possibly updated) ``EPS_is_active`` flag and whether the server loop
+        should stop.
+        """
+        request = command_socket.recv_json()
+        if request.get("Command") == "Kill":
+            command_socket.send_json({"Action": "Killed"})
+            return EPS_is_active, True
+        elif request.get("Command") == "Stop":
+            command_socket.send_json({"Action": "Server stopped"})
+            return False, False
+        elif request.get("Command") == "Start" and not EPS_is_active:
+            command_socket.send_json({"Action": "Server started"})
+            return True, False
+        else:
+            command_socket.send_json({"Error": "Invalid request"})
+            return EPS_is_active, False
 
     def db_connect(self):
         """Opens a connection to the database with the values from the configuration.
@@ -336,52 +461,62 @@ class EventPersistence:
             socket.send_json({"result": "failure", "clusters": None, "error": str(err)})
 
     def fits_event(self, request: dict, socket: zmq.Socket):
-        """Processes a requested cluster event and calls storage or retrieval of cluster."""
+        """Processes a requested fits event and calls storage or retrieval of fits."""
         logger.info("Fits request received by EPS.")
-        if request.get("Action") == "Storage":
-            # Reassemble JSON as dict for storage in object
-            try:
-                fits = FitsStoreRequest.from_eps_dict(request)
-                response = self.store_fits(fits)
-                if response:
-                    socket.send_json({"result": "success", "fits_id": response})
-                else:
-                    raise FailedProcException
-            except FailedProcException as err:
-                socket.send_json(
-                    {"result": "failure", "fits_id": None, "error": str(err)}
-                )
+        action = request.get("Action")
+        if action == "Storage":
+            self._handle_fits_storage(request, socket)
+        elif action == "Retrieval":
+            self._handle_fits_retrieval(request, socket)
+        elif action == "Clusters":
+            self._handle_fits_clusters(request, socket)
 
-        elif request.get("Action") == "Retrieval":
-            try:
-                retrieval_fits = FitsQueryFilter.from_eps_dict(request)
-                response = self.retrieve_fits(retrieval_fits)
-                socket.send_json(response)
-            except Exception as err:
-                socket.send_json({"result": "failure", "fits": None, "error": str(err)})
+    def _handle_fits_storage(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, persists, and responds to a single-fits Storage action."""
+        try:
+            fits = FitsStoreRequest.from_eps_dict(request)
+            response = self.store_fits(fits)
+            if response:
+                socket.send_json({"result": "success", "fits_id": response})
+            else:
+                raise FailedProcException
+        except FailedProcException as err:
+            socket.send_json(
+                {"result": "failure", "fits_id": None, "error": str(err)}
+            )
 
-        elif request.get("Action") == "Clusters":
-            try:
-                retrieval_fits = FitsQueryFilter.from_eps_dict(request)
-                fits_ids = self.retrieve_fits(retrieval_fits)
-                cluster_retrieval_ids = []
-                for key in fits_ids["fits"]:
-                    cluster_retrieval_ids.append(key["fits_id"])
+    def _handle_fits_retrieval(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses, queries, and responds to a fits Retrieval action."""
+        try:
+            retrieval_fits = FitsQueryFilter.from_eps_dict(request)
+            response = self.retrieve_fits(retrieval_fits)
+            socket.send_json(response)
+        except Exception as err:
+            socket.send_json({"result": "failure", "fits": None, "error": str(err)})
 
-                # Format cluster retrieval request to only contain fits_ids that we want to view
-                retrieval_cluster_dict = {
-                    "fits_list": cluster_retrieval_ids,
-                }
+    def _handle_fits_clusters(self, request: dict, socket: zmq.Socket) -> None:
+        """Parses a fits filter, retrieves matching fits, then retrieves their clusters."""
+        try:
+            retrieval_fits = FitsQueryFilter.from_eps_dict(request)
+            fits_ids = self.retrieve_fits(retrieval_fits)
+            cluster_retrieval_ids = []
+            for key in fits_ids["fits"]:
+                cluster_retrieval_ids.append(key["fits_id"])
 
-                retrieval_clusters = ClusterQueryFilter.from_eps_dict(
-                    retrieval_cluster_dict
-                )
-                response = self.retrieve_clusters(retrieval_clusters)
-                socket.send_json(response)
-            except Exception as err:
-                socket.send_json(
-                    {"result": "failure", "clusters": None, "error": str(err)}
-                )
+            # Format cluster retrieval request to only contain fits_ids that we want to view
+            retrieval_cluster_dict = {
+                "fits_list": cluster_retrieval_ids,
+            }
+
+            retrieval_clusters = ClusterQueryFilter.from_eps_dict(
+                retrieval_cluster_dict
+            )
+            response = self.retrieve_clusters(retrieval_clusters)
+            socket.send_json(response)
+        except Exception as err:
+            socket.send_json(
+                {"result": "failure", "clusters": None, "error": str(err)}
+            )
 
     def store_fits(self, fits: FitsStoreRequest) -> int:
         """Uses the persistent EPS DB connection to call the stored procedure insert_fits on the
@@ -464,35 +599,8 @@ class EventPersistence:
                 self.conn = self.db_connect()
             cursor = self.conn.cursor(dictionary=True)
 
-            filename = fits.filename
-            fits_id = fits.fits_id
-            date_start = str(fits.date_start) if fits.date_start else None
-            date_end = str(fits.date_end) if fits.date_start else None
-            date_range = _parse_date_filter({"start": date_start, "end": date_end})
-            minimum = fits.minimum
-            maximum = fits.maximum
-            exposure_time = fits.exposure_time
             select_query = "SELECT * FROM fits_files"
-            select_args = []
-            select_argv = []
-            if filename:
-                select_args.append("fileName = %s")
-                select_argv.append(filename)
-            if fits_id:
-                select_args.append("fitsID = %s")
-                select_argv.append(fits_id)
-            if date_range is not None:
-                select_args.append("date BETWEEN %s AND %s")
-                select_argv.extend(date_range)
-            if minimum:
-                select_args.append("min = %s")
-                select_argv.append(minimum)
-            if maximum:
-                select_args.append("max = %s")
-                select_argv.append(maximum)
-            if exposure_time:
-                select_args.append("exposureTime = %s")
-                select_argv.append(exposure_time)
+            select_args, select_argv = _build_fits_filter_clauses(fits)
 
             if len(select_args) > 0:
                 select_query += " WHERE " + " AND ".join(select_args)
@@ -514,71 +622,13 @@ class EventPersistence:
             if not self.conn:
                 self.conn = self.db_connect()
             cursor = self.conn.cursor(dictionary=True)
-            hdu = clusters.hdu_id
-            cluster_id = clusters.cluster_id
-            date_start = str(clusters.date_start) if clusters.date_start else None
-            date_end = str(clusters.date_end) if clusters.date_end else None
-            date_range = _parse_date_filter({"start": date_start, "end": date_end})
-            bounding_box = clusters.bounding_box
-            fits_id = clusters.fits_id
-            fits_list = clusters.fits_list
-            sigmaX = clusters.min_sigma_x
-            sigmaY = clusters.min_sigma_y
-            total_energy = clusters.min_total_energy
-            total_pixels = clusters.min_total_pixels
-            classification = clusters.classification
 
-            select_query = "SELECT clusters.*, fits_files.filename, fits_files.date FROM clusters INNER JOIN fits_files ON clusters.fitsFile = fits_files.fitsID"
-            select_args = []
-            select_argv = []
-            if hdu:
-                select_args.append("hdu_id = %s")
-                select_argv.append(hdu)
-            if bounding_box:
-                select_args.extend(
-                    [
-                        "box_top = %s",
-                        "box_left = %s",
-                        "box_bottom = %s",
-                        "box_right = %s",
-                    ]
-                )
-                select_argv.extend(
-                    [
-                        bounding_box["top"],
-                        bounding_box["left"],
-                        bounding_box["bottom"],
-                        bounding_box["right"],
-                    ]
-                )
-            if date_range is not None:
-                select_args.append("fits_files.date BETWEEN %s AND %s")
-                select_argv.extend(date_range)
-            if fits_id:
-                select_args.append("fitsFile = %s")
-                select_argv.append(fits_id)
-            if fits_list:
-                placeholder = ", ".join(["%s"] * len(fits_list))
-                select_args.append(f"fitsFile in ({placeholder})")
-                select_argv.extend(fits_list)
-            if cluster_id:
-                select_args.append("clusterId = %s")
-                select_argv.append(cluster_id)
-            if sigmaX:
-                select_args.append("sigmaX >= %s")
-                select_argv.append(sigmaX)
-            if sigmaY:
-                select_args.append("sigmaY >= %s")
-                select_argv.append(sigmaY)
-            if total_energy:
-                select_args.append("totalEnergy >= %s")
-                select_argv.append(total_energy)
-            if total_pixels:
-                select_args.append("pixelCount >= %s")
-                select_argv.append(total_pixels)
-            if classification:
-                select_args.append("classification = %s")
-                select_argv.append(classification)
+            select_query = (
+                "SELECT clusters.*, fits_files.filename, fits_files.date "
+                "FROM clusters INNER JOIN fits_files "
+                "ON clusters.fitsFile = fits_files.fitsID"
+            )
+            select_args, select_argv = _build_cluster_filter_clauses(clusters)
 
             if len(select_args) > 0:
                 select_query += " WHERE " + " AND ".join(select_args)

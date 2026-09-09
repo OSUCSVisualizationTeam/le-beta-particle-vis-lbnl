@@ -7,7 +7,7 @@ responses).
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional, Tuple
 
 _DATE_FILTER_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -39,6 +39,22 @@ def _validate_date_range(
         raise ValueError("date_start must be <= date_end")
 
 
+def _date_range_dict(
+    date_start: Optional[datetime],
+    date_end: Optional[datetime],
+) -> Optional[Dict[str, str]]:
+    """Builds the ``{"start": ..., "end": ...}`` payload shape for an EPS date-range filter.
+
+    Returns ``None`` unless both bounds are set — a date range is only meaningful as a pair.
+    """
+    if date_start is None or date_end is None:
+        return None
+    return {
+        "start": date_start.strftime(_DATE_FILTER_FORMAT),
+        "end": date_end.strftime(_DATE_FILTER_FORMAT),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Request DTOs
 # ---------------------------------------------------------------------------
@@ -65,37 +81,34 @@ class ClusterQueryFilter:
     min_total_pixels: Optional[int] = None
     classification: Optional[str] = None
 
+    # Scalar filter fields eligible for a straight (attribute -> EPS key) copy;
+    # `date_start`/`date_end` are handled separately since they combine into one key.
+    _EPS_DICT_FIELDS: ClassVar[List[Tuple[str, str]]] = [
+        ("cluster_id", "cluster_id"),
+        ("fits_id", "fits_id"),
+        ("fits_list", "fits_list"),
+        ("hdu_id", "hdu_id"),
+        ("bounding_box", "bounding_box"),
+        ("min_sigma_x", "sigmaX"),
+        ("min_sigma_y", "sigmaY"),
+        ("min_total_energy", "total_energy"),
+        ("min_total_pixels", "total_pixels"),
+        ("classification", "classification"),
+    ]
+
     def __post_init__(self) -> None:
         _validate_date_range(self.date_start, self.date_end)
 
     def to_eps_dict(self) -> Dict[str, Any]:
         """Builds the JSON dict expected by the EPS Cluster socket."""
         d: Dict[str, Any] = {"Action": "Retrieval"}
-        if self.cluster_id is not None:
-            d["cluster_id"] = self.cluster_id
-        if self.fits_id is not None:
-            d["fits_id"] = self.fits_id
-        if self.fits_list is not None:
-            d["fits_list"] = self.fits_list
-        if self.hdu_id is not None:
-            d["hdu_id"] = self.hdu_id
-        if self.date_start is not None and self.date_end is not None:
-            d["date"] = {
-                "start": self.date_start.strftime(_DATE_FILTER_FORMAT),
-                "end": self.date_end.strftime(_DATE_FILTER_FORMAT),
-            }
-        if self.bounding_box is not None:
-            d["bounding_box"] = self.bounding_box
-        if self.min_sigma_x is not None:
-            d["sigmaX"] = self.min_sigma_x
-        if self.min_sigma_y is not None:
-            d["sigmaY"] = self.min_sigma_y
-        if self.min_total_energy is not None:
-            d["total_energy"] = self.min_total_energy
-        if self.min_total_pixels is not None:
-            d["total_pixels"] = self.min_total_pixels
-        if self.classification is not None:
-            d["classification"] = self.classification
+        for attr, key in self._EPS_DICT_FIELDS:
+            value = getattr(self, attr)
+            if value is not None:
+                d[key] = value
+        date_range = _date_range_dict(self.date_start, self.date_end)
+        if date_range is not None:
+            d["date"] = date_range
         return d
 
     @staticmethod

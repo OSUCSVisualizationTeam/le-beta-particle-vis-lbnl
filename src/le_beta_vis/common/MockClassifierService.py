@@ -1,7 +1,6 @@
 from typing import Optional
 import time
 import random
-import threading
 from le_beta_vis.common.ClassifierDataClasses import (
     ClassificationRequestCluster,
 )
@@ -17,8 +16,10 @@ from le_beta_vis.common.ClassifierService import (
     ErrorCallback
 )
 
+
 class MockClassifierService(ClassifierService):
     """Mock ClassifierService that simulates asynchronous classification of clusters."""
+
     def classify_cluster(
         self,
         clusters: list[ClassificationRequestCluster],
@@ -41,7 +42,7 @@ class MockClassifierService(ClassifierService):
         #         if on_error:
         #             on_error(exc)
 
-        #threading.Thread(target=_run, daemon=True).start()
+        # threading.Thread(target=_run, daemon=True).start()
 
     def classify_cnn(
         self,
@@ -74,7 +75,7 @@ class MockClassifierService(ClassifierService):
         model: str,
         on_error: Optional[ErrorCallback] = None,
     ) -> None:
-        #simulated delay
+        # simulated delay
         classified_clusters = []
         failed = 0
         total = 0

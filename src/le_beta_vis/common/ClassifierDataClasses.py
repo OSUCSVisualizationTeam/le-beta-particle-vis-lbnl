@@ -8,15 +8,17 @@ sockets.  All classes are frozen dataclasses with conversion helpers
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+
 @dataclass(frozen=True)
 class ClassificationRequest:
-    """Payload for an classification request"""
+    """Payload for an classification request."""
+
     model: str
     # the clusters list should be of ClassificationRequestCluster objects with their own methods
     clusters: List["ClassificationRequestCluster"]
 
     def to_classifier_dict(self) -> Dict[str, Any]:
-        """Builds the JSON dict expected by the classifier socket"""
+        """Builds the JSON dict expected by the classifier socket."""
         clusters: List[Dict[str, Any]] = []
         for cluster in self.clusters:
             if isinstance(cluster, ClassificationRequestCluster):
@@ -44,10 +46,12 @@ class ClassificationRequest:
             model=d.get("Model", ""),
             clusters=clusters,
         )
-    
+
+
 @dataclass(frozen=True)
 class ClassificationRequestCluster:
-    """Cluster payload for classification requests"""
+    """Cluster payload for classification requests."""
+
     data: List[List[float]]
     cluster_id: int
     sigmaX: float
@@ -56,7 +60,7 @@ class ClassificationRequestCluster:
     total_pixels: int
 
     def to_cluster_dict(self) -> Dict[str, Any]:
-        """Builds the JSON dict expected of a single cluster"""
+        """Builds the JSON dict expected of a single cluster."""
         return {
             "data": self.data,
             "cluster_id": self.cluster_id,
@@ -65,10 +69,10 @@ class ClassificationRequestCluster:
             "total_energy": self.total_energy,
             "total_pixels": self.total_pixels
         }
-    
+
     @staticmethod
     def from_cluster_dict(d: Dict[str, Any]) -> "ClassificationRequestCluster":
-        """Parses on classification request cluster"""
+        """Parses on classification request cluster."""
         return ClassificationRequestCluster(
             data=d.get("data", []),
             cluster_id=d.get("cluster_id", 0),
