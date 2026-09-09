@@ -35,6 +35,8 @@ from le_beta_vis.backend.InMemoryClusterStorageBuffer import (
 from le_beta_vis.common.EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterQueryFilter,
+    ClusterStoreRequest,
+    FitsClusterQueryFilter,
     FitsQueryFilter,
 )
 from le_beta_vis.common.MockClassifierService import MockClassifierService
@@ -279,5 +281,123 @@ def test_classification_update_persists_through_repository(live_eps):  # noqa: F
         verify_conn.close()
         assert row is not None
         assert row[0] == "tritium"
+    finally:
+        _delete_fits_and_clusters(fits_ids)
+
+
+def test_cluster_store_request_numpy_derived_values_persist_correctly(live_eps):  # noqa: F811
+    """ZMQBasedEventRepository.store_cluster() -> real EPS -> real MySQL, with numpy-derived field values (issue #196).
+
+    The numpy-int ``TypeError`` in ``socket.send_json()`` that motivated issue #196 surfaced in the
+    ``feat/enable_export_for_training`` flow, which calls ``store_cluster`` directly with fields derived from
+    ``ClusteredEventInfo`` (numpy-typed) -- not through ``FileProcessing.process_file()``'s own conversions, which
+    ``test_cluster_ingest_round_trip`` above already exercises. ``TestClusterStoreRequest`` in ``test_EPSDataClasses.py`` pins
+    the dataclass -> dict conversion contract (numpy in, Python native out), and ``test_ZMQBasedEventRepository_fake_eps.py``
+    pins the wire round-trip against a fake server. Neither proves the *converted* values survive the real ``insert_cluster``
+    stored procedure and MySQL schema without precision loss or truncation -- that's what this test checks, against a real
+    database.
+    """
+    marker = unique_marker("numpy_store")
+    fits_ids = []
+    cluster_id = None
+    try:
+        conn = raw_connection()
+        cursor = conn.cursor()
+        fits_id = _insert_fits(cursor, f"{marker}.fits", datetime.now().replace(microsecond=0))
+        conn.commit()
+        fits_ids = [fits_id]
+        cursor.close()
+        conn.close()
+
+        # Values run through the same conversion the caller contract requires (see
+        # TestClusterStoreRequest.test_output_dict_field_types_are_python_natives) -- realistic
+        # post-conversion values, not raw numpy (raw numpy would just TypeError in _send, which
+        # test_ZMQBasedEventRepository_fake_eps.py::test_non_serializable_field_raises_typeerror
+        # already covers).
+        bounding_box = {
+            "top": int(np.int64(11)),
+            "left": int(np.int64(22)),
+            "bottom": int(np.int64(33)),
+            "right": int(np.int64(44)),
+        }
+        sigma_x = float(np.float64(1.23456789))
+        sigma_y = float(np.float64(9.87654321))
+        total_energy = float(np.float64(4567.891011))
+        total_pixels = int(np.int64(121))
+
+        req = ClusterStoreRequest(
+            data=None,  # BLOB column rejects a Python list; production always passes None here too
+            hdu_id=0,
+            bounding_box=bounding_box,
+            sigma_x=sigma_x,
+            sigma_y=sigma_y,
+            total_energy=total_energy,
+            total_pixels=total_pixels,
+            fits_id=fits_id,
+            classification="TRITIUM",
+        )
+
+        cluster_id = live_eps.repository.store_cluster(req)
+        assert cluster_id is not None and cluster_id > 0
+
+        verify_conn = raw_connection()
+        verify_cursor = verify_conn.cursor()
+        verify_cursor.execute(
+            "SELECT box_top, box_left, box_bottom, box_right, sigmaX, sigmaY, totalEnergy, pixelCount "
+            "FROM clusters WHERE clusterID = %s",
+            (cluster_id,),
+        )
+        row = verify_cursor.fetchone()
+        verify_cursor.close()
+        verify_conn.close()
+
+        assert row is not None
+        box_top, box_left, box_bottom, box_right, db_sigma_x, db_sigma_y, db_total_energy, db_total_pixels = row
+        assert (box_top, box_left, box_bottom, box_right) == (
+            bounding_box["top"], bounding_box["left"], bounding_box["bottom"], bounding_box["right"],
+        )
+        # sigmaX/sigmaY/totalEnergy are MySQL FLOAT (single precision, ~7 significant digits) --
+        # see eventPersistence.sql -- so a wider (but still corruption-sensitive) tolerance than
+        # exact equality is correct here, not a workaround. Confirmed against a real local
+        # database: python float 1.23456789 round-trips as 1.23457.
+        assert db_sigma_x == pytest.approx(sigma_x, rel=1e-5)
+        assert db_sigma_y == pytest.approx(sigma_y, rel=1e-5)
+        assert db_total_energy == pytest.approx(total_energy, rel=1e-5)
+        assert db_total_pixels == total_pixels
+    finally:
+        _delete_fits_and_clusters(fits_ids)
+
+
+def test_fits_clusters_query_joins_through_real_eps_and_mysql(live_eps):  # noqa: F811
+    """ZMQBasedEventRepository.query_fits_clusters_sync() -> real EPS "Clusters" action -> real MySQL.
+
+    EventPersistenceService.fits_event's "Clusters" branch does a server-side two-stage query -- retrieve_fits() to resolve
+    matching fits_ids from the filter, then retrieve_clusters() filtered by that fits_list -- entirely different code from the
+    plain "Retrieval" action every other test in this file exercises. Unit tests mock this away entirely; this proves the join
+    itself is correct against a real database, not just that each half works independently.
+    """
+    marker = unique_marker("fits_clusters")
+    fits_ids = []
+    try:
+        conn = raw_connection()
+        cursor = conn.cursor()
+        fits_a = _insert_fits(cursor, f"{marker}_a.fits", datetime.now().replace(microsecond=0))
+        fits_b = _insert_fits(cursor, f"{marker}_b.fits", datetime.now().replace(microsecond=0))
+        conn.commit()
+        fits_ids = [fits_a, fits_b]
+
+        match_id = _insert_cluster(cursor, fits_a, "TRITIUM")
+        _insert_cluster(cursor, fits_b, "MUON")  # attached to the non-matching fits row
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        clusters = live_eps.repository.query_fits_clusters_sync(
+            FitsClusterQueryFilter(filename=f"{marker}_a.fits")
+        )
+
+        assert len(clusters) == 1
+        assert clusters[0].clusterId == match_id
+        assert clusters[0].fitsId == fits_a
     finally:
         _delete_fits_and_clusters(fits_ids)
