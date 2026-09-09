@@ -21,8 +21,7 @@ logger = logging.getLogger(__name__)
 class NoOpEventRepository(EventRepository):
     """Fallback EventRepository that returns empty results.
 
-    All methods log a warning indicating the EPS is unavailable
-    and return safe defaults.
+    All methods log a warning indicating the EPS is unavailable and return safe defaults.
     """
 
     def fetch_events(
@@ -48,9 +47,9 @@ class NoOpEventRepository(EventRepository):
 
     def fetch_clusters_sync(
         self,
+        limit: Optional[int],
+        offset: int,
         query_filter: Optional[ClusterQueryFilter] = None,
-        limit: Optional[int] = None,
-        offset: int = 0,
     ) -> List[Cluster]:
         """Returns an empty list — EPS is unavailable."""
         logger.warning(

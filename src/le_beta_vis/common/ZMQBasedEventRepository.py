@@ -1,25 +1,20 @@
 """ZMQ-backed EventRepository that talks to Troy's EPS over IPC sockets.
 
-Uses a fresh ``zmq.REQ`` socket per request to avoid REQ/REP state
-machine issues on timeout.  All methods are safe to call when the EPS
-is down — they return empty/default values and log warnings.
+Uses a fresh ``zmq.REQ`` socket per request to avoid REQ/REP state machine issues on timeout.  All methods are safe to call
+when the EPS is down — they return empty/default values and log warnings.
 """
 
 import json
 import logging
-import math
 import warnings
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 import threading
 
-import numpy as np
 import zmq
 
 from .BoundingBox import BoundingBox
 from .Cluster import Cluster
 from .ConfigurationService import ConfigurationService
-from .CCDCaptureModel import CCDCaptureModel
 from .EPSDataClasses import (
     ClassificationUpdateRequest,
     ClusterPagedQueryFilter,
@@ -52,8 +47,7 @@ _DEFAULT_TIMEOUT_MS = 5000
 class ZMQBasedEventRepository(EventRepository):
     """Concrete ``EventRepository`` backed by the EPS ZMQ protocol.
 
-    Constructor accepts an optional ``zmq.Context`` for testability
-    (inject a mock context in unit tests).
+    Constructor accepts an optional ``zmq.Context`` for testability (inject a mock context in unit tests).
     """
 
     def __init__(
@@ -72,6 +66,7 @@ class ZMQBasedEventRepository(EventRepository):
                    on_error: Callable
                    ) -> None:
         """Helper method to run Event Repository retrieval functions asynchronously."""
+
         def async_wrapper():
             try:
                 result = function()
@@ -121,22 +116,21 @@ class ZMQBasedEventRepository(EventRepository):
     ) -> None:
         """Initiates a bounded PagedRetrieval request asynchronously."""
         self._run_async(
-            function=lambda: self.fetch_clusters_sync(query_filter, limit, offset),
+            function=lambda: self.fetch_clusters_sync(limit, offset, query_filter),
             callback=callback,
             on_error=on_error,
         )
 
     def fetch_clusters_sync(
         self,
+        limit: Optional[int],
+        offset: int,
         query_filter: Optional[ClusterQueryFilter] = None,
-        limit: Optional[int] = None,
-        offset: int = 0,
     ) -> List[Cluster]:
         """Sends a bounded PagedRetrieval request to the EPS Cluster socket.
 
-        ``limit`` defaults to ``eps:retrieval_limit_default`` when not
-        supplied. Callers may override it (e.g. for a smaller page size),
-        but the EPS enforces ``eps:retrieval_limit_max`` regardless.
+        ``limit``/``offset`` are required — pass ``limit=None`` explicitly to opt into ``eps:retrieval_limit_default``. Callers
+        may override it (e.g. for a smaller page size), but the EPS enforces ``eps:retrieval_limit_max`` regardless.
         """
         if limit is None:
             limit = int(self._config.get("eps:retrieval_limit_default", 500))

@@ -1,17 +1,20 @@
 """Tests for RawDataAnnotationsViewModel.
 
-Verifies handler injection, async refresh/apply, visibility filtering,
-hit-testing, and observer callback firing.
+Verifies handler injection, async refresh/apply, visibility filtering, hit-testing, and observer callback firing.
 
 Pure Python tests — no QApplication instantiation.
 """
+
 import threading
 import time
+from typing import List, Optional
 
 import pytest
 
 from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
+from le_beta_vis.common.EPSDataClasses import ClusterQueryFilter
+from le_beta_vis.common.EventRepository import fetch_all_hdu_clusters_sync
 from le_beta_vis.frontend.viewmodels.RawDataAnnotationsViewModel import (
     RawDataAnnotationsViewModel,
 )
@@ -206,9 +209,10 @@ class TestHitTest:
         assert vm.hitTest(14, 14) is c
 
     def test_hit_with_inverted_top_bottom(self, vm):
-        """EPS-sourced clusters store top/bottom with the row axis
-        flipped relative to locally-extracted ones (top > bottom).
-        hitTest must normalize the span rather than assume ordering."""
+        """EPS-sourced clusters store top/bottom with the row axis flipped relative to locally-extracted ones (top > bottom).
+
+        hitTest must normalize the span rather than assume ordering.
+        """
         c = _cluster(top=15, left=5, bottom=5, right=15)
         vm.setFitsLookupHandler(lambda path: 1)
         vm.setClusterFetchHandler(lambda fits_id, hdu: [c])
@@ -228,6 +232,43 @@ class TestHitTest:
         vm.refresh("/tmp/some.fits", 0)
         assert _wait_until(lambda: len(vm.annotations) == 1)
         assert vm.hitTest(5, 5) is None
+
+
+class _FakePagedEventRepository:
+    """Duck-typed fake ``EventRepository`` backed by a fixed cluster list, used to prove the annotation fetch path
+    (fetch_all_hdu_clusters_sync wired into a RawDataAnnotationsViewModel handler, mirroring
+    RawDataView._onAnnotationClusterFetch) doesn't silently truncate to a single page (issue #241)."""
+
+    def __init__(self, clusters: List[Cluster]):
+        self._clusters = clusters
+
+    def fetch_clusters_sync(
+        self,
+        limit: Optional[int],
+        offset: int,
+        query_filter: Optional[ClusterQueryFilter] = None,
+    ) -> List[Cluster]:
+        return self._clusters[offset:offset + limit]
+
+
+class TestPagedAnnotationFetch:
+    def test_hdu_with_more_clusters_than_a_single_page_is_not_truncated(self, vm):
+        """Regression test for issue #241: a HDU holding more clusters than eps:retrieval_limit_default must still show up in
+        full, not just its first page."""
+        page_limit = 500
+        total_clusters = 1200
+        clusters = [_cluster(top=i, bottom=i + 10) for i in range(total_clusters)]
+        repo = _FakePagedEventRepository(clusters)
+
+        vm.setFitsLookupHandler(lambda path: 1)
+        vm.setClusterFetchHandler(
+            lambda fits_id, hdu: fetch_all_hdu_clusters_sync(
+                repo, fits_id=fits_id, hdu_id=hdu, page_limit=page_limit
+            )
+        )
+        vm.refresh("/tmp/some.fits", 0)
+
+        assert _wait_until(lambda: len(vm.annotations) == total_clusters)
 
 
 class TestObserverCallback:

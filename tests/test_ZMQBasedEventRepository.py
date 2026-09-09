@@ -6,6 +6,7 @@
 
 Uses mock ZMQ context/sockets — no real IPC connections.
 """
+
 import threading
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +15,6 @@ import pytest
 import zmq
 from datetime import datetime
 
-from le_beta_vis.common.BoundingBox import BoundingBox
 from le_beta_vis.common.Cluster import Cluster
 from mock_configuration_service import MockConfigurationService
 from le_beta_vis.common.EPSDataClasses import (
@@ -23,7 +23,6 @@ from le_beta_vis.common.EPSDataClasses import (
     ClusterRecentQueryFilter,
     ClusterStoreRequest,
     EPSClusterRecord,
-    FitsClusterQueryFilter,
     FitsQueryFilter,
 )
 from le_beta_vis.common.ZMQBasedEventRepository import (
@@ -39,9 +38,8 @@ from le_beta_vis.common.ZMQBasedEventRepository import (
 def _mock_context(recv_json_return=None):
     """Creates a mock zmq.Context whose socket returns *recv_json_return*.
 
-    If *recv_json_return* is a list, the socket will cycle through the
-    values on successive ``recv_json`` calls.  This is convenient when a
-    single context is used for both cluster and fits requests in tests.
+    If *recv_json_return* is a list, the socket will cycle through the values on successive ``recv_json`` calls.  This is
+    convenient when a single context is used for both cluster and fits requests in tests.
     """
     ctx = MagicMock(spec=zmq.Context)
     sock = MagicMock(spec=zmq.Socket)
@@ -262,7 +260,7 @@ class TestFetchClusters:
         config._store["eps:retrieval_limit_default"] = 250
         repo = _make_repo(ctx, config=config)
 
-        repo.fetch_clusters_sync()
+        repo.fetch_clusters_sync(limit=None, offset=0)
 
         sent = sock.send_json.call_args[0][0]
         assert sent["Action"] == "PagedRetrieval"
@@ -387,9 +385,8 @@ class TestQueryRecentClusters:
 
 
 class TestDateFilterWiring:
-    """End-to-end check that datetime objects survive ClusterQueryFilter
-    construction, get serialized to MySQL DATETIME literal format, and
-    arrive at the ZMQ socket as plain strings inside the JSON payload."""
+    """End-to-end check that datetime objects survive ClusterQueryFilter construction, get serialized to MySQL DATETIME literal
+    format, and arrive at the ZMQ socket as plain strings inside the JSON payload."""
 
     def test_date_filter_sent_as_strftime_strings(self):
         ctx, sock = _mock_context({"result": "success", "clusters": []})
@@ -643,8 +640,8 @@ class TestMapToCluster:
         assert bb.right == 4
 
     def test_classification_scores_pass_through(self):
-        """Regression test: real per-model scores stored in EPS must reach the domain
-        Cluster, not be silently zeroed on retrieval."""
+        """Regression test: real per-model scores stored in EPS must reach the domain Cluster, not be silently zeroed on
+        retrieval."""
         record = EPSClusterRecord(
             fits_id=1,
             fits_list=None,
@@ -670,8 +667,8 @@ class TestMapToCluster:
         assert cluster.bdtClassification == 0.91
 
     def test_classification_scores_none_coerced_to_zero(self):
-        """Belt-and-suspenders: a record built with None scores (nullable DB columns)
-        must still map to 0.0, never None, on the domain Cluster."""
+        """Belt-and-suspenders: a record built with None scores (nullable DB columns) must still map to 0.0, never None, on the
+        domain Cluster."""
         record = EPSClusterRecord(
             fits_id=1,
             fits_list=None,
@@ -783,9 +780,8 @@ class TestSocketLifecycle:
 
 
 class TestDispatcher:
-    """Verifies callback/on_error invocations route through an injected
-    Dispatcher, and that omitting one preserves the historical inline
-    (direct-call) behavior other tests in this file rely on."""
+    """Verifies callback/on_error invocations route through an injected Dispatcher, and that omitting one preserves the
+    historical inline (direct-call) behavior other tests in this file rely on."""
 
     def test_injected_dispatcher_receives_callback(self):
         ctx, sock = _mock_context({"result": "success", "clusters": []})
@@ -823,9 +819,8 @@ class TestDispatcher:
         assert len(dispatched) == 1
 
     def test_dispatcher_not_invoked_when_undelivered(self):
-        """A dispatcher that never runs its argument leaves the caller's
-        callback un-invoked — proves the callback is genuinely routed
-        through the dispatcher rather than called directly beforehand."""
+        """A dispatcher that never runs its argument leaves the caller's callback un-invoked — proves the callback is genuinely
+        routed through the dispatcher rather than called directly beforehand."""
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         config = MockConfigurationService()
         received = []
@@ -845,8 +840,8 @@ class TestDispatcher:
         assert callback_called.is_set()
 
     def test_omitted_dispatcher_preserves_inline_behavior(self):
-        """Default construction (no dispatcher arg) still calls back
-        synchronously from the worker thread, matching pre-#181 behavior."""
+        """Default construction (no dispatcher arg) still calls back synchronously from the worker thread, matching pre-#181
+        behavior."""
         ctx, sock = _mock_context({"result": "success", "clusters": []})
         repo = _make_repo(ctx)
         done = threading.Event()

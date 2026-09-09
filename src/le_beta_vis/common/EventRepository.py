@@ -22,9 +22,8 @@ Dispatcher = Callable[[Callable[[], None]], None]
 class EventRepository(ABC):
     """Abstract interface for fetching persisted cluster events.
 
-    Concrete implementations may use ZMQ, direct SQL, or
-    hardcoded data (mock).  The frontend depends only on this
-    interface, allowing the backend to evolve independently.
+    Concrete implementations may use ZMQ, direct SQL, or hardcoded data (mock).  The frontend depends only on this interface,
+    allowing the backend to evolve independently.
     """
 
     @abstractmethod
@@ -69,14 +68,17 @@ class EventRepository(ABC):
 
     def fetch_clusters_sync(
         self,
+        limit: Optional[int],
+        offset: int,
         query_filter: Optional[ClusterQueryFilter] = None,
-        limit: Optional[int] = None,
-        offset: int = 0,
     ) -> List[Cluster]:
         """Synchronous counterpart to :meth:`fetch_clusters`.
 
-        Callers already running on a background thread may call this
-        directly to avoid an async callback round-trip.
+        ``limit`` and ``offset`` are required (no default) so every caller states its paging intent explicitly rather than
+        silently inheriting a page size — an omitted ``limit`` previously masked a truncated result set at one call site. Pass
+        ``limit=None`` explicitly to opt into the implementation's configured default.
+
+        Callers already running on a background thread may call this directly to avoid an async callback round-trip.
         """
         raise NotImplementedError
 
@@ -122,9 +124,8 @@ class EventRepository(ABC):
     ) -> List[Cluster]:
         """Synchronous newest-first retrieval for worker-thread callers.
 
-        Callers already running on a background thread (e.g. the Live
-        Mode ``FallbackClusterProvider``) may call this directly to
-        avoid bouncing through an async callback.
+        Callers already running on a background thread (e.g. the Live Mode ``FallbackClusterProvider``) may call this directly
+        to avoid bouncing through an async callback.
         """
         raise NotImplementedError
 
@@ -192,11 +193,34 @@ class EventRepository(ABC):
     ) -> List[EPSFitsRecord]:
         """Returns FITS records matching *query_filter*, or all records if None.
 
-        Callers already on a background thread may call this directly to
-        avoid an async callback round-trip.
+        Callers already on a background thread may call this directly to avoid an async callback round-trip.
         """
         raise NotImplementedError
 
     def store_fits_sync(self, request: FitsStoreRequest) -> Optional[int]:
         """Registers a FITS file in EPS; returns its database ID or None on failure."""
         raise NotImplementedError
+
+
+def fetch_all_hdu_clusters_sync(
+    repository: EventRepository,
+    fits_id: int,
+    hdu_id: int,
+    page_limit: int,
+) -> List[Cluster]:
+    """Fetches every cluster stored for one FITS file's HDU, looping paged requests.
+
+    Scoped to a single ``(fits_id, hdu_id)`` pair so it cannot be used to pull an unbounded, unfiltered slice of the
+    ``clusters`` table — callers needing a broader or custom query should page :meth:`EventRepository.fetch_clusters_sync`
+    themselves. A page shorter than ``page_limit`` signals the result set is exhausted.
+    """
+    query_filter = ClusterQueryFilter(fits_id=fits_id, hdu_id=hdu_id)
+    result: List[Cluster] = []
+    offset = 0
+    while True:
+        page = repository.fetch_clusters_sync(page_limit, offset, query_filter)
+        result.extend(page)
+        if len(page) < page_limit:
+            break
+        offset += len(page)
+    return result
