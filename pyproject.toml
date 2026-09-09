@@ -107,6 +107,6 @@ aggressive = 1
 
 [tool.docformatter]
 syntax = "google"
-wrap-summaries = 127
-wrap-descriptions = 127
+wrap-summaries = 0
+wrap-descriptions = 0
 in-place = true
