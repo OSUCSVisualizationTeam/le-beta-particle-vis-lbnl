@@ -200,14 +200,15 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
             if self._cancelled:
                 return []
 
-            event = self._extract_one(
+            event, has_more_signal = self._extract_one(
                 working_data, threshold, bounding_box,
                 cluster_sigma,
             )
-            if event is None:
+            if event is not None:
+                results.append(event)
+            if not has_more_signal:
                 break
 
-            results.append(event)
             if progress_callback is not None:
                 progress_callback(
                     (iteration + 1) / max_clusters
@@ -224,14 +225,26 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
         threshold: float,
         bounding_box: BoundingBox,
         cluster_sigma: Callable,
-    ) -> Optional[ClusteredEventInfo]:
+    ) -> tuple[Optional[ClusteredEventInfo], bool]:
         """Extract the brightest remaining cluster, zeroing it.
 
         Calls ``cluster_sigma`` on the current working data, finds
-        the brightest label, builds the event info, and zeros the
-        label mask in ``working_data`` so the next iteration skips it.
+        the brightest label, and zeros the label mask in
+        ``working_data`` so the next iteration moves on to the next
+        brightest cluster.
 
-        Returns None when no above-threshold signal remains.
+        ``cluster_sigma`` returns ``energy=0`` when the brightest
+        remaining cluster has fewer than ``_MIN_PIXELS_IN_CLUSTER``
+        pixels (e.g. a hot pixel).  That only means *this* cluster
+        doesn't qualify — it does not mean no signal remains
+        elsewhere in the frame, so such a cluster is discarded (not
+        returned) but still zeroed out, and the caller is told to
+        keep scanning.
+
+        Returns ``(event, has_more_signal)``. ``event`` is ``None``
+        when the brightest remaining cluster didn't meet the
+        pixel-count threshold. ``has_more_signal`` is ``False`` only
+        when no above-threshold pixels remain at all.
         """
         padded = _pad_to_square(working_data)
         sigma_x, sigma_y, energy = cluster_sigma(
@@ -240,9 +253,6 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
             min_pixels_in_cluster=_MIN_PIXELS_IN_CLUSTER,
         )
 
-        if energy == 0:
-            return None
-
         labeled_array, num_features = label(
             working_data > threshold
         )
@@ -250,16 +260,19 @@ class LBNLClassicalClusterExtractor(ClusterExtractor):
             working_data, labeled_array, num_features,
         )
         if best_label is None:
-            return None
+            return None, False
 
-        event = _build_event_info(
-            working_data, labeled_array, best_label,
-            bounding_box, sigma_x, sigma_y, energy,
-        )
+        event = None
+        if energy != 0:
+            event = _build_event_info(
+                working_data, labeled_array, best_label,
+                bounding_box, sigma_x, sigma_y, energy,
+            )
 
         # Zero all pixels of this cluster so the next iteration
-        # skips it.  Uses the label mask (not the display bounding
+        # moves on to the next one, regardless of whether it
+        # qualified.  Uses the label mask (not the display bounding
         # box) to guarantee complete removal.
         working_data[labeled_array == best_label] = 0
 
-        return event
+        return event, True

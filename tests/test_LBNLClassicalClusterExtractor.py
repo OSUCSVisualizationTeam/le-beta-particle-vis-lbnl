@@ -262,6 +262,60 @@ class TestLBNLClassicalClusterExtractor:
         # _extract_one returns None.
         assert len(results) == 1
 
+    # --- Regression: small cluster no longer halts the whole scan (#247) ---
+
+    @patch("mlccd_diffusion.help_functions.cluster_sigma")
+    def test_small_cluster_does_not_halt_remaining_scan(self, mock_cs):
+        """A sub-min-pixel speck (energy=0) is discarded, not fatal.
+
+        Regression test for issue #247: previously an ``energy == 0``
+        result from ``cluster_sigma`` was treated as "no signal left
+        in the frame" and aborted extraction entirely, even though a
+        real, larger, dimmer cluster remained unexamined.
+        """
+        mock_cs.side_effect = [
+            (0.0, 0.0, 0.0),  # brightest cluster: a speck, too small
+            (1.0, 1.0, 500.0),  # next brightest: a real cluster
+            (0.0, 0.0, 0.0),  # done
+        ]
+        data = np.zeros((30, 30), dtype=np.float64)
+        data[5, 5] = 1000  # brightest pixel, but an isolated speck
+        data[20, 20] = 500  # real, well-separated cluster
+        data[20, 21] = 480
+        bbox = BoundingBox(0, 0, 30, 30)
+        results = _run_extract(_make_extractor(), data, bbox)
+
+        assert len(results) == 1
+        assert results[0].energy == pytest.approx(500.0)
+
+    @patch("mlccd_diffusion.help_functions.cluster_sigma")
+    def test_discarded_small_cluster_is_zeroed_not_reselected(self, mock_cs):
+        """A discarded speck is removed from working data.
+
+        Without zeroing, the speck would be re-selected as brightest
+        on every subsequent iteration, so ``cluster_sigma`` would
+        always be called with the same speck as the peak pixel.
+        """
+        mock_cs.side_effect = [
+            (0.0, 0.0, 0.0),  # speck, discarded
+            (1.0, 1.0, 500.0),  # real cluster found next
+        ]
+        data = np.zeros((30, 30), dtype=np.float64)
+        data[5, 5] = 1000
+        data[20, 20] = 500
+        data[20, 21] = 480
+        bbox = BoundingBox(0, 0, 30, 30)
+        # Only 2 labels exist in the initial frame (the speck and the
+        # real cluster), so the iteration cap stops the loop after 2
+        # calls — cluster_sigma is never asked about the speck again.
+        results = _run_extract(_make_extractor(), data, bbox)
+
+        assert mock_cs.call_count == 2
+        second_call_data = mock_cs.call_args_list[1][0][0]
+        # The speck at (5, 5) must already be zeroed on the second call.
+        assert second_call_data[5, 5] == 0
+        assert len(results) == 1
+
     # --- Progress ---
 
     @patch("mlccd_diffusion.help_functions.cluster_sigma")
