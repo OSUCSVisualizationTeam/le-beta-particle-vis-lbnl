@@ -96,7 +96,7 @@ gui:raw_analysis:clustering_threshold:
 gui:raw_analysis:cluster_extractor_method:
   type: enum
   choices: ["mock", "lbnl_classical", "lbnl_optimized", "general"]
-  default: "lbnl_classical"
+  default: "lbnl_optimized"
   description: >-
     Backend algorithm for cluster extraction.
     Values: mock, lbnl_classical, lbnl_optimized, general.

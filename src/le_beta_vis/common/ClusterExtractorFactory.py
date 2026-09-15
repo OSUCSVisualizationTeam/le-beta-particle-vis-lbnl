@@ -41,7 +41,7 @@ def create_cluster_extractor(
     """
     method_str: str = config.get(
         "gui:raw_analysis:cluster_extractor_method",
-        "lbnl_classical",
+        "lbnl_optimized",
     )
     sigma: float = config.get("gui:raw_analysis:clustering_threshold", 4.0)
 
@@ -49,10 +49,10 @@ def create_cluster_extractor(
         method = ClusterExtractorMethod(method_str)
     except ValueError:
         logger.warning(
-            "Unknown cluster extractor method '%s', " "falling back to lbnl_classical",
+            "Unknown cluster extractor method '%s', " "falling back to lbnl_optimized",
             method_str,
         )
-        method = ClusterExtractorMethod.LBNL_CLASSICAL
+        method = ClusterExtractorMethod.LBNL_OPTIMIZED
 
     if method == ClusterExtractorMethod.MOCK:
         return MockClusterExtractor()
@@ -69,7 +69,7 @@ def create_cluster_extractor(
             sigma_multiplier=sigma,
         )
 
-    # Default: LBNL_CLASSICAL
+    # Remaining case: LBNL_CLASSICAL, explicitly selected
     return LBNLClassicalClusterExtractor(
         physics_manager=physics_manager,
         sigma_multiplier=sigma,

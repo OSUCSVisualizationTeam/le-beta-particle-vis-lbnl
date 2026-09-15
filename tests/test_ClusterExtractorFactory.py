@@ -36,12 +36,12 @@ def _create(config):
 
 
 class TestClusterExtractorFactory:
-    def test_default_returns_lbnl_classical(self):
+    def test_default_returns_lbnl_optimized(self):
         config = MockConfigurationService()
         # Default in MockConfigurationService doesn't have this key,
-        # so factory uses its own default "lbnl_classical"
+        # so factory uses its own default "lbnl_optimized"
         extractor = _create(config)
-        assert isinstance(extractor, LBNLClassicalClusterExtractor)
+        assert isinstance(extractor, LBNLOptimizedClusterExtractor)
 
     def test_mock_method_returns_mock(self):
         config = _config_with_method("mock")
@@ -58,7 +58,12 @@ class TestClusterExtractorFactory:
         extractor = _create(config)
         assert isinstance(extractor, LBNLOptimizedClusterExtractor)
 
-    def test_unknown_method_falls_back_to_lbnl(self):
+    def test_unknown_method_falls_back_to_lbnl_optimized(self):
         config = _config_with_method("nonexistent_algorithm")
+        extractor = _create(config)
+        assert isinstance(extractor, LBNLOptimizedClusterExtractor)
+
+    def test_explicit_classical_method_returns_classical(self):
+        config = _config_with_method("lbnl_classical")
         extractor = _create(config)
         assert isinstance(extractor, LBNLClassicalClusterExtractor)
